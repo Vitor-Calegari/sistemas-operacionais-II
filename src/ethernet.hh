@@ -1,9 +1,8 @@
-// Ethernet.h
 #ifndef ETHERNET_HH
 #define ETHERNET_HH
 
-#include <cstring>    // Necessário para memcpy, memset e memcmp
-#include <cstddef>    // Para definição de size_t
+#include <cstring>
+#include <cstddef>
 
 // A classe Ethernet define os elementos básicos da camada de enlace
 class Ethernet {
@@ -63,4 +62,4 @@ public:
     };
 };
 
-#endif // ETHERNET_H
+#endif
