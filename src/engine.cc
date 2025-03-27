@@ -8,7 +8,6 @@ Engine::Engine() {
     if (socket_raw == -1)
         perror("socket creation");
 
-
     int broadcastEnable = 1;
     if (setsockopt(socket_raw, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0) {
         perror("setsockopt (SO_BROADCAST)");
@@ -20,26 +19,6 @@ Engine::Engine() {
 Engine::~Engine()
 {
     close(socket_raw);
-}
-
-int Engine::send(Buffer *buf, const sockaddr *sadr_ll) {
-    int send_len = sendto(socket_raw, buf->data, buf->length, 0, sadr_ll, sizeof(struct sockaddr_ll));
-    if (send_len < 0) {
-        printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
-        return -1;
-    }
-    return send_len;
-}
-
-int Engine::receive(Buffer *buf, sockaddr saddr) {
-    int saddr_len = sizeof(saddr);
-    int buflen = recvfrom(socket_raw, buf->data, buf->length, 0, &saddr, (socklen_t *)&saddr_len);
-
-    if (buflen < 0) {
-        printf("error in reading recvfrom function\n");
-        return -1;
-    }
-    return buflen;
 }
 
 void Engine::setupSignalHandler(void (*function)(int)) {

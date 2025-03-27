@@ -2,11 +2,15 @@
 
 #include "utils.cc"
 #include "buffer.hh"
+#include "ethernet.hh"
 
 
 // Arquivo de testes temporario para testar funcionamento da engine
 
 Engine engine = Engine();
+
+
+typedef Buffer<Ethernet::Frame> EthFrame;
 
 void handleSignal(int signal) {
     if (signal == SIGIO) {
@@ -14,14 +18,13 @@ void handleSignal(int signal) {
     }
     std::cout << "Dados recebidos:\n";
 
-    Buffer * buf = new Buffer();
-    buf->length = 1522;
+    EthFrame * buf = new EthFrame(1522);
 
     struct sockaddr saddr;
 
-    buf->length = engine.receive(buf, saddr);
+    buf->setSize(engine.receive(buf, saddr));
 
-    printEth(buf->data, buf->length);
+    printEth(buf);
     fflush(stdout);
 
     delete buf;
@@ -29,7 +32,7 @@ void handleSignal(int signal) {
 
 // Funcões para montar o quadro ethernet --------------------------------------
 
-void get_mac(Buffer * buf, ifreq ifreq_c, int sock_raw)
+void get_mac(EthFrame * buf, ifreq ifreq_c, int sock_raw)
 {
 	memset(&ifreq_c,0,sizeof(ifreq_c));
 	strncpy(ifreq_c.ifr_name,"lo",IFNAMSIZ-1);
@@ -37,25 +40,25 @@ void get_mac(Buffer * buf, ifreq ifreq_c, int sock_raw)
 	if((ioctl(sock_raw,SIOCGIFHWADDR,&ifreq_c))<0)
 		printf("error in SIOCGIFHWADDR ioctl reading");
 	
-	struct ethhdr *eth = (struct ethhdr *)(buf->data);
-	memcpy(eth->h_source, ifreq_c.ifr_hwaddr.sa_data, ETH_ALEN);
-	memset(eth->h_dest, 0xFF, ETH_ALEN);
+	memcpy(buf->data()->src.mac, ifreq_c.ifr_hwaddr.sa_data, ETH_ALEN);
+	memset(buf->data()->dst.mac, 0xFF, ETH_ALEN);
 
-	printf("Source mac= %.2X-%.2X-%.2X-%.2X-%.2X-%.2X\n",(unsigned char)(eth->h_source[0]),(unsigned char)(eth->h_source[1]),(unsigned char)(eth->h_source[2]),(unsigned char)(eth->h_source[3]),(unsigned char)(eth->h_source[4]),(unsigned char)(eth->h_source[5]));
-	printf("Dest mac= %.2X-%.2X-%.2X-%.2X-%.2X-%.2X\n",(unsigned char)(eth->h_dest[0]),(unsigned char)(eth->h_dest[1]),(unsigned char)(eth->h_dest[2]),(unsigned char)(eth->h_dest[3]),(unsigned char)(eth->h_dest[4]),(unsigned char)(eth->h_dest[5]));
+	printf("Source mac= %.2X-%.2X-%.2X-%.2X-%.2X-%.2X\n",(unsigned char)(buf->data()->src.mac[0]),(unsigned char)(buf->data()->src.mac[1]),(unsigned char)(buf->data()->src.mac[2]),(unsigned char)(buf->data()->src.mac[3]),(unsigned char)(buf->data()->src.mac[4]),(unsigned char)(buf->data()->src.mac[5]));
+	printf("Dest mac= %.2X-%.2X-%.2X-%.2X-%.2X-%.2X\n",(unsigned char)(buf->data()->dst.mac[0]),(unsigned char)(buf->data()->dst.mac[1]),(unsigned char)(buf->data()->dst.mac[2]),(unsigned char)(buf->data()->dst.mac[3]),(unsigned char)(buf->data()->dst.mac[4]),(unsigned char)(buf->data()->dst.mac[5]));
 
-   	eth->h_proto = htons(ETH_P_802_EX1);   //0x88B5
+   	buf->data()->prot = htons(ETH_P_802_EX1);   //0x88B5
 
-	buf->length+=sizeof(struct ethhdr);
+    buf->setSize(buf->size() + 14);
 }
 
-void get_data(Buffer * buf)
+void get_data(EthFrame * buf)
 {
-	buf->data[buf->length++]	=	0xAA;
-	buf->data[buf->length++]	=	0xBB;
-	buf->data[buf->length++]	=	0xCC;
-	buf->data[buf->length++]	=	0xDD;
-	buf->data[buf->length++]	=	0xEE;
+    buf->data()->data[0] = 0xAA;
+    buf->data()->data[0 + 1] = 0xBB;
+    buf->data()->data[0 + 2] = 0xCC;
+    buf->data()->data[0 + 3] = 0xDD;
+    buf->data()->data[0 + 4] = 0xEE;
+    buf->setSize(buf->size() + 5);
 }
 
 void get_eth_index(ifreq & ifreq_i, int sock_raw)
@@ -86,7 +89,7 @@ int main (int argc, char *argv[]) {
         // Setta interface
         struct ifreq ifreq_c, ifreq_i;
 
-        Buffer * buf = new Buffer();
+        EthFrame * buf = new EthFrame();
 	    get_eth_index(ifreq_i, engine.socket_raw);  // interface number
         get_mac(buf, ifreq_c, engine.socket_raw);   // Setta macs do quadro de ethernet
         get_data(buf);                              // Setta dados do quadro

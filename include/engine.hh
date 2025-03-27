@@ -19,12 +19,21 @@
 class Engine {
 
 public:
+
     Engine();
 
     ~Engine();
 
-    int send(Buffer * buf, const sockaddr *sadr_ll);
-
+    template<typename Data>
+    int send(Buffer<Data> * buf, const sockaddr *sadr_ll) {
+        int send_len = sendto(socket_raw, buf->data(), buf->size(), 0, sadr_ll, sizeof(struct sockaddr_ll));
+        if (send_len < 0) {
+            printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
+            return -1;
+        }
+        return send_len;
+    }
+    
     // *************TODO**************
     // Ainda está errado os parâmetros
     // A NIC tem 2 receive e 2 send, qual deles é da engine?
@@ -32,7 +41,17 @@ public:
     // Será que sempre vai ser na mesma interface de rede?
     // Mensagens transferidas em broadcast são recebidas pela mesma engine que as enviou, como lidar?
     // *******************************
-    int receive(Buffer * buf, sockaddr saddr);
+    template<typename Data>
+    int receive(Buffer<Data> * buf, sockaddr saddr) {
+        int saddr_len = sizeof(saddr);
+        int buflen = recvfrom(socket_raw, buf->data(), buf->size(), 0, &saddr, (socklen_t *)&saddr_len);
+
+        if (buflen < 0) {
+            printf("error in reading recvfrom function\n");
+            return -1;
+        }
+        return buflen;
+    }
 
     void setupSignalHandler(void (*function)(int));
 

@@ -7,16 +7,15 @@
 #include <cstdio>
 #include <cstring>
 #include <linux/if_ether.h>
+#include "ethernet.hh"
 
-std::string ethernet_header(const unsigned char* buffer, int buflen) {
-    const struct ethhdr *eth = reinterpret_cast<const struct ethhdr*>(buffer);
-
+std::string ethernet_header(struct Ethernet::Frame * buffer) {
     // Construir a string diretamente
     std::string header = "\nEthernet Header\n";
     header += "\t|-Source Address      : ";
     for (int i = 0; i < 6; i++) {
         char temp[4];
-        snprintf(temp, sizeof(temp), "%.2X", eth->h_source[i]);
+        snprintf(temp, sizeof(temp), "%.2X", buffer->src.mac[i]);
         header += temp;
         if (i < 5) header += "-";
     }
@@ -25,20 +24,19 @@ std::string ethernet_header(const unsigned char* buffer, int buflen) {
     header += "\t|-Destination Address : ";
     for (int i = 0; i < 6; i++) {
         char temp[4];
-        snprintf(temp, sizeof(temp), "%.2X", eth->h_dest[i]);
+        snprintf(temp, sizeof(temp), "%.2X", buffer->dst.mac[i]);
         header += temp;
         if (i < 5) header += "-";
     }
     header += "\n";
 
-    header += "\t|-Protocol            : " + std::to_string(eth->h_proto) + "\n";
+    header += "\t|-Protocol            : " + std::to_string(buffer->prot) + "\n";
 
     return header;
 }
 
-std::string payload(const unsigned char* buffer, int buflen) {
-    const unsigned char *data = buffer + sizeof(struct ethhdr);
-    int remaining_data = buflen - sizeof(struct ethhdr);
+std::string payload(struct Ethernet::Frame * buffer, int buflen) {
+    int remaining_data = buflen - 14; // mac + mac + prot
 
     std::string result = "\nData\n";
     char temp[8]; // Buffer temporário para formatação
@@ -47,7 +45,7 @@ std::string payload(const unsigned char* buffer, int buflen) {
         if (i != 0 && i % 16 == 0) {
             result += "\n";
         }
-        snprintf(temp, sizeof(temp), " %.2X ", data[i]);
+        snprintf(temp, sizeof(temp), " %.2X ", buffer->data[i]);
         result += temp;
     }
 
@@ -61,19 +59,19 @@ std::string pBuflen(int buflen) {
     return std::string(temp); // Converter para std::string
 }
 
-void printEthToFile(FILE *log_txt, const unsigned char *buffer, int buflen) {
+void printEthToFile(FILE *log_txt, Buffer<Ethernet::Frame> *buffer) {
     fprintf(log_txt, "\n*************************ETH Packet******************************");
-    fprintf(log_txt, "%s", ethernet_header(buffer, buflen).c_str());
-    fprintf(log_txt, "%s", payload(buffer, buflen).c_str());
-    fprintf(log_txt, "%s", pBuflen(buflen).c_str());
+    fprintf(log_txt, "%s", ethernet_header(buffer->data()).c_str());
+    fprintf(log_txt, "%s", payload(buffer->data(), buffer->size()).c_str());
+    fprintf(log_txt, "%s", pBuflen(buffer->size()).c_str());
     fprintf(log_txt, "*****************************************************************\n\n\n");
 }
 
-void printEth(unsigned char *buffer, int buflen) {
+void printEth(Buffer<Ethernet::Frame> * buffer) {
 
     std::cout << "\n*************************ETH Packet******************************";
-    std::cout << ethernet_header(buffer, buflen).c_str();
-    std::cout << payload(buffer, buflen).c_str();
-    std::cout << pBuflen(buflen).c_str();
+    std::cout << ethernet_header(buffer->data()).c_str();
+    std::cout << payload(buffer->data(), buffer->size()).c_str();
+    std::cout << pBuflen(buffer->size()).c_str();
     std::cout << "*****************************************************************\n\n\n";
 }

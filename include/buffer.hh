@@ -1,18 +1,23 @@
 #ifndef BUFFER_HH
 #define BUFFER_HH
 
-#include <cstring>
-
-// Buffer temporario
-class Buffer {
+template<typename Data>
+class Buffer: private Data
+{
 public:
 
-    Buffer();
+    Buffer() {}
 
-    ~Buffer();
+    Buffer(unsigned int size): _size(size) {}
 
-    unsigned char * data;
-    size_t length;
+    Data * data() {return this;}
+
+    unsigned int size() {return _size;}
+
+    void setSize(unsigned int newSize) {_size = newSize;};
+
+private:
+    unsigned int _size;
 };
 
 #endif
