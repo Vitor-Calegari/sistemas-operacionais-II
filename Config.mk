@@ -1,7 +1,7 @@
 MAKENAME = Car
 
 MAIN = car
-MODULES = message
+MODULES = message observed observer
 
 SRC_DIR = src
 INCL_DIR = include

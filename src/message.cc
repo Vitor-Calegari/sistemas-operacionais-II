@@ -1,6 +1,5 @@
 #include "message.hh"
 
-
 Message::Message(std::size_t msg_size) : _size(msg_size) {
   _data = new std::byte[_size];
 }
