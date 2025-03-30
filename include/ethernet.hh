@@ -9,6 +9,9 @@ class Ethernet {
 public:
     // Tamanho máximo do payload
     static const unsigned int MTU = 1500;
+    // Tamanho máximo quadro desconsiderando FCS
+    static const unsigned int MAX_FRAME_SIZE_NO_FCS = 1518;
+    static const unsigned char BROADCAST_ADDRESS[6];
 
     // Estrutura que representa um endereço MAC (6 bytes)
     struct Address {
@@ -33,10 +36,14 @@ public:
         unsigned char data[MTU];  // Payload
     } __attribute__((packed));
 
+    static const unsigned int HEADER_SIZE = 2 * sizeof(Address) + sizeof(Protocol);
+
     // Estrutura para estatísticas de transmissão/recepção
     struct Statistics {
         unsigned int tx_packets;
+        unsigned int tx_bytes;
         unsigned int rx_packets;
+        unsigned int rx_bytes;
         Statistics();
     };
 };

@@ -68,7 +68,6 @@ void printEthToFile(FILE *log_txt, Buffer<Ethernet::Frame> *buffer) {
 }
 
 void printEth(Buffer<Ethernet::Frame> * buffer) {
-
     std::cout << "\n*************************ETH Packet******************************";
     std::cout << ethernet_header(buffer->data()).c_str();
     std::cout << payload(buffer->data(), buffer->size()).c_str();
