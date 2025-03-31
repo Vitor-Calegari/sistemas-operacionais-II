@@ -42,7 +42,9 @@ public:
     };
 
     // MTU disponível para payload (tamanho total da buffer menos o header)
-    static const unsigned int MTU = NIC::MTU - sizeof(Header);
+    int iphdrlen;
+    iphdrlen = ip->ihl*4;
+    static const unsigned int MTU = NIC::MTU - iphdrlen;
     typedef unsigned char Data[MTU];
 
     // Pacote: header seguido do payload
