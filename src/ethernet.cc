@@ -28,4 +28,6 @@ Ethernet::Address::operator bool() const {
 }
 
 // Implementação do construtor de Statistics
-Ethernet::Statistics::Statistics() : tx_packets(0), rx_packets(0) { }
+Ethernet::Statistics::Statistics() : tx_packets(0), tx_bytes(0), rx_packets(0), rx_bytes(0)  { }
+
+const unsigned char Ethernet::BROADCAST_ADDRESS[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

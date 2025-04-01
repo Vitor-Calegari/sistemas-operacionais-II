@@ -1,6 +1,10 @@
 #include "engine.hh"
 
+Engine* Engine::_self = nullptr;
+
 Engine::Engine() {
+    _self = this;
+
     // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
     // SOCK_RAW para criar um raw socket
     // ETH_P_802_EX1 protocolo experimental
@@ -21,9 +25,11 @@ Engine::~Engine()
     close(socket_raw);
 }
 
-void Engine::setupSignalHandler(void (*function)(int)) {
+void Engine::setupSignalHandler(std::function<void(int)> func) {\
+    // Armazena a função de callback
+    signalHandlerFunction = func;
     struct sigaction sigAction;
-    sigAction.sa_handler = function;
+    sigAction.sa_handler = Engine::signalHandler;
     sigAction.sa_flags = 0;
 
     // Limpa possiveis sinais existentes antes da configuracao
@@ -57,6 +63,16 @@ void Engine::confSignalReception() {
     // O_NONBLOCK faz com que operações normalmente bloqueantes não bloqueiem
     if (fcntl(socket_raw, F_SETFL, flags | O_ASYNC | O_NONBLOCK) < 0) {
         perror("fcntl F_SETFL");
+        exit(EXIT_FAILURE);
+    }
+}
+
+// Função estática para envelopar a função que tratará a interrupção
+void Engine::signalHandler(int signum) {
+    if (_self && _self->signalHandlerFunction) {
+        _self->signalHandlerFunction(signum);
+    } else {
+        perror("Signal handler failed");
         exit(EXIT_FAILURE);
     }
 }

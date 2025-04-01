@@ -12,6 +12,7 @@
 
 #include <signal.h>
 #include <fcntl.h>
+#include <functional>
 
 #include "buffer.hh"
 
@@ -26,7 +27,7 @@ public:
 
     template<typename Data>
     int send(Buffer<Data> * buf, const sockaddr *sadr_ll) {
-        int send_len = sendto(socket_raw, buf->data(), buf->size(), 0, sadr_ll, sizeof(struct sockaddr_ll));
+        int send_len = sendto(_self->socket_raw, buf->data(), buf->size(), 0, sadr_ll, sizeof(struct sockaddr_ll));
         if (send_len < 0) {
             printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
             return -1;
@@ -44,7 +45,7 @@ public:
     template<typename Data>
     int receive(Buffer<Data> * buf, sockaddr saddr) {
         int saddr_len = sizeof(saddr);
-        int buflen = recvfrom(socket_raw, buf->data(), buf->size(), 0, &saddr, (socklen_t *)&saddr_len);
+        int buflen = recvfrom(_self->socket_raw, buf->data(), buf->size(), 0, &saddr, (socklen_t *)&saddr_len);
 
         if (buflen < 0) {
             printf("error in reading recvfrom function\n");
@@ -53,13 +54,16 @@ public:
         return buflen;
     }
 
-    void setupSignalHandler(void (*function)(int));
+    void setupSignalHandler(std::function<void(int)> func);
 
+    // protected:
     // Socket é um inteiro pois seu valor representa um file descriptor
     int socket_raw;
-private:
-
+    private:
+    static void signalHandler(int signum);
     void confSignalReception();
+    std::function<void(int)> signalHandlerFunction;
+    static Engine* _self;
 };
 
 #endif

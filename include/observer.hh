@@ -20,13 +20,23 @@ public:
   typedef C Observing_Condition;
 
 public:
-  Concurrent_Observer();
+  Concurrent_Observer() : _semaphore(0) {}
 
   ~Concurrent_Observer() = default;
 
-  void update(C c, D *d);
+  void update(C c, D *d) {
+    _data.push(d);
+    _semaphore.release();
+  }
 
-  D *updated();
+  D *updated() {
+    _semaphore.acquire();
+  
+    auto datum = _data.top();
+    _data.pop();
+  
+    return datum;
+  }
 
 private:
   std::counting_semaphore<> _semaphore;

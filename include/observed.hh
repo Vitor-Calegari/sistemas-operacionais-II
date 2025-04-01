@@ -25,11 +25,27 @@ public:
 
   ~Concurrent_Observed() = default;
 
-  void attach(Concurrent_Observer<D, C> *o, C c);
+  void attach(Concurrent_Observer<D, C> *o, C c) {
+    _observers.insert(std::lower_bound(_observers.cbegin(), _observers.cend(), o),
+                      o);
+  }
 
-  void detach(Concurrent_Observer<D, C> *o, C c);
+  void detach(Concurrent_Observer<D, C> *o, C c) {
+    _observers.remove(o);
+  }
 
-  bool notify(C c, D *d);
+  bool notify(C c, D *d) {
+    bool notified = false;
+  
+    for (auto &obs = _observers.begin(); obs != _observers.end(); ++obs) {
+      if (obs->rank() == c) {
+        obs->update(c, d);
+        notified = true;
+      }
+    }
+  
+    return notified;
+  }
 
 private:
   Observers _observers;
