@@ -1,8 +1,8 @@
 #ifndef OBSERVER_HH
 #define OBSERVER_HH
 
+#include <queue>
 #include <semaphore>
-#include <stack>
 
 template <typename D, typename C>
 class Concurrent_Observed;
@@ -20,7 +20,8 @@ public:
   typedef C Observing_Condition;
 
 public:
-  Concurrent_Observer() : _semaphore(0) {}
+  Concurrent_Observer() : _semaphore(0) {
+  }
 
   ~Concurrent_Observer() = default;
 
@@ -31,17 +32,16 @@ public:
 
   D *updated() {
     _semaphore.acquire();
-  
-    auto datum = _data.top();
+
+    auto datum = _data.front();
     _data.pop();
-  
+
     return datum;
   }
 
 private:
   std::counting_semaphore<> _semaphore;
-  // Isso parece ser uma pilha. Se não for, usar std::list.
-  std::stack<D> _data;
+  std::queue<D> _data;
 };
 
 #endif
