@@ -9,11 +9,11 @@ class Ethernet {
 public:
     // Maximum Transmission Unit (MTU) padrão para Ethernet v2.
     // Define o tamanho máximo do payload (dados da camada superior).
-    static const unsigned int MTU = 1500;
+    static const int MTU = 1500;
     // Tamanho do cabeçalho Ethernet (Dest MAC + Src MAC + EtherType)
-    static const unsigned int HEADER_SIZE = 14;
+    static const int HEADER_SIZE = 14;
     // Tamanho máximo quadro desconsiderando FCS
-    static const unsigned int MAX_FRAME_SIZE_NO_FCS = HEADER_SIZE + MTU;
+    static const int MAX_FRAME_SIZE_NO_FCS = HEADER_SIZE + MTU;
     static const unsigned char BROADCAST_ADDRESS[6];
 
     // Estrutura que representa um endereço MAC (6 bytes)

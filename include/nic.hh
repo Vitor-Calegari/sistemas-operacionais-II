@@ -88,7 +88,6 @@ private:
     bool get_interface_info(const std::string& interface_name);
 
     // --- Membros ---
-    Engine* _engine;           // Ponteiro para a Engine (vida útil gerenciada externamente)
     Address _address;          // Endereço MAC desta NIC (obtido via ioctl)
     int _interface_index;      // Índice da interface de rede (obtido via ioctl)
     std::mutex _stats_mutex;   // Mutex para proteger o acesso às estatísticas

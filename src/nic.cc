@@ -34,7 +34,6 @@ NIC::NIC(const std::string& interface_name) :
 // Destrutor
 NIC::~NIC() {
     std::cout << "NIC for interface " << _interface_name << " destroyed." << std::endl;
-    // Não deleta _engine, pois a posse é externa.
 }
 
 #include "utils.cc"
@@ -65,33 +64,6 @@ void NIC::handle_signal(int signum) {
             //    A Engine::receive fornecida espera (Buffer<Data> * buf, sockaddr saddr)
             //    e retorna int. Precisamos de uma sockaddr para receber o remetente.
             
-            // Variaveis não utilizada
-            // struct sockaddr_ll sender_addr;
-            // socklen_t sender_addr_len = sizeof(sender_addr);
-            
-            // Passamos o ponteiro buf diretamente, assumindo que Engine::receive preencherá
-            // o Data* interno do buffer e ajustará o tamanho via buf->setSize().
-            // A Engine::receive original não tem como saber o tamanho máximo do buffer interno!
-            // Isso é uma falha na API da Engine original. Assumir que ela usa um
-            // tamanho fixo ou que a capacidade é implícita. Usar capacidade que alocamos.
-            //  R: O buffer é alocado fora da engine, durante sua alocação o tamanho dele deve ser definido.
-            //     Podemos modificar a Engine para que após ela escrever no buffer ela ajuste seu tamanho.
-
-            // Precisamos de um método receive que aceite capacidade ou modifique a engine.
-            // Vamos usar a assinatura da engine modificada anteriormente, pois é a única funcional:
-            // int receive(Buffer<Data>& buf, struct sockaddr_ll& sender_addr, socklen_t& sender_addr_len);
-            // Se a engine original for estritamente usada:
-            // int buflen = _engine->receive(buf, *((struct sockaddr*)&sender_addr)); // Assinatura original não passa tamanho nem retorna endereço corretamente
-            // Precisamos assumir uma Engine::receive funcional, como a do exemplo anterior.
-            //  R: Se a capacidade referida seja a do buffer, o próprio buffer já a conheçe.
-            //     Se for do sockaddr, o metodo de recebimento setta essa capacidade e escreve
-            //     na estrutura sockaddr dentro da engine. Não sei ao certo porque o professor não
-            //     fez uma maneira de tirar isso da engine. Talvez seja padrão? Ou serve só para ser
-            //     checagens internas a Engine?
-
-            // *** Assumindo uma Engine::receive funcional que preenche buf e retorna tamanho ***
-            // int bytes_received = _engine->receive(*buf, sender_addr, sender_addr_len); // Assumindo API corrigida
-            // Para funcionar com a engine.hh *original*, precisamos improvisar:
             struct sockaddr_ll sender_addr; // A engine original usa sockaddr genérico
             socklen_t sender_addr_len;
             int bytes_received = receive(buf, sender_addr, sender_addr_len); // Chamada à API original
@@ -175,7 +147,6 @@ int NIC::send(Buffer* buf) {
         return -1;
     }
 
-
     // Configura o endereço de destino para sendto
     struct sockaddr_ll sadr_ll;
     // std::memset(&sadr_ll, 0, sizeof(sadr_ll));
@@ -189,8 +160,7 @@ int NIC::send(Buffer* buf) {
     buf->data()->src = _address;
 
     // Chama o send da Engine com a cópia
-    int bytes_sent = _engine->send(buf, (sockaddr*)&sadr_ll);
-
+    int bytes_sent = Engine::send(buf, (sockaddr*)&sadr_ll); // Ensure the correct namespace or function is used
 
     if (bytes_sent > 0) {
         // Atualiza estatísticas
