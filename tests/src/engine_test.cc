@@ -1,6 +1,6 @@
 #include "engine.hh"
 
-#include "utils.cc"
+#include "utils.hh"
 #include "buffer.hh"
 #include "ethernet.hh"
 
@@ -20,9 +20,10 @@ void handleSignal(int signal) {
 
     EthFrame * buf = new EthFrame(1522);
 
-    struct sockaddr saddr;
+    struct sockaddr_ll saddr;
+    socklen_t saddrlen;
 
-    buf->setSize(engine.receive(buf, saddr));
+    engine.receive(buf, saddr, saddrlen);
 
     printEth(buf);
     fflush(stdout);
@@ -90,10 +91,11 @@ int main (int argc, char *argv[]) {
         struct ifreq ifreq_c, ifreq_i;
 
         EthFrame * buf = new EthFrame();
-	    get_eth_index(ifreq_i, engine.socket_raw);  // interface number
-        get_mac(buf, ifreq_c, engine.socket_raw);   // Setta macs do quadro de ethernet
+	    buf->setMaxSize(1514);
+        get_eth_index(ifreq_i, engine.getSocketFd());  // interface number
+        get_mac(buf, ifreq_c, engine.getSocketFd());   // Setta macs do quadro de ethernet
         get_data(buf);                              // Setta dados do quadro
-                                     
+            
         // Setta endereço alvo
         struct sockaddr_ll sadr_ll;
         sadr_ll.sll_ifindex = ifreq_i.ifr_ifindex;

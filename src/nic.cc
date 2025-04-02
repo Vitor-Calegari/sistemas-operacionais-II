@@ -92,12 +92,10 @@ void NIC::handle_signal(int signum) {
             // *** Assumindo uma Engine::receive funcional que preenche buf e retorna tamanho ***
             // int bytes_received = _engine->receive(*buf, sender_addr, sender_addr_len); // Assumindo API corrigida
             // Para funcionar com a engine.hh *original*, precisamos improvisar:
-            struct sockaddr saddr_generic; // A engine original usa sockaddr genérico
-            int bytes_received = receive(buf, saddr_generic); // Chamada à API original
-            // Não temos como obter sender_addr com a API original! E o tamanho?
-            // A engine original atualiza o size do buffer? Vou assumir que sim.
+            struct sockaddr_ll sender_addr; // A engine original usa sockaddr genérico
+            socklen_t sender_addr_len;
+            int bytes_received = receive(buf, sender_addr, sender_addr_len); // Chamada à API original
             if (bytes_received >= 0) {
-                buf->setSize(bytes_received); // Assume que engine não setou size
                 printEth(buf);
             }
 
@@ -276,14 +274,14 @@ bool NIC::get_interface_info(const std::string& interface_name) {
 
 
     // Obter o índice da interface
-    if (ioctl(socket_raw, SIOCGIFINDEX, &ifr) == -1) {
+    if (ioctl(getSocketFd(), SIOCGIFINDEX, &ifr) == -1) {
         perror(("NIC Error: ioctl SIOCGIFINDEX failed for " + interface_name).c_str());
         return false;
     }
     _interface_index = ifr.ifr_ifindex;
 
     // Obter o endereço MAC (Hardware Address)
-    if (ioctl(socket_raw, SIOCGIFHWADDR, &ifr) == -1) {
+    if (ioctl(getSocketFd(), SIOCGIFHWADDR, &ifr) == -1) {
         perror(("NIC Error: ioctl SIOCGIFHWADDR failed for " + interface_name).c_str());
         return false;
     }

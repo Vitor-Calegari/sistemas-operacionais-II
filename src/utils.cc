@@ -1,13 +1,4 @@
-#include "engine.hh"
-#include<sys/ioctl.h>
-#include<net/if.h>
-
-#include <iostream>
-#include <string>
-#include <cstdio>
-#include <cstring>
-#include <linux/if_ether.h>
-#include "ethernet.hh"
+#include "utils.hh"
 
 std::string ethernet_header(struct Ethernet::Frame * buffer) {
     // Construir a string diretamente
