@@ -1,8 +1,8 @@
 #ifndef OBSERVED_HH
 #define OBSERVED_HH
 
-#include "observer.hh"
 #include <list>
+#include "concurrent_observer.hh"
 
 // TODO!
 template <typename T, typename Condition = void>
@@ -36,14 +36,14 @@ public:
 
   bool notify(C c, D *d) {
     bool notified = false;
-  
+
     for (auto &obs = _observers.begin(); obs != _observers.end(); ++obs) {
       if (obs->rank() == c) {
         obs->update(c, d);
         notified = true;
       }
     }
-  
+
     return notified;
   }
 

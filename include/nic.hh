@@ -8,8 +8,8 @@
 
 #include "ethernet.hh"
 #include "buffer.hh"
-#include "observed.hh"
-#include "observer.hh"
+#include "concurrent_observed.hh"
+#include "concurrent_observer.hh"
 #include "engine.hh"
 
 
