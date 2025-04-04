@@ -38,8 +38,6 @@ public:
     Address from;
     int size = _channel->receive(buf, &from, message->data(), message->size());
 
-    // TODO!: Implementar código que falta aqui.
-
     return size > 0;
   }
 
