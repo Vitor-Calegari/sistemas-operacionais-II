@@ -7,10 +7,6 @@
 template <typename D, typename C>
 class Concurrent_Observed;
 
-// TODO!
-template <typename T, typename Condition = void>
-class Conditional_Data_Observer;
-
 template <typename D, typename C>
 class Concurrent_Observer {
   friend class Concurrent_Observed<D, C>;
@@ -25,7 +21,7 @@ public:
 
   ~Concurrent_Observer() = default;
 
-  void update(C c, D *d) {
+  void update([[maybe_unused]] C c, D *d) {
     _data.push(d);
     _semaphore.release();
   }
