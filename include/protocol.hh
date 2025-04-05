@@ -11,7 +11,7 @@
 template <typename NIC>
 class Protocol : private typename NIC::Observer {
 public:
-    // Número de protocolo definido via Traits (por exemplo, 0x0800)
+    // Número de protocolo definido via Traits (ex: 0x0800)
     inline static const typename NIC::Protocol_Number PROTO = Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
 
     typedef typename NIC::Buffer        Buffer;
@@ -34,7 +34,7 @@ public:
         Port _port;
     };
 
-    // Cabeçalho do pacote (pode ser estendido com timestamp, tipo, etc.)
+    // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo, etc.)
     class Header {
     public:
         Header() : length(0) { }
@@ -45,7 +45,7 @@ public:
     inline static const unsigned int MTU = NIC::MTU - sizeof(Header);
     typedef unsigned char Data[MTU];
 
-    // Pacote: Header seguido do payload
+    // Pacote do protocolo: composto pelo Header e o Payload
     class Packet : public Header {
     public:
         Packet() {
@@ -68,47 +68,45 @@ public:
         _nic->detach(this, PROTO);
     }
 
-    // Envia uma mensagem: aloca buffer, monta o pacote e delega à NIC
-    static int send(const Address &from, const Address &to, const void* data, unsigned int size) {
-        NIC* nic = getNICInstance();
-        Buffer* buf = nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size);
+    // Envia uma mensagem:
+    // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o cabeçalho Ethernet)
+    // como um Packet, monta o pacote e delega o envio à NIC.
+    int send(const Address &from, const Address &to, const void* data, unsigned int size) {
+        Buffer* buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size);
         if (!buf)
             return -1;
-        Packet* pkt = reinterpret_cast<Packet*>(buf);
+        // Em vez de interpretar o frame inteiro como um Packet, acessa o payload.
+        // Presume-se que o Ethernet::Frame possui um cabeçalho fixo de tamanho Ethernet::HEADER_SIZE.
+        unsigned char* payloadPtr = reinterpret_cast<unsigned char*>(buf) + Ethernet::HEADER_SIZE;
+        Packet* pkt = reinterpret_cast<Packet*>(payloadPtr);
         pkt->length = sizeof(Header) + size;
         std::memcpy(pkt->data<char>(), data, size);
-        return nic->send(buf);
+        return _nic->send(buf);
     }
 
-    // Recebe uma mensagem: extrai o payload do buffer recebido
-    static int receive(Buffer* buf, const Address &from, void* data, unsigned int size) {
-        NIC* nic = getNICInstance();
-        return nic->receive(buf, nullptr, nullptr, data, size);
-    }
-
-    // Gerencia observadores para recepção assíncrona
-    static void attachObserver(Conditional_Data_Observer<Buffer, Port>* obs, const Address &address) {
-        _observed.insert(obs, address);
-    }
-    static void detachObserver(Conditional_Data_Observer<Buffer, Port>* obs, const Address &address) {
-        _observed.remove(obs, address);
+    // Recebe uma mensagem:
+    // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
+    int receive(Buffer* buf, const Address &from, void* data, unsigned int size) {
+        unsigned char* payloadPtr = reinterpret_cast<unsigned char*>(buf) + Ethernet::HEADER_SIZE;
+        Packet* pkt = reinterpret_cast<Packet*>(payloadPtr);
+        // Para simplificar, delega à NIC (neste exemplo não extraímos dados do Packet explicitamente)
+        return _nic->receive(buf, nullptr, nullptr, data, size);
     }
 
 private:
-    // Método update: chamado pela NIC quando um frame é recebido
-    void update(Buffer* buf) {
-        if (!_observed.notify(0, buf))
+    // Método update: chamado pela NIC quando um frame é recebido.
+    // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
+    void update(typename NIC::Observed* obs, typename NIC::Protocol_Number prot, Buffer* buf) {
+        if (!_nic->notify(prot, buf))
             _nic->free(buf);
     }
 
-    // Para simplificação, assume-se uma instância singleton da NIC
-    static NIC* getNICInstance() {
-        static NIC instance;
-        return &instance;
+    // Retorna a NIC associada (diferente do singleton, retorna o _nic da instância)
+    NIC* getNIC() {
+        return _nic;
     }
 
     NIC* _nic;
-    inline static Conditionally_Data_Observed<Buffer, Port> _observed;
 };
 
 #endif // PROTOCOL_HH
