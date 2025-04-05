@@ -1,11 +1,6 @@
-#include<sys/ioctl.h>
-#include<net/if.h>
-
 #include <iostream>
 #include <string>
-#include <cstdio>
 #include <cstring>
-#include <linux/if_ether.h>
 #include "ethernet.hh"
 #include "buffer.hh"
 

@@ -9,18 +9,21 @@
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
 
 #include <fcntl.h>
 #include <functional>
 #include <signal.h>
 
+#include "ethernet.hh"
 #include "buffer.hh"
 
 class Engine {
 
 public:
   // Construtor: Cria e configura o socket raw.
-  Engine();
+  Engine(const std::string &interface_name);
 
   // Destrutor: Fecha o socket.
   ~Engine();
@@ -33,18 +36,29 @@ public:
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
   template <typename Data>
-  int send(Buffer<Data> *buf, const sockaddr *sadr_ll) {
-    if (!buf || !sadr_ll)
+  int send(Buffer<Data> *buf) {
+    if (!buf)
       return -1; // Validação básica
 
+    // Configura o endereço de destino para sendto
+    struct sockaddr_ll sadr_ll;
+    std::memset(&sadr_ll, 0, sizeof(sadr_ll));
+    sadr_ll.sll_family = AF_PACKET;
+    sadr_ll.sll_ifindex = _interface_index;
+    sadr_ll.sll_halen = ETH_ALEN;
+    std::memcpy(sadr_ll.sll_addr, buf->data()->dst.mac, ETH_ALEN);
+
     int send_len = sendto(_self->_socket_raw, buf->data(), buf->size(), 0,
-                          sadr_ll, sizeof(struct sockaddr_ll));
+                          (const sockaddr *)&sadr_ll, sizeof(struct sockaddr_ll));
     if (send_len < 0) {
       printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
       return -1;
     }
     return send_len;
   }
+
+  // Obtém informações da interface (MAC, índice) usando ioctl.
+  bool get_interface_info();
 
   // *************TODO**************
   // Ainda está errado os parâmetros
@@ -100,13 +114,19 @@ public:
     return _socket_raw;
   }
 
+public:
+  const Ethernet::Address & getAddress() { return _address; }
+
 private:
   // Configura a recepção de sinais SIGIO para o socket.
   void confSignalReception();
 
   // Socket é um inteiro pois seu valor representa um file descriptor
   int _socket_raw;
-  
+  int _interface_index;
+  std::string _interface_name;
+  Ethernet::Address _address;
+
   static void signalHandler(int signum);
 
   std::function<void(int)> signalHandlerFunction;

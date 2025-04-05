@@ -2,25 +2,41 @@
 
 Engine* Engine::_self = nullptr;
 
-Engine::Engine() {
+Engine::Engine(const std::string &interface_name) : _interface_name(interface_name) {
     _self = this;
-
     // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
     // SOCK_RAW para criar um raw socket
     // ETH_P_802_EX1 protocolo experimental
     _socket_raw = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_802_EX1));
-    if (_socket_raw == -1) {
+    if (Engine::getSocketFd() == -1) {
         perror("socket creation");
         exit(EXIT_FAILURE);
     }
 
     int broadcastEnable = 1;
-    if (setsockopt(_socket_raw, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0) {
+    if (setsockopt(Engine::getSocketFd(), SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0) {
         perror("setsockopt (SO_BROADCAST)");
         exit(EXIT_FAILURE);
     }
 
+    if (!get_interface_info()) {
+        // Tratamento de erro mais robusto pode ser necessário
+        perror("NIC Error: interface info");
+        exit(EXIT_FAILURE);
+    }
+
     confSignalReception();
+
+    #ifdef DEBUG
+    // Print Debug -------------------------------------------------------
+
+    std::cout << "Engine initialized for interface " << _interface_name
+              << " with MAC ";
+    // Imprime o MAC Address (formatação manual)
+    for (int i = 0; i < 6; ++i)
+      std::cout << std::hex << (int)_address.mac[i] << (i < 5 ? ":" : "");
+    std::cout << std::dec << " and index " << _interface_index << std::endl;
+    #endif
 }
 
 Engine::~Engine()
@@ -28,7 +44,40 @@ Engine::~Engine()
     if (_socket_raw != -1) {
         close(_socket_raw); // Fecha o socket ao destruir o objeto Engine
     }
+    #ifdef DEBUG
+    std::cout << "Engine for interface " << _interface_name << " destroyed."
+              << std::endl;
+    #endif
 }
+
+bool Engine::get_interface_info() {
+    struct ifreq ifr;
+    std::memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, _interface_name.c_str(), IFNAMSIZ - 1);
+    ifr.ifr_name[IFNAMSIZ - 1] = '\0'; // Garante terminação nula
+
+    // Obter o endereço MAC (Hardware Address)
+    if (ioctl(Engine::getSocketFd(), SIOCGIFHWADDR, &ifr) == -1) {
+      perror(("Engine Error: ioctl SIOCGIFHWADDR failed for " + _interface_name)
+                 .c_str());
+      return false;
+    }
+
+    // Copia o endereço MAC da estrutura ifreq para o membro _address
+    // Usa o construtor de Address que recebe unsigned char[6]
+    _address = Ethernet::Address(reinterpret_cast<const unsigned char *>(ifr.ifr_hwaddr.sa_data));
+
+    // Caso a interface utilizada seja loopback, geralmente o endereço dela é
+    // 00:00:00:00:00:00 Verifica se o MAC obtido não é zero
+    if (_interface_name != "lo" &&
+        !_address) { // Usa o operator bool() da Address
+      std::cerr << "Engine Error: Obtained MAC address is zero for "
+                << _interface_name << std::endl;
+      return false;
+    }
+
+    return true;
+  }
 
 void Engine::setupSignalHandler(std::function<void(int)> func) {
     // Armazena a função de callback
@@ -52,13 +101,22 @@ void Engine::setupSignalHandler(std::function<void(int)> func) {
 void Engine::confSignalReception() {
     // Configura processo como ´dono´ do socket para poder receber
     // sinais, como o SIGIO
-    if (fcntl(_socket_raw, F_SETOWN, getpid()) < 0) {
+    if (fcntl(Engine::getSocketFd(), F_SETOWN, getpid()) < 0) {
         perror("fcntl F_SETOWN");
         exit(EXIT_FAILURE);
     }
 
+    // Set interfacace index -------------------------------------
+    struct ifreq ifr;
+    strncpy(ifr.ifr_name, _interface_name.c_str(), IFNAMSIZ - 1);
+    if (ioctl(_socket_raw, SIOCGIFINDEX, &ifr) == -1) {
+        perror("ioctl SIOCGIFINDEX");
+        exit(EXIT_FAILURE);
+    }
+    _interface_index = ifr.ifr_ifindex;
+
     // Obtem flags do socket para não sobrescreve-las posteriormente
-    int flags = fcntl(_socket_raw, F_GETFL);
+    int flags = fcntl(Engine::getSocketFd(), F_GETFL);
     if (flags < 0) {
         perror("fcntl F_GETFL");
         exit(EXIT_FAILURE);
@@ -66,7 +124,7 @@ void Engine::confSignalReception() {
 
     // O_ASYNC faz com que o socket levante o sinal SIGIO quando operacoes de I/O acontecerem
     // O_NONBLOCK faz com que operações normalmente bloqueantes não bloqueiem
-    if (fcntl(_socket_raw, F_SETFL, flags | O_ASYNC | O_NONBLOCK) < 0) {
+    if (fcntl(Engine::getSocketFd(), F_SETFL, flags | O_ASYNC | O_NONBLOCK) < 0) {
         perror("fcntl F_SETFL");
         exit(EXIT_FAILURE);
     }

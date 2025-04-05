@@ -3,11 +3,13 @@
 #include "utils.hh"
 #include "buffer.hh"
 #include "ethernet.hh"
+#include <net/if.h>
+#include <sys/ioctl.h>
 
 
 // Arquivo de testes temporario para testar funcionamento da engine
 
-Engine engine = Engine();
+Engine engine = Engine("lo");
 
 
 typedef Buffer<Ethernet::Frame> EthFrame;
@@ -96,14 +98,7 @@ int main (int argc, char *argv[]) {
         get_mac(buf, ifreq_c, engine.getSocketFd());   // Setta macs do quadro de ethernet
         get_data(buf);                              // Setta dados do quadro
             
-        // Setta endereço alvo
-        struct sockaddr_ll sadr_ll;
-        sadr_ll.sll_ifindex = ifreq_i.ifr_ifindex;
-        sadr_ll.sll_halen = ETH_ALEN;  // Numero de octetos do endereco MAC
-        unsigned char broadcast_mac[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-        memcpy(sadr_ll.sll_addr, broadcast_mac, ETH_ALEN);  // Endereco broadcast MAC
-        
-        engine.send(buf, (sockaddr *)&sadr_ll);
+        engine.send(buf);
         delete buf;
     } else {
         while(1) {sleep(10);}

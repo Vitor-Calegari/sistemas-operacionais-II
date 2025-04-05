@@ -16,16 +16,16 @@
 #include "ethernet.hh"
 
 
-// TODO Remover depois:
+#ifdef DEBUG
 #include "utils.hh"
-
+#endif
 // A classe NIC (Network Interface Controller).
 // Ela age como a interface de rede, usando a Engine fornecida para E/S,
 // e notifica observadores (Protocolos) sobre frames recebidos.
 //
 // D (Observed_Data): Buffer<Ethernet::Frame>* - Notifica com ponteiros para
-// buffers recebidos. C (Observing_Condition): Ethernet::Protocol - Filtra
-// observadores pelo EtherType.
+// buffers recebidos.
+// C (Observing_Condition): Ethernet::Protocol - Filtra observadores pelo EtherType.
 template<typename Engine>
 class NIC
     : public Ethernet,
@@ -57,17 +57,8 @@ public:
   // Args:
   //   engine: Ponteiro para a instância da Engine a ser usada.
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
-  NIC(const std::string &interface_name)
-      : _interface_index(-1),
-        _interface_name(interface_name)
+  NIC(const std::string &interface_name) : Engine(interface_name)
   {
-    // Tenta obter as informações da interface (MAC, índice)
-    if (!get_interface_info(_interface_name)) {
-      // Tratamento de erro mais robusto pode ser necessário
-      perror("NIC Error: interface info");
-      exit(EXIT_FAILURE);
-    }
-
     // Setup Handler -----------------------------------------------------
 
     std::function<void(int)> callback =
@@ -88,26 +79,10 @@ public:
       perror("NIC Error: buffer pool alloc");
       exit(EXIT_FAILURE);
     }
-
-    #ifdef DEBUG
-    // Print Debug -------------------------------------------------------
-
-    std::cout << "NIC initialized for interface " << _interface_name
-              << " with MAC ";
-    // Imprime o MAC Address (formatação manual)
-    for (int i = 0; i < 6; ++i)
-      std::cout << std::hex << (int)_address.mac[i] << (i < 5 ? ":" : "");
-    std::cout << std::dec << " and index " << _interface_index << std::endl;
-    #endif
   }
 
   // Destrutor
-  ~NIC() {
-    #ifdef DEBUG
-    std::cout << "NIC for interface " << _interface_name << " destroyed."
-              << std::endl;
-    #endif
-  }
+  ~NIC() {}
 
   // Proibe cópia e atribuição para evitar problemas com ponteiros e estado.
   NIC(const NIC &) = delete;
@@ -121,7 +96,7 @@ public:
     for (BufferNIC &buf : _buffer_pool) {
       if (!buf.is_in_use()) {
         buf.mark_in_use(); // Marca como usado ANTES de retornar
-        buf.data()->src = _address;
+        buf.data()->src = Engine::getAddress();
         buf.data()->dst = dst;
         buf.data()->prot = prot;
         // Mínimo de 64 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
@@ -170,16 +145,7 @@ public:
       return -1;
     }
 
-    // Configura o endereço de destino para sendto
-    struct sockaddr_ll sadr_ll;
-    std::memset(&sadr_ll, 0, sizeof(sadr_ll));
-    sadr_ll.sll_family = AF_PACKET;
-    sadr_ll.sll_ifindex = _interface_index;
-    sadr_ll.sll_halen = ETH_ALEN;
-    std::memcpy(sadr_ll.sll_addr, buf->data()->dst.mac, ETH_ALEN);
-
-    // Chama o send da Engine com a cópia
-    int bytes_sent = Engine::send(buf, (sockaddr *)&sadr_ll);
+    int bytes_sent = Engine::send(buf);
 
     if (bytes_sent > 0) {
       // Atualiza estatísticas
@@ -206,7 +172,7 @@ public:
 
   // Retorna o endereço MAC desta NIC.
   const Address &address() const {
-    return _address;
+    return Engine::getAddress();
   }
 
   // Retorna as estatísticas de rede acumuladas.
@@ -250,7 +216,7 @@ private:
         }
 
         // Filtrar pacotes enviados por nós mesmos
-        if (buf->data()->src != _address) {
+        if (buf->data()->src != Engine::getAddress()) {
           // ************************************************************
           // TODO Foi comentado pois os observadores ainda não funcionam
           // Notifica os observadores registrados para este protocolo.
@@ -261,7 +227,7 @@ private:
           // Se NENHUM observador (Protocolo) estava interessado (registrado
           // para este EtherType), a NIC deve liberar o buffer que alocou.
           if (!notified) {
-            free(buf); // Libera o buffer alocado com 'new'
+            free(buf);
           } else {
             // O buffer foi passado para o Observer (Protocol) através da chamada a
             // Concurrent_Observer::update dentro do this->notify(). O
@@ -269,7 +235,7 @@ private:
             // liberar o buffer recebido via Concurrent_Observer::updated().
           }
         } else {
-          free(buf); // Libera o buffer alocado
+          free(buf);
         }
 
       } else if (bytes_received == 0) {
@@ -281,55 +247,14 @@ private:
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 perror("NIC::handle_signal recvfrom error");
             }
-        free(buf); // Libera o buffer que alocamos.
+        free(buf);
       }
     }
   }
 
-  // Obtém informações da interface (MAC, índice) usando ioctl.
-  bool get_interface_info(const std::string &interface_name) {
-    struct ifreq ifr;
-    std::memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, interface_name.c_str(), IFNAMSIZ - 1);
-    ifr.ifr_name[IFNAMSIZ - 1] = '\0'; // Garante terminação nula
-
-    // Obter o índice da interface
-    if (ioctl(Engine::getSocketFd(), SIOCGIFINDEX, &ifr) == -1) {
-      perror(("NIC Error: ioctl SIOCGIFINDEX failed for " + interface_name)
-                 .c_str());
-      return false;
-    }
-    _interface_index = ifr.ifr_ifindex;
-
-    // Obter o endereço MAC (Hardware Address)
-    if (ioctl(Engine::getSocketFd(), SIOCGIFHWADDR, &ifr) == -1) {
-      perror(("NIC Error: ioctl SIOCGIFHWADDR failed for " + interface_name)
-                 .c_str());
-      return false;
-    }
-
-    // Copia o endereço MAC da estrutura ifreq para o membro _address
-    // Usa o construtor de Address que recebe unsigned char[6]
-    _address = Address(
-        reinterpret_cast<const unsigned char *>(ifr.ifr_hwaddr.sa_data));
-
-    // Caso a interface utilizada seja loopback, geralmente o endereço dela é
-    // 00:00:00:00:00:00 Verifica se o MAC obtido não é zero
-    if (interface_name != "lo" &&
-        !_address) { // Usa o operator bool() da Address
-      std::cerr << "NIC Error: Obtained MAC address is zero for "
-                << interface_name << std::endl;
-      return false;
-    }
-
-    return true;
-  }
+  
 
   // --- Membros ---
-  Address _address;            // Endereço MAC desta NIC (obtido via ioctl)
-  int _interface_index;        // Índice da interface de rede (obtido via ioctl)
-  std::string _interface_name; // Guarda o nome da interface
-
   Statistics _statistics; // Estatísticas de rede
   mutable std::mutex
       _stats_mutex; // Mutex para proteger o acesso às estatísticas
