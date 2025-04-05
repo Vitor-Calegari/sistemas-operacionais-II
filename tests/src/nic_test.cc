@@ -7,7 +7,7 @@ int main (int argc, char *argv[]) {
     }
     const int send = atoi(argv[1]);
 
-    NIC nic = NIC("lo");
+    NIC<Engine> nic = NIC<Engine>("lo");
 
     if (send) {
         Ethernet::Address dest = Ethernet::Address(Ethernet::BROADCAST_ADDRESS);

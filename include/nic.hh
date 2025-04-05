@@ -25,6 +25,7 @@
 // D (Observed_Data): Buffer<Ethernet::Frame>* - Notifica com ponteiros para
 // buffers recebidos. C (Observing_Condition): Ethernet::Protocol - Filtra
 // observadores pelo EtherType.
+template<typename Engine>
 class NIC
     : public Ethernet,
       // ******************************************************************************
@@ -56,8 +57,7 @@ public:
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
   NIC(const std::string &interface_name)
       : _interface_index(-1),
-        _interface_name(interface_name) // Acho que a Engine cuida disso e não
-                                        // precisamos lidar com isso na NIC
+        _interface_name(interface_name)
   {
     // Tenta obter as informações da interface (MAC, índice)
     if (!get_interface_info(_interface_name)) {
@@ -71,7 +71,7 @@ public:
     std::function<void(int)> callback =
         std::bind(&NIC::handle_signal, this, std::placeholders::_1);
 
-    setupSignalHandler(callback);
+    Engine::setupSignalHandler(callback);
 
     // Inicializa pool de buffers ----------------------------------------
 
@@ -291,7 +291,7 @@ private:
       struct sockaddr_ll sender_addr; // A engine original usa sockaddr genérico
       socklen_t sender_addr_len;
       int bytes_received =
-          receive(buf, sender_addr, sender_addr_len); // Chamada à API original
+          Engine::receive(buf, sender_addr, sender_addr_len); // Chamada à API original
       if (bytes_received >= 0) {
         printEth(buf);
       }
@@ -370,7 +370,7 @@ private:
     ifr.ifr_name[IFNAMSIZ - 1] = '\0'; // Garante terminação nula
 
     // Obter o índice da interface
-    if (ioctl(getSocketFd(), SIOCGIFINDEX, &ifr) == -1) {
+    if (ioctl(Engine::getSocketFd(), SIOCGIFINDEX, &ifr) == -1) {
       perror(("NIC Error: ioctl SIOCGIFINDEX failed for " + interface_name)
                  .c_str());
       return false;
@@ -378,7 +378,7 @@ private:
     _interface_index = ifr.ifr_ifindex;
 
     // Obter o endereço MAC (Hardware Address)
-    if (ioctl(getSocketFd(), SIOCGIFHWADDR, &ifr) == -1) {
+    if (ioctl(Engine::getSocketFd(), SIOCGIFHWADDR, &ifr) == -1) {
       perror(("NIC Error: ioctl SIOCGIFHWADDR failed for " + interface_name)
                  .c_str());
       return false;
