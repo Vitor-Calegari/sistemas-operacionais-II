@@ -23,7 +23,7 @@ class Engine {
 
 public:
   // Construtor: Cria e configura o socket raw.
-  Engine(const std::string &interface_name);
+  Engine(const char *interface_name);
 
   // Destrutor: Fecha o socket.
   ~Engine();
@@ -49,7 +49,7 @@ public:
     std::memcpy(sadr_ll.sll_addr, buf->data()->dst.mac, ETH_ALEN);
 
     int send_len = sendto(_self->_socket_raw, buf->data(), buf->size(), 0,
-                          (const sockaddr *)&sadr_ll, sizeof(struct sockaddr_ll));
+                          (const sockaddr *)&sadr_ll, sizeof(sadr_ll));
     if (send_len < 0) {
       printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
       return -1;
@@ -84,7 +84,6 @@ public:
     int buflen = recvfrom(_self->_socket_raw, buf->data(), buf->maxSize(), 0,
                           (struct sockaddr *)&sender_addr,
                           (socklen_t *)&sender_addr_len);
-
     if (buflen < 0) {
       // Erro real ou apenas indicação de não bloqueio?
       if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -124,7 +123,7 @@ private:
   // Socket é um inteiro pois seu valor representa um file descriptor
   int _socket_raw;
   int _interface_index;
-  std::string _interface_name;
+  const char * _interface_name;
   Ethernet::Address _address;
 
   static void signalHandler(int signum);

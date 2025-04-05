@@ -5,9 +5,6 @@
 #include <functional>
 #include <iostream> // Para debug output (opcional)
 #include <mutex>
-#include <net/if.h> // Para struct ifreq
-#include <string>
-#include <sys/ioctl.h> // Para ioctl, SIOCGIFHWADDR, SIOCGIFINDEX
 
 #include "buffer.hh"
 #include "engine.hh"
@@ -32,9 +29,9 @@ class NIC
 {
 public:
   // TODO Valores temporareos
-  static const unsigned int SEND_BUFFERS = 100; // Traits<NIC>::SEND_BUFFERS;
+  static const unsigned int SEND_BUFFERS = 1; // Traits<NIC>::SEND_BUFFERS;
   static const unsigned int RECEIVE_BUFFERS =
-      100; // Traits<NIC>::RECEIVE_BUFFERS;
+      1; // Traits<NIC>::RECEIVE_BUFFERS;
 
   static const unsigned int BUFFER_SIZE =
       SEND_BUFFERS * sizeof(Buffer<Ethernet::Frame>) +
@@ -52,7 +49,7 @@ public:
   // Args:
   //   engine: Ponteiro para a instância da Engine a ser usada.
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
-  NIC(const std::string &interface_name) : Engine(interface_name)  //TODO Passar o parametro interface_name aqui é uma boa escolha?
+  NIC(const char *interface_name) : Engine(interface_name)  //TODO Passar o parametro interface_name aqui é uma boa escolha?
   {
     // Setup Handler -----------------------------------------------------
 

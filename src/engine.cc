@@ -2,7 +2,7 @@
 
 Engine* Engine::_self = nullptr;
 
-Engine::Engine(const std::string &interface_name) : _interface_name(interface_name) {
+Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
     _self = this;
     // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
     // SOCK_RAW para criar um raw socket
@@ -53,13 +53,12 @@ Engine::~Engine()
 bool Engine::get_interface_info() {
     struct ifreq ifr;
     std::memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, _interface_name.c_str(), IFNAMSIZ - 1);
+    strncpy(ifr.ifr_name, _interface_name, IFNAMSIZ - 1);
     ifr.ifr_name[IFNAMSIZ - 1] = '\0'; // Garante terminação nula
 
     // Obter o endereço MAC (Hardware Address)
     if (ioctl(Engine::getSocketFd(), SIOCGIFHWADDR, &ifr) == -1) {
-      perror(("Engine Error: ioctl SIOCGIFHWADDR failed for " + _interface_name)
-                 .c_str());
+      perror("Engine Error: ioctl SIOCGIFHWADDR failed");
       return false;
     }
 
@@ -69,7 +68,7 @@ bool Engine::get_interface_info() {
 
     // Caso a interface utilizada seja loopback, geralmente o endereço dela é
     // 00:00:00:00:00:00 Verifica se o MAC obtido não é zero
-    if (_interface_name != "lo" &&
+    if (strcmp(_interface_name, "lo") != 0 &&
         !_address) { // Usa o operator bool() da Address
       std::cerr << "Engine Error: Obtained MAC address is zero for "
                 << _interface_name << std::endl;
@@ -108,7 +107,7 @@ void Engine::confSignalReception() {
 
     // Set interfacace index -------------------------------------
     struct ifreq ifr;
-    strncpy(ifr.ifr_name, _interface_name.c_str(), IFNAMSIZ - 1);
+    strncpy(ifr.ifr_name, _interface_name, IFNAMSIZ - 1);
     if (ioctl(_socket_raw, SIOCGIFINDEX, &ifr) == -1) {
         perror("ioctl SIOCGIFINDEX");
         exit(EXIT_FAILURE);
