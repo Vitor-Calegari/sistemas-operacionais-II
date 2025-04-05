@@ -11,6 +11,10 @@ class Conditional_Data_Observer {
 public:
   typedef T Observed_Data;
   typedef Condition Observing_Condition;
+
+public:
+  virtual void update(Conditionally_Data_Observed<T, Condition> *obs,
+                      Condition c, T *d) = 0;
 };
 
 template <typename T>
@@ -19,6 +23,9 @@ class Conditional_Data_Observer<T, void> {
 
 public:
   typedef T Observed_Data;
+
+public:
+  virtual void update(Conditionally_Data_Observed<T, void> *obs, T *d) = 0;
 };
 
 #endif
