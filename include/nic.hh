@@ -133,13 +133,6 @@ public:
   // Returns:
   //   Número de bytes enviados pela Engine ou -1 em caso de erro.
   int send(BufferNIC *buf) {
-    if (!buf) {
-      #ifdef DEBUG
-      std::cerr << "NIC::send error: Null buffer provided." << std::endl;
-      #endif
-      return -1;
-    }
-
     int bytes_sent = Engine::send(buf);
 
     if (bytes_sent > 0) {
