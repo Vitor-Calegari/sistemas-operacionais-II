@@ -1,8 +1,6 @@
 #ifndef BUFFER_HH
 #define BUFFER_HH
 
-#include <algorithm>
-
 template<typename Data>
 class Buffer: private Data
 {
@@ -26,13 +24,29 @@ public:
     // Args:
     //   newSize: O novo tamanho dos dados.
     void setSize(int newSize) {
-        _size = std::min(newSize, _max_size);
+        // Mínimo entre newSize e _max_size
+        _size = (newSize <= _max_size) ? newSize : _max_size;
     }
 
     void setMaxSize(int maxSize) { _max_size = maxSize;}
 
     // Retorna a capacidade máxima do buffer (em bytes).
     int maxSize() { return _max_size; }
+
+    // --- Métodos para Gerenciamento de Pool (usados pela NIC) ---
+
+    // Verifica se o buffer está atualmente em uso no pool.
+    bool is_in_use() const { return _in_use; }
+
+    // Marca o buffer como em uso. Chamado pela NIC::alloc.
+    void mark_in_use() { _in_use = true; }
+
+    // Marca o buffer como livre. Chamado pela NIC::free.
+    // Reseta o tamanho para evitar usar dados antigos.
+    void mark_free() {
+        _in_use = false;
+        _size = 0; // Importante resetar o tamanho ao liberar
+    }
 
 private:
     int _size;         // Tamanho atual dos dados válidos
