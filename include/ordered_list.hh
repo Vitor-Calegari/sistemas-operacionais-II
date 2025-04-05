@@ -22,6 +22,11 @@ public:
     return lhs.value() == rhs.value() && lhs.rank() == rhs.rank();
   }
 
+  friend bool operator<(const Ordered_Node<D, C> &lhs,
+                        const Ordered_Node<D, C> &rhs) {
+    return lhs._rank < rhs._rank;
+  }
+
 private:
   const D _value;
   const C _rank;
@@ -39,22 +44,7 @@ public:
   }
 
   void insert(D el, C c) {
-    if (List::empty()) {
-      List::push_front(Ordered_Node<D, C>{ el, c });
-      return;
-    }
-
-    Iterator prev = List::before_begin(), cur = List::begin();
-    for (; cur != List::end() && cur->rank() <= c; prev = cur, ++cur)
-      ;
-
-    if (cur == List::end()) {
-      List::insert_after(prev, Ordered_Node<D, C>{ el, c });
-    } else if (prev == List::before_begin()) {
-      List::push_front(Ordered_Node<D, C>{ el, c });
-    } else {
-      List::insert_after(prev, Ordered_Node<D, C>{ el, c });
-    }
+    List::merge({ { el, c } });
   }
 
   void remove(D el, C c) {
