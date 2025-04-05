@@ -12,7 +12,11 @@ int main (int argc, char *argv[]) {
     if (send) {
         Ethernet::Address dest = Ethernet::Address(Ethernet::BROADCAST_ADDRESS);
         unsigned char data[5] = {0xAA, 0xBB, 0xCC, 0xDD, 0xFF};
-        nic.send(dest, ETH_P_802_EX1, data, 5);
+
+        Buffer<Ethernet::Frame> * buf = nic.alloc(dest, htons(ETH_P_802_EX1), 64);
+        memcpy(buf->data()->data, data, 5);
+        buf->setSize(buf->size() + 5);
+        nic.send(buf);
     } else {
         while(1) {sleep(10);}
     }

@@ -15,6 +15,7 @@
 #include "engine.hh"
 #include "ethernet.hh"
 
+
 // TODO Remover depois:
 #include "utils.hh"
 
@@ -52,7 +53,8 @@ public:
   typedef Buffer<Ethernet::Frame> BufferNIC;
 
   // Construtor: Recebe um ponteiro para a Engine (cuja vida útil é gerenciada
-  // externamente) e o nome da interface de rede. Args:
+  // externamente) e o nome da interface de rede.
+  // Args:
   //   engine: Ponteiro para a instância da Engine a ser usada.
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
   NIC(const std::string &interface_name)
@@ -87,6 +89,7 @@ public:
       exit(EXIT_FAILURE);
     }
 
+    #ifdef DEBUG
     // Print Debug -------------------------------------------------------
 
     std::cout << "NIC initialized for interface " << _interface_name
@@ -95,12 +98,15 @@ public:
     for (int i = 0; i < 6; ++i)
       std::cout << std::hex << (int)_address.mac[i] << (i < 5 ? ":" : "");
     std::cout << std::dec << " and index " << _interface_index << std::endl;
+    #endif
   }
 
   // Destrutor
   ~NIC() {
+    #ifdef DEBUG
     std::cout << "NIC for interface " << _interface_name << " destroyed."
               << std::endl;
+    #endif
   }
 
   // Proibe cópia e atribuição para evitar problemas com ponteiros e estado.
@@ -129,7 +135,9 @@ public:
       }
     }
     // Se nenhum buffer livre foi encontrado
+    #ifdef DEBUG
     std::cerr << "NIC::alloc: Buffer pool exhausted!" << std::endl;
+    #endif
     return nullptr;
   }
 
@@ -156,7 +164,9 @@ public:
   //   Número de bytes enviados pela Engine ou -1 em caso de erro.
   int send(BufferNIC *buf) {
     if (!buf) {
+      #ifdef DEBUG
       std::cerr << "NIC::send error: Null buffer provided." << std::endl;
+      #endif
       return -1;
     }
 
@@ -182,70 +192,14 @@ public:
       // std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes." <<
       // std::endl;
     } else {
+      #ifdef DEBUG
       std::cerr << "NIC::send(buf): Engine failed to send packet." << std::endl;
+      #endif
     }
 
     free(buf);
 
     return bytes_sent;
-  }
-
-  // TODO Acho que esse método pode não existir
-  // Método de envio de alto nível.
-  // Este método aloca temporariamente um buffer, preenche-o e o envia.
-  // Args:
-  //   dst: Endereço MAC de destino (NOTA: será IGNORADO, sempre envia
-  //   broadcast). prot: O número do protocolo (EtherType) a ser colocado no
-  //   cabeçalho (em ordem de host). data: Ponteiro para os dados a serem
-  //   enviados no payload. size: Tamanho dos dados em bytes.
-  // Returns:
-  //   Número de bytes enviados no total ou -1 em caso de erro.
-  int send(Address dst, Protocol_Number prot, void *data, unsigned int size) {
-    // 1. Alocar um buffer temporário com 'new'
-    BufferNIC *buf = nullptr;
-    try {
-      buf = alloc(dst, prot, size);
-    } catch (const std::bad_alloc &e) {
-      std::cerr << "NIC::send: Failed to allocate buffer - " << e.what()
-                << std::endl;
-      return -1;
-    }
-
-    // 2. Preencher o buffer
-    // Define o endereço de destino como broadcast (ignora o parâmetro dst)
-    buf->data()->dst = dst;
-    // Define o endereço de origem (será sobrescrito pelo send(Buffer*) ou
-    // engine, mas bom ter)
-    buf->data()->src = _address;
-    // Define o protocolo (EtherType). Recebe em ordem de host, converte
-    // para
-    // rede.
-    buf->data()->prot = htons(prot);
-
-    // Calcula o tamanho do payload a ser copiado (limitado pelo MTU)
-    unsigned int payload_size = std::min(size, (unsigned int)Ethernet::MTU);
-    // Copia os dados do usuário para o payload do frame Ethernet
-    if (data && payload_size > 0) {
-      std::memcpy(buf->data()->data, data, payload_size);
-    } else {
-      payload_size = 0; // Garante que payload_size seja 0 se data for null
-    }
-
-    // Define o tamanho total do buffer (Cabeçalho Ethernet + Payload)
-    unsigned int total_size = Ethernet::HEADER_SIZE + payload_size;
-    // Ethernet frames têm tamanho mínimo (64 bytes total, 60 sem FCS).
-    // Padding
-    // pode ser necessário. Raw sockets geralmente não precisam de padding
-    // manual se o total_size >= 60. if (total_size < 60) total_size = 60;
-    //
-    // Padding manual se necessário (raro com raw sockets)
-    buf->setSize(total_size);
-
-    // 3. Chamar o outro método send para fazer o envio real.
-    //    Este método send(const Buffer*) fará a cópia e chamará a engine.
-    int result = send(buf); // Passa o ponteiro do buffer alocado
-
-    return result;
   }
 
   // --- Métodos de Gerenciamento e Informação ---
@@ -263,38 +217,27 @@ public:
 
 private:
   // Método membro que processa o sinal (chamado pelo handler estático)
-  //  R: Acho que deveriamos testar se essa função funciona sem o While,
-  //     acho que a Engine da uma interrupção por pacote novo
   void handle_signal(int signum) {
     if (signum == SIGIO) {
       // TODO Print temporário:
+      #ifdef DEBUG
       std::cout << "New packet received" << std::endl;
+      #endif
       // 1. Alocar um buffer para recepção.
-      //    De acordo com o código original (main.cc, engine signal handler
-      //    example), parece que a alocação é feita com 'new'. O tamanho deve
-      //    ser suficiente para o maior frame Ethernet.
       BufferNIC *buf = nullptr;
-      try {
-        // Usa a capacidade máxima do frame Ethernet
-        buf = alloc(Address(), 0, 1514);
-      } catch (const std::bad_alloc &e) {
-        std::cerr
-            << "NIC::handle_signal: Failed to allocate buffer for reception - "
-            << e.what() << std::endl;
-      }
+      // Usa a capacidade máxima do frame Ethernet
+      buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS);
 
       // 2. Tentar receber o pacote usando a Engine.
-      //    A Engine::receive fornecida espera (Buffer<Data> * buf, sockaddr
-      //    saddr) e retorna int. Precisamos de uma sockaddr para receber o
-      //    remetente.
-
       struct sockaddr_ll sender_addr; // A engine original usa sockaddr genérico
       socklen_t sender_addr_len;
       int bytes_received =
           Engine::receive(buf, sender_addr, sender_addr_len); // Chamada à API original
+      #ifdef DEBUG
       if (bytes_received >= 0) {
         printEth(buf);
       }
+      #endif
 
       if (bytes_received > 0) {
         // Pacote recebido!
@@ -306,12 +249,7 @@ private:
           _statistics.rx_bytes += bytes_received;
         }
 
-        // Filtrar pacotes enviados por nós mesmos (best-effort sem sender MAC
-        // da engine original) A única forma é comparar o MAC de origem DENTRO
-        // do buffer com o nosso.
-        //  R: Talvez tenhamos que modificar isso quando a utilizemos a NIC para
-        //  comunicar entre
-        //     Threads e não apenas processos.
+        // Filtrar pacotes enviados por nós mesmos
         if (buf->data()->src != _address) {
           // ************************************************************
           // TODO Foi comentado pois os observadores ainda não funcionam
@@ -323,23 +261,14 @@ private:
           // Se NENHUM observador (Protocolo) estava interessado (registrado
           // para este EtherType), a NIC deve liberar o buffer que alocou.
           if (!notified) {
-            // std::cout << "NIC: Packet received (proto=0x" << std::hex <<
-            // ntohs(proto_net_order) << std::dec << "), but no observer found.
-            // Deleting buffer." << std::endl;
             free(buf); // Libera o buffer alocado com 'new'
           } else {
-            // std::cout << "NIC: Packet received (proto=0x" << std::hex <<
-            // ntohs(proto_net_order) << std::dec << ") and notified observer.
-            // Buffer passed." << std::endl; O buffer foi passado para o
-            // Observer (Protocol) através da chamada a
+            // O buffer foi passado para o Observer (Protocol) através da chamada a
             // Concurrent_Observer::update dentro do this->notify(). O
             // Protocol/Communicator agora é responsável por eventualmente
-            // deletar o buffer recebido via Concurrent_Observer::updated().
+            // liberar o buffer recebido via Concurrent_Observer::updated().
           }
         } else {
-          // Pacote com nosso MAC de origem, provavelmente loopback do nosso
-          // envio. Ignorar.
-          // std::cout << "NIC: Ignored own packet." << std::endl;
           free(buf); // Libera o buffer alocado
         }
 
@@ -347,16 +276,11 @@ private:
         // Não há mais pacotes disponíveis no momento (recvfrom retornaria 0 ou
         // -1 com EAGAIN/EWOULDBLOCK). A engine original retorna -1 em erro, não
         // 0. Então só chegamos aqui se for < 0.
-        free(buf); // Libera o buffer que alocamos e não usamos.
+        free(buf);
       } else {     // bytes_received < 0
-                   // Erro na leitura do socket (ou EAGAIN/EWOULDBLOCK se fosse
-                   // não-bloqueante). A engine original não parece configurar
-               // não-bloqueante explicitamente no signal handler setup. Se for
-               // erro real, logar. Se for EAGAIN, apenas sair do loop. if
-               // (errno != EAGAIN && errno != EWOULDBLOCK) { // Se pudéssemos
-               // checar errno
-               // perror("NIC::handle_signal recvfrom error");
-               //}
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                perror("NIC::handle_signal recvfrom error");
+            }
         free(buf); // Libera o buffer que alocamos.
       }
     }
