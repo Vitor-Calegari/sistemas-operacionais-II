@@ -13,7 +13,8 @@ public:
     // Tamanho do cabeçalho Ethernet (Dest MAC + Src MAC + EtherType)
     static const int HEADER_SIZE = 14;
     // Tamanho máximo quadro desconsiderando FCS
-    static const int MAX_FRAME_SIZE_NO_FCS = HEADER_SIZE + MTU;
+    const unsigned int MAX_FRAME_SIZE_NO_FCS = HEADER_SIZE + MTU;
+    static const int MIN_FRAME_SIZE = 64;
     static const unsigned char BROADCAST_ADDRESS[6];
 
     // Estrutura que representa um endereço MAC (6 bytes)
@@ -41,6 +42,7 @@ public:
         Address src;           // Endereço MAC de origem (6 bytes)
         Protocol prot;         // EtherType (Protocolo) (2 bytes)
         unsigned char data[MTU];  // Payload (dados da camada superior) - até 1500 bytes
+        void clear();
     } __attribute__((packed));
 
     // Estrutura para estatísticas de transmissão/recepção

@@ -31,3 +31,10 @@ Ethernet::Address::operator bool() const {
 Ethernet::Statistics::Statistics() : tx_packets(0), tx_bytes(0), rx_packets(0), rx_bytes(0)  { }
 
 const unsigned char Ethernet::BROADCAST_ADDRESS[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+void Ethernet::Frame::clear() {
+    src = Address();
+    dst = Address();
+    prot = 0;
+    std::memset(data, 0, MTU);
+}
