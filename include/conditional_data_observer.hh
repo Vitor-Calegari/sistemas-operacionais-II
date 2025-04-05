@@ -2,7 +2,7 @@
 #define CONDITIONAL_DATA_OBSERVER_HH
 
 template <typename T, typename Condition>
-class Conditionally_Data_Observed;
+class Conditionally_Data_Observed {};
 
 template <typename T, typename Condition = void>
 class Conditional_Data_Observer {

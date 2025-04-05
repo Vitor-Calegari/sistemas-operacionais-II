@@ -10,11 +10,9 @@
 #include <sys/ioctl.h> // Para ioctl, SIOCGIFHWADDR, SIOCGIFINDEX
 
 #include "buffer.hh"
-#include "concurrent_observed.hh"
-#include "concurrent_observer.hh"
 #include "engine.hh"
 #include "ethernet.hh"
-
+#include "conditional_data_observer.hh"
 
 #ifdef DEBUG
 #include "utils.hh"
@@ -29,12 +27,9 @@
 template<typename Engine>
 class NIC
     : public Ethernet,
-      // ******************************************************************************
-      // TODO: O OBSERVADOR AQUI ESTÁ ERRADO, DEVERIA SER O CONDITIONAL. Porém
-      // ainda não está implementado, concertar depois no resto da NIC.
-      public Concurrent_Observed<Buffer<Ethernet::Frame>, Ethernet::Protocol>,
-      // ******************************************************************************
-      private Engine {
+      public Conditionally_Data_Observed<Buffer<Ethernet::Frame>, Ethernet::Protocol>,
+      private Engine
+{
 public:
   // TODO Valores temporareos
   static const unsigned int SEND_BUFFERS = 100; // Traits<NIC>::SEND_BUFFERS;
@@ -46,9 +41,9 @@ public:
       RECEIVE_BUFFERS * sizeof(Buffer<Ethernet::Frame>);
   typedef Ethernet::Address Address; // Re-expõe Address de Ethernet
   typedef Ethernet::Protocol Protocol_Number;
-  typedef Concurrent_Observer<Buffer<Ethernet::Frame>, Protocol_Number>
+  typedef Conditional_Data_Observer<Buffer<Ethernet::Frame>, Protocol_Number>
       Observer;
-  typedef Concurrent_Observed<Buffer<Ethernet::Frame>, Protocol_Number>
+  typedef Conditionally_Data_Observed<Buffer<Ethernet::Frame>, Protocol_Number>
       Observed;
   typedef Buffer<Ethernet::Frame> BufferNIC;
 
@@ -57,7 +52,7 @@ public:
   // Args:
   //   engine: Ponteiro para a instância da Engine a ser usada.
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
-  NIC(const std::string &interface_name) : Engine(interface_name)
+  NIC(const std::string &interface_name) : Engine(interface_name)  //TODO Passar o parametro interface_name aqui é uma boa escolha?
   {
     // Setup Handler -----------------------------------------------------
 
