@@ -1,10 +1,9 @@
 #ifndef OBSERVED_HH
 #define OBSERVED_HH
 
-#include <list>
 #include "concurrent_observer.hh"
+#include "ordered_list.hh"
 
-// TODO!
 template <typename T, typename Condition = void>
 class Conditionally_Data_Observed;
 
@@ -15,10 +14,7 @@ class Concurrent_Observed {
 public:
   typedef D Observed_Data;
   typedef C Observing_Condition;
-  // TODO! Implementar a classe Ordered_List ou ver se std::list é suficiente.
-  // Além disso, ver para que serve parâmetro C (provavelmente para o rank()):
-  // typedef Ordered_List<Concurrent_Observer<D, C>, C> Observers;
-  typedef std::list<Concurrent_Observer<D, C>> Observers;
+  using Observers = Ordered_List<Concurrent_Observer<D, C>, C>;
 
 public:
   Concurrent_Observed() = default;
@@ -26,20 +22,19 @@ public:
   ~Concurrent_Observed() = default;
 
   void attach(Concurrent_Observer<D, C> *o, C c) {
-    _observers.insert(std::lower_bound(_observers.cbegin(), _observers.cend(), o),
-                      o);
+    _observers.insert(o, c);
   }
 
   void detach(Concurrent_Observer<D, C> *o, C c) {
-    _observers.remove(o);
+    _observers.remove(o, c);
   }
 
   bool notify(C c, D *d) {
     bool notified = false;
 
-    for (auto &obs = _observers.begin(); obs != _observers.end(); ++obs) {
+    for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
       if (obs->rank() == c) {
-        obs->update(c, d);
+        obs->value()->update(c, d);
         notified = true;
       }
     }

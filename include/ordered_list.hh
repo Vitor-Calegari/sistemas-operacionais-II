@@ -44,9 +44,8 @@ public:
       return;
     }
 
-    Iterator prev, cur;
-    for (prev = List::before_begin(), cur = List::begin();
-         cur != List::end() && cur->rank() <= c; prev = cur, ++cur)
+    Iterator prev = List::before_begin(), cur = List::begin();
+    for (; cur != List::end() && cur->rank() <= c; prev = cur, ++cur)
       ;
 
     if (cur == List::end()) {
