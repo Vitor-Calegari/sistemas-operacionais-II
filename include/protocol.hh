@@ -103,7 +103,7 @@ public:
     // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
     int receive(Buffer* buf, Address &from, void* data, unsigned int size) {
         Address to = Address();
-        unsigned int s= getNIC()->receive(buf, &from.paddr, &to.paddr, data, size);
+        unsigned int s= getNIC()->receive(buf, &from.paddr, &to.paddr, data, size); // TODO igual ao pdf, porém para que serve o to?
         getNIC()->free(buf);
         return s;
     }
@@ -112,7 +112,7 @@ private:
     // Método update: chamado pela NIC quando um frame é recebido.
     // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
     void update(typename NIC::Observed* obs, typename NIC::Protocol_Number prot, Buffer* buf) {
-        if (!_nic->notify(prot, buf))
+        if (!_nic->notify(prot, buf))  // TODO diferente do pdf
             _nic->free(buf);
     }
 
@@ -121,7 +121,7 @@ private:
         return _nic;
     }
 
-    static Protocol* _instance;
+    static Protocol* _instance;  // TODO diferente do pdf
     NIC* _nic;
 };
 template <typename NIC>

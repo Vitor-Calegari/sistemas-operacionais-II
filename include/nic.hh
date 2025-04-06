@@ -173,6 +173,7 @@ public:
 
 private:
   // Método membro que processa o sinal (chamado pelo handler estático)
+  // TODO handle deveria ser aqui ou na Engine? deveria ou não ler do socket?
   void handle_signal(int signum) {
     if (signum == SIGIO) {
       // TODO Print temporário:
