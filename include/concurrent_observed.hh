@@ -4,9 +4,6 @@
 #include "concurrent_observer.hh"
 #include "ordered_list.hh"
 
-template <typename T, typename Condition = void>
-class Conditionally_Data_Observed;
-
 template <typename D, typename C = void>
 class Concurrent_Observed {
   friend class Concurrent_Observer<D, C>;
