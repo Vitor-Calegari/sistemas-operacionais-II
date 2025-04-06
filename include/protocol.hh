@@ -4,19 +4,20 @@
 #include <cstring>
 #include "nic.hh"
 #include "ethernet.hh"
-#include "observer.hh"    // Declara Conditional_Data_Observer<>
-#include "observed.hh"    // Declara Conditionally_Data_Observed<>
+#include "conditional_data_observer.hh"
+#include "conditionally_data_observed.hh"
 
-// Template Protocol – toda a implementação fica no header
 template <typename NIC>
-class Protocol : private typename NIC::Observer {
+class Protocol : private NIC::Observer {
 public:
-    // Número de protocolo definido via Traits (ex: 0x0800)
-    inline static const typename NIC::Protocol_Number PROTO = Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
+    inline static const typename NIC::Protocol_Number PROTO = htons(ETH_P_802_EX1); //Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
 
-    typedef typename NIC::Buffer        Buffer;
+    typedef typename NIC::BufferNIC        Buffer;
     typedef typename NIC::Address       Physical_Address;
     typedef unsigned short              Port;
+
+    typedef Conditional_Data_Observer<Buffer, Port> Observer;
+    typedef Conditionally_Data_Observed<Buffer, Port> Observed;
 
     // Endereço do protocolo: combinação de endereço físico e porta
     class Address {
@@ -37,7 +38,8 @@ public:
     // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo, etc.)
     class Header {
     public:
-        Header() : length(0) { }
+        Header() : length(0), origin(Address()){}
+        Address origin;
         unsigned int length;
     };
 
@@ -58,11 +60,22 @@ public:
         Data _data;
     } __attribute__((packed));
 
+    static Protocol* getInstance(NIC* nic) {
+        if (!_instance) {
+            _instance = new Protocol(nic);
+        }
+        return _instance;
+    }
+
+    Protocol(Protocol const&)               = delete;
+    void operator=(Protocol const&)  = delete;
+
+protected:
     // Construtor: associa o protocolo à NIC e registra-se como observador do protocolo PROTO
     Protocol(NIC* nic) : _nic(nic) {
         _nic->attach(this, PROTO);
     }
-
+public:
     // Destrutor: remove o protocolo da NIC
     ~Protocol() {
         _nic->detach(this, PROTO);
@@ -78,19 +91,21 @@ public:
         // Em vez de interpretar o frame inteiro como um Packet, acessa o payload.
         // Presume-se que o Ethernet::Frame possui um cabeçalho fixo de tamanho Ethernet::HEADER_SIZE.
         unsigned char* payloadPtr = reinterpret_cast<unsigned char*>(buf) + Ethernet::HEADER_SIZE;
+        //buf->data()->data;
         Packet* pkt = reinterpret_cast<Packet*>(payloadPtr);
-        pkt->length = sizeof(Header) + size;
-        std::memcpy(pkt->data<char>(), data, size);
+        pkt->header()->origin = from;
+        buf->setSize(buf->size() + sizeof(Header) + size);
+        std::memcpy(pkt->template data<char>(), data, size);
         return _nic->send(buf);
     }
 
     // Recebe uma mensagem:
     // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
-    int receive(Buffer* buf, const Address &from, void* data, unsigned int size) {
-        unsigned char* payloadPtr = reinterpret_cast<unsigned char*>(buf) + Ethernet::HEADER_SIZE;
-        Packet* pkt = reinterpret_cast<Packet*>(payloadPtr);
-        // Para simplificar, delega à NIC (neste exemplo não extraímos dados do Packet explicitamente)
-        return _nic->receive(buf, nullptr, nullptr, data, size);
+    int receive(Buffer* buf, Address &from, void* data, unsigned int size) {
+        Address to = Address();
+        unsigned int s= getNIC()->receive(buf, &from.paddr, &to.paddr, data, size);
+        getNIC()->free(buf);
+        return s;
     }
 
 private:
@@ -106,7 +121,9 @@ private:
         return _nic;
     }
 
+    static Protocol* _instance;
     NIC* _nic;
 };
-
+template <typename NIC>
+Protocol<NIC>* Protocol<NIC>::_instance = nullptr;
 #endif // PROTOCOL_HH

@@ -1,4 +1,4 @@
-#include "nic.hh"
+#include "protocol.hh"
 
 int main (int argc, char *argv[]) {
     if (argc < 2) {
@@ -9,16 +9,15 @@ int main (int argc, char *argv[]) {
 
     NIC<Engine> nic = NIC<Engine>("lo");
 
+    Protocol<NIC<Engine>> * prot = Protocol<NIC<Engine>>::getInstance(&nic);
+
     if (send) {
         for (int i = 0; i < 10; i++) {
-            Ethernet::Address dest = Ethernet::Address(Ethernet::BROADCAST_ADDRESS);
+            Protocol<NIC<Engine>>::Address dest = Protocol<NIC<Engine>>::Address(Ethernet::BROADCAST_ADDRESS, 10);
             unsigned char data[5] = {0xAA, 0xBB, 0xCC, 0xDD, 0xFF};
 
-            Buffer<Ethernet::Frame> * buf = nic.alloc(dest, htons(ETH_P_802_EX1), 64);
-            memcpy(buf->data()->data, data, 5);
-            buf->setSize(buf->size() + 5);
-            
-            nic.send(buf);
+            Protocol<NIC<Engine>>::Address from = Protocol<NIC<Engine>>::Address(Ethernet::Address(), 10);
+            prot->send(from, dest, data, 5);
         }
     } else {
         while(1) {sleep(10);}

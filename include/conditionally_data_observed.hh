@@ -11,7 +11,7 @@ class Conditionally_Data_Observed {
 
 public:
   using Observer = Conditional_Data_Observer<T, Condition>;
-  using Observers = Ordered_List<Observer, Condition>;
+  using Observers = Ordered_List<Observer*, Condition>;
   using Observed_Data = T;
 
 public:

@@ -9,6 +9,7 @@
 #include "buffer.hh"
 #include "engine.hh"
 #include "ethernet.hh"
+#include "conditionally_data_observed.hh"
 #include "conditional_data_observer.hh"
 
 #ifdef DEBUG
@@ -29,9 +30,8 @@ class NIC
 {
 public:
   // TODO Valores temporareos
-  static const unsigned int SEND_BUFFERS = 1; // Traits<NIC>::SEND_BUFFERS;
-  static const unsigned int RECEIVE_BUFFERS =
-      1; // Traits<NIC>::RECEIVE_BUFFERS;
+  static const unsigned int SEND_BUFFERS = 1;//Traits<NIC<Engine>>::SEND_BUFFERS;
+  static const unsigned int RECEIVE_BUFFERS = 1;//Traits<NIC<Engine>>::RECEIVE_BUFFERS;
 
   static const unsigned int BUFFER_SIZE =
       SEND_BUFFERS * sizeof(Buffer<Ethernet::Frame>) +
@@ -85,6 +85,7 @@ public:
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
   BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size) {
     std::lock_guard<std::mutex> lock(_pool_mutex); // Protege o acesso ao pool
+    int maxSize = Ethernet::HEADER_SIZE + size;
     for (BufferNIC &buf : _buffer_pool) {
       if (!buf.is_in_use()) {
         buf.mark_in_use(); // Marca como usado ANTES de retornar
@@ -92,11 +93,11 @@ public:
         buf.data()->dst = dst;
         buf.data()->prot = prot;
         // Mínimo de 64 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
-        buf.setMaxSize(size < Ethernet::MIN_FRAME_SIZE
+        buf.setMaxSize(maxSize < Ethernet::MIN_FRAME_SIZE
                            ? Ethernet::MIN_FRAME_SIZE
-                           : (size > Ethernet::MAX_FRAME_SIZE_NO_FCS
+                           : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
                                   ? Ethernet::MAX_FRAME_SIZE_NO_FCS
-                                  : size));
+                                  : maxSize));
         buf.setSize(Ethernet::HEADER_SIZE);
         return &buf; // Retorna ponteiro para o buffer encontrado
       }
@@ -164,6 +165,10 @@ public:
   const Statistics &statistics() const {
     std::lock_guard<std::mutex> lock(_stats_mutex);
     return _statistics; // Retorna referência direta (cuidado com concorrência)
+  }
+
+  int receive(BufferNIC * buf, Address * from, Address * to, void * data, unsigned int size) {
+    return buf->size();
   }
 
 private:
