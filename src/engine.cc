@@ -50,6 +50,23 @@ Engine::~Engine()
     #endif
 }
 
+// Aloca memória para um frame. Placeholder com 'new'.
+Buffer<Ethernet::Frame>* Engine::allocate_frame_memory() {
+    try {
+        // Aloca e retorna ponteiro para um Ethernet::Frame.
+        Buffer<Ethernet::Frame>* frame_ptr = new Buffer<Ethernet::Frame>(Ethernet::MAX_FRAME_SIZE_NO_FCS);
+        return frame_ptr;
+    } catch (const std::bad_alloc& e) {
+         std::cerr << "Engine Error: Failed to allocate frame memory - " << e.what() << std::endl;
+         throw;
+    }
+}
+
+// Libera memória do frame. Placeholder com 'delete'.
+void Engine::free_frame_memory(Buffer<Ethernet::Frame>* frame_ptr) {
+    delete frame_ptr;
+}
+
 bool Engine::get_interface_info() {
     struct ifreq ifr;
     std::memset(&ifr, 0, sizeof(ifr));

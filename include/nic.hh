@@ -61,11 +61,9 @@ public:
     // Inicializa pool de buffers ----------------------------------------
 
     try {
-      _buffer_pool.reserve(
-          BUFFER_SIZE); // Reserva espaço para evitar realocações
       for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
         // Cria buffers com a capacidade máxima definida
-        _buffer_pool.emplace_back(Ethernet::MAX_FRAME_SIZE_NO_FCS);
+        _buffer_pool[i] = Engine::allocate_frame_memory();
       }
     } catch (const std::bad_alloc &e) {
       perror("NIC Error: buffer pool alloc");
@@ -74,7 +72,11 @@ public:
   }
 
   // Destrutor
-  ~NIC() {}
+  ~NIC() {
+    for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
+      Engine::free_frame_memory(_buffer_pool[i]);
+    }
+  }
 
   // Proibe cópia e atribuição para evitar problemas com ponteiros e estado.
   NIC(const NIC &) = delete;
@@ -85,21 +87,21 @@ public:
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
   BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size) {
     std::lock_guard<std::mutex> lock(_pool_mutex); // Protege o acesso ao pool
-    int maxSize = Ethernet::HEADER_SIZE + size;
-    for (BufferNIC &buf : _buffer_pool) {
-      if (!buf.is_in_use()) {
-        buf.mark_in_use(); // Marca como usado ANTES de retornar
-        buf.data()->src = Engine::getAddress();
-        buf.data()->dst = dst;
-        buf.data()->prot = prot;
+    unsigned int maxSize = Ethernet::HEADER_SIZE + size;
+    for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
+      if (!_buffer_pool[i]->is_in_use()) {
+        _buffer_pool[i]->mark_in_use(); // Marca como usado ANTES de retornar
+        _buffer_pool[i]->data()->src = Engine::getAddress();
+        _buffer_pool[i]->data()->dst = dst;
+        _buffer_pool[i]->data()->prot = prot;
         // Mínimo de 64 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
-        buf.setMaxSize(maxSize < Ethernet::MIN_FRAME_SIZE
+        _buffer_pool[i]->setMaxSize(maxSize < Ethernet::MIN_FRAME_SIZE
                            ? Ethernet::MIN_FRAME_SIZE
                            : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
                                   ? Ethernet::MAX_FRAME_SIZE_NO_FCS
                                   : maxSize));
-        buf.setSize(Ethernet::HEADER_SIZE);
-        return &buf; // Retorna ponteiro para o buffer encontrado
+        _buffer_pool[i]->setSize(Ethernet::HEADER_SIZE);
+        return _buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
       }
     }
     // Se nenhum buffer livre foi encontrado
@@ -248,8 +250,7 @@ private:
       _stats_mutex; // Mutex para proteger o acesso às estatísticas
 
   // Pool de Buffers
-  std::vector<BufferNIC>
-      _buffer_pool;       // Vetor que contém os buffers pré-alocados
+  BufferNIC * _buffer_pool[BUFFER_SIZE];       // Vetor que contém os buffers pré-alocados
   std::mutex _pool_mutex; // Mutex para proteger o acesso ao pool (_buffer_pool
                           // e flags _in_use)
 };

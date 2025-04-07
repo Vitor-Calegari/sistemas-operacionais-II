@@ -57,14 +57,23 @@ public:
     return send_len;
   }
 
+  // Aloca memória bruta para um frame Ethernet.
+  // Retorna: Ponteiro para a memória alocada (do tipo Ethernet::Frame*).
+  // Lança exceção em caso de falha.
+  // (Implementação atual usa 'new', futuras podem usar memória compartilhada)
+  Buffer<Ethernet::Frame>* allocate_frame_memory();
+
+  // Libera a memória previamente alocada por allocate_frame_memory.
+  // Args:
+  //   frame_ptr: Ponteiro para a memória a ser liberada.
+  void free_frame_memory(Buffer<Ethernet::Frame>* frame_ptr);
+
   // Obtém informações da interface (MAC, índice) usando ioctl.
   bool get_interface_info();
 
   // *************TODO**************
   // Ainda está errado os parâmetros
-  // A NIC tem 2 receive e 2 send, qual deles é da engine?
   // Porque o receive da engine teria parametros?
-  // Será que sempre vai ser na mesma interface de rede?
   // Mensagens transferidas em broadcast são recebidas pela mesma engine que as
   // enviou, como lidar?
   // *******************************

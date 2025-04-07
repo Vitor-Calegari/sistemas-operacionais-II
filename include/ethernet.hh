@@ -13,7 +13,7 @@ public:
     // Tamanho do cabeçalho Ethernet (Dest MAC + Src MAC + EtherType)
     static const int HEADER_SIZE = 14;
     // Tamanho máximo quadro desconsiderando FCS
-    const unsigned int MAX_FRAME_SIZE_NO_FCS = HEADER_SIZE + MTU;
+    static const unsigned int MAX_FRAME_SIZE_NO_FCS = HEADER_SIZE + MTU;
     static const int MIN_FRAME_SIZE = 64;
     static const unsigned char BROADCAST_ADDRESS[6];
     static const unsigned char ZERO[6];
