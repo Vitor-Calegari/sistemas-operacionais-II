@@ -1,101 +1,57 @@
 #ifndef BUFFER_HH
 #define BUFFER_HH
 
-#include <algorithm> // Para std::min
-#include <cstddef>   // Para std::size_t
-#include <new>       // Para std::bad_alloc
-#include <cstring>   // Para std::memset
-
-#include "ethernet.hh" // Precisa conhecer Ethernet::Frame
-
-// Define o tipo de dados padrão que o Buffer conterá.
-typedef Ethernet::Frame BufferData;
-
-template<typename Data = BufferData>
-class Buffer {
+template<typename Data>
+class Buffer: private Data
+{
 public:
-    // Construtor agora recebe um ponteiro para os dados já alocados (pela Engine)
-    // e a capacidade dessa área de memória.
-    explicit Buffer(Data* data_ptr, unsigned int capacity) :
-        _data_ptr(data_ptr), // Armazena o ponteiro fornecido
-        _capacity(capacity),
-        _size(0),
-        _in_use(false)
-    {
-        if (!_data_ptr) {
-            // É responsabilidade do chamador (NIC) garantir que data_ptr é válido.
-            // Poderia lançar exceção, mas talvez um assert seja melhor aqui.
-             throw std::invalid_argument("Buffer constructor received null data pointer");
-        }
-        // Opcional: Limpar a memória apontada (se a Engine não o fizer)
-        // std::memset(_data_ptr, 0, sizeof(Data));
+
+    Buffer() : _size(0), _max_size(0), _in_use(false) {}
+
+    // Construtor: define a capacidade máxima do buffer.
+    // Args:
+    //   cap: A capacidade máxima de bytes que o buffer pode conter.
+    Buffer(int max_size): _size(0), _max_size(max_size), _in_use(false) {}
+
+    // Retorna um ponteiro para o objeto Data contido no buffer.
+    Data * data() { return this; }
+
+    // Retorna o tamanho atual dos dados válidos no buffer (em bytes).
+    int size() { return _size; }
+
+    // Define o tamanho atual dos dados válidos.
+    // Garante que o tamanho não exceda a capacidade.
+    // Args:
+    //   newSize: O novo tamanho dos dados.
+    void setSize(int newSize) {
+        // Mínimo entre newSize e _max_size
+        _size = (newSize <= _max_size) ? newSize : _max_size;
     }
 
-    // Destrutor: NÃO deleta mais _data_ptr. A Engine é dona da memória.
-    ~Buffer() {
-        _data_ptr = nullptr; // Evita dangling pointer se o buffer for movido
-    }
+    void setMaxSize(int maxSize) { _max_size = maxSize;}
 
-    // --- Gerenciamento de Recurso (Movimentação) ---
-    // Proíbe cópia
-    Buffer(const Buffer&) = delete;
-    Buffer& operator=(const Buffer&) = delete;
+    // Retorna a capacidade máxima do buffer (em bytes).
+    int maxSize() { return _max_size; }
 
-    // Permite mover
-    Buffer(Buffer&& other) noexcept :
-        _data_ptr(other._data_ptr), _capacity(other._capacity), _size(other._size), _in_use(other._in_use)
-    {
-        // Reseta 'other' para indicar que não possui mais os dados
-        other._data_ptr = nullptr;
-        other._capacity = 0;
-        other._size = 0;
-        other._in_use = false;
-    }
+    // --- Métodos para Gerenciamento de Pool (usados pela NIC) ---
 
-    Buffer& operator=(Buffer&& other) noexcept {
-        if (this != &other) {
-            // O ponteiro atual não é deletado (pertence à Engine)
-            _data_ptr = other._data_ptr;
-            _capacity = other._capacity;
-            _size = other._size;
-            _in_use = other._in_use;
-
-            // Reseta 'other'
-            other._data_ptr = nullptr;
-            other._capacity = 0;
-            other._size = 0;
-            other._in_use = false;
-        }
-        return *this;
-    }
-
-    // Retorna o ponteiro para os dados gerenciados pela Engine.
-    Data* data() { return _data_ptr; }
-    const Data* data() const { return _data_ptr; }
-
-    // Tamanho atual dos dados *válidos* dentro da memória apontada.
-    unsigned int size() const { return _size; }
-
-    // Define o tamanho atual, limitado pela capacidade.
-    void setSize(unsigned int newSize) {
-        _size = std::min(newSize, _capacity);
-    }
-
-    // Capacidade da memória apontada.
-    unsigned int capacity() const { return _capacity; }
-    // Mantém maxSize por compatibilidade com código existente, mas retorna capacity.
-    unsigned int maxSize() const { return _capacity; }
-
-    // --- Métodos para Gerenciamento de Pool (NIC) ---
+    // Verifica se o buffer está atualmente em uso no pool.
     bool is_in_use() const { return _in_use; }
+
+    // Marca o buffer como em uso. Chamado pela NIC::alloc.
     void mark_in_use() { _in_use = true; }
-    void mark_free() { _in_use = false; _size = 0; /* Reseta tamanho */ }
+
+    // Marca o buffer como livre. Chamado pela NIC::free.
+    // Reseta o tamanho para evitar usar dados antigos.
+    void mark_free() {
+        _in_use = false;
+        _size = 0; // Importante resetar o tamanho ao liberar
+    }
 
 private:
-    Data* _data_ptr;        // Ponteiro para a memória do frame (alocada pela Engine)
-    unsigned int _capacity; // Capacidade da memória apontada por _data_ptr
-    unsigned int _size;     // Tamanho atual dos dados válidos
-    bool _in_use;           // Flag para gerenciamento no pool da NIC
+    int _size;         // Tamanho atual dos dados válidos
+    int _max_size;     // Capacidade máxima do buffer
+    bool _in_use;               // Flag para gerenciamento em um pool de buffers
 };
 
-#endif // BUFFER_HH
+#endif
