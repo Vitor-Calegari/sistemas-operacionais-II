@@ -6,11 +6,32 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
     _self = this;
     // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
     // SOCK_RAW para criar um raw socket
-    // ETH_P_802_EX1 protocolo experimental
-    _socket_raw = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_802_EX1));
+    _socket_raw = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (Engine::getSocketFd() == -1) {
         perror("socket creation");
         exit(EXIT_FAILURE);
+    }
+
+    // Declara filtro BPF
+    // Para adicionar mais protocolos, verificar documentação do BPF:
+    // https://www.kernel.org/doc/Documentation/networking/filter.txt
+    struct sock_filter bpf_code[] = {
+        // Verifica o ethertype (ex: 0x88B5)
+        { 0x28, 0, 0, 0x0000000c },   // ldh [12] (Load half word into A)
+        { 0x15, 0, 1, 0x000088b5 },   // jeq 0x88B5? Se não, pula 1 instrução
+        { 0x06, 0, 0, 0x0000ffff },   // Retorna o quadro
+        { 0x06, 0, 0, 0x00000000 },   // Descarta quadro
+    };
+
+    struct sock_fprog bpf_prog = {
+        .len = sizeof(bpf_code) / sizeof(bpf_code[0]),
+        .filter = bpf_code,
+    };
+
+    // Tenta aplicar filtro
+    if (setsockopt(Engine::getSocketFd(), SOL_SOCKET, SO_ATTACH_FILTER, &bpf_prog, sizeof(bpf_prog))) {
+        perror("setsockopt");
+        exit(1);
     }
 
     int broadcastEnable = 1;

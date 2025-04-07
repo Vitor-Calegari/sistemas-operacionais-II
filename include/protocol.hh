@@ -12,7 +12,7 @@
 template <typename NIC>
 class Protocol : public Concurrent_Observed<typename NIC::BufferNIC, unsigned short>, private NIC::Observer {
 public:
-    inline static const typename NIC::Protocol_Number PROTO = htons(ETH_P_802_EX1); //Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
+    inline static const typename NIC::Protocol_Number PROTO = htons(0x88B5); //Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
 
     typedef typename NIC::BufferNIC     Buffer;
     typedef typename NIC::Address       Physical_Address;
@@ -118,7 +118,11 @@ private:
     // Método update: chamado pela NIC quando um frame é recebido.
     // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
     void update(typename NIC::Observed* obs, typename NIC::Protocol_Number prot, Buffer* buf) {
-        if (!this->notify(10, buf)) {
+        // TODO O update não precisa passar a prot como parametro, apenas carregar o buffer
+        // TODO Aparentemente, não é necessário o obs também pois fizemos Protocol herdar Concurrent Observed
+        Packet * pkt = (Packet *)buf->data()->data;
+        Port port = pkt->header()->origin.getPort();
+        if (!this->notify(port, buf)) {
             _nic->free(buf); // TODO diferente do pdf
             #ifdef DEBUG
             std::cerr << "Protocol::update: Communicator não notificado" << std::endl;

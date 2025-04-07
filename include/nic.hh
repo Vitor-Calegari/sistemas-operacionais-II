@@ -175,7 +175,7 @@ public:
 
 private:
   // Método membro que processa o sinal (chamado pelo handler estático)
-  // TODO handle deveria ser aqui ou na Engine? deveria ou não ler do socket?
+  // TODO handle deveria ser aqui ou na Engine?
   void handle_signal(int signum) {
     if (signum == SIGIO) {
       // TODO Print temporário:
@@ -208,25 +208,15 @@ private:
           _statistics.rx_bytes += bytes_received;
         }
 
-        // Filtrar pacotes enviados por nós mesmos
-        // if (buf->data()->src != Engine::getAddress()) {
-          bool notified = notify(buf->data()->prot, buf);
-          #ifdef DEBUG
-          std::cout << "NIC::handle_signal: " << (notified ? "Protocol Notificado" : "Protocol Não notificado") << std::endl;
-          #endif
-      // Se NENHUM observador (Protocolo) estava interessado (registrado
-          // para este EtherType), a NIC deve liberar o buffer que alocou.
-          if (!notified) {
-            free(buf);
-          } else {
-            // O buffer foi passado para o Observer (Protocol) através da chamada a
-            // Concurrent_Observer::update dentro do this->notify(). O
-            // Protocol/Communicator agora é responsável por eventualmente
-            // liberar o buffer recebido via Concurrent_Observer::updated().
-          }
-        // } else {
-        //   free(buf);
-        // }
+
+        bool notified = notify(buf->data()->prot, buf);
+        #ifdef DEBUG
+        std::cout << "NIC::handle_signal: " << (notified ? "Protocol Notificado" : "Protocol Não notificado") << std::endl;
+        #endif
+        // Se NENHUM observador (Protocolo) estava interessado (registrado
+        // para este EtherType), a NIC deve liberar o buffer que alocou.
+        if (!notified)
+          free(buf);
 
       } else if (bytes_received == 0) {
         // Não há mais pacotes disponíveis no momento (recvfrom retornaria 0 ou

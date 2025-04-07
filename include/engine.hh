@@ -6,6 +6,7 @@
 
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
+#include <linux/filter.h>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
