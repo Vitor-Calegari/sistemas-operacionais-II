@@ -207,15 +207,12 @@ private:
         }
 
         // Filtrar pacotes enviados por nós mesmos
-        if (buf->data()->src != Engine::getAddress()) {
-          // ************************************************************
-          // TODO Foi comentado pois os observadores ainda não funcionam
-          // Notifica os observadores registrados para este protocolo.
-          // Passa o ponteiro do buffer alocado.
-          // bool notified = notify(proto_net_order, buf);
-          // ************************************************************
-          bool notified = false;
-          // Se NENHUM observador (Protocolo) estava interessado (registrado
+        // if (buf->data()->src != Engine::getAddress()) {
+          bool notified = notify(buf->data()->prot, buf);
+          #ifdef DEBUG
+          std::cout << "NIC::handle_signal: " << (notified ? "Protocol Notificado" : "Protocol Não notificado") << std::endl;
+          #endif
+      // Se NENHUM observador (Protocolo) estava interessado (registrado
           // para este EtherType), a NIC deve liberar o buffer que alocou.
           if (!notified) {
             free(buf);
@@ -225,9 +222,9 @@ private:
             // Protocol/Communicator agora é responsável por eventualmente
             // liberar o buffer recebido via Concurrent_Observer::updated().
           }
-        } else {
-          free(buf);
-        }
+        // } else {
+        //   free(buf);
+        // }
 
       } else if (bytes_received == 0) {
         // Não há mais pacotes disponíveis no momento (recvfrom retornaria 0 ou

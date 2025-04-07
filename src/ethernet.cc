@@ -23,14 +23,14 @@ bool Ethernet::Address::operator!=(const Address &other) const {
 
 // Implementação da conversão para bool: retorna true se o endereço não for zero
 Ethernet::Address::operator bool() const {
-    static const unsigned char zero[6] = {0, 0, 0, 0, 0, 0};
-    return std::memcmp(mac, zero, sizeof(mac)) != 0;
+    return std::memcmp(mac, Ethernet::ZERO, sizeof(mac)) != 0;
 }
 
 // Implementação do construtor de Statistics
 Ethernet::Statistics::Statistics() : tx_packets(0), tx_bytes(0), rx_packets(0), rx_bytes(0)  { }
 
 const unsigned char Ethernet::BROADCAST_ADDRESS[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+const unsigned char Ethernet::ZERO[6] = {0, 0, 0, 0, 0, 0};
 
 void Ethernet::Frame::clear() {
     src = Address();

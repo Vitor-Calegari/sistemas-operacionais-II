@@ -6,13 +6,15 @@
 #include "ethernet.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
+#include "concurrent_observed.hh"
+
 
 template <typename NIC>
-class Protocol : private NIC::Observer {
+class Protocol : public Concurrent_Observed<typename NIC::BufferNIC, unsigned short>, private NIC::Observer {
 public:
     inline static const typename NIC::Protocol_Number PROTO = htons(ETH_P_802_EX1); //Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
 
-    typedef typename NIC::BufferNIC        Buffer;
+    typedef typename NIC::BufferNIC     Buffer;
     typedef typename NIC::Address       Physical_Address;
     typedef unsigned short              Port;
 
@@ -23,10 +25,10 @@ public:
     class Address {
     public:
         enum Null { NONE };
-        Address() : _paddr(0), _port(0) { }
-        Address(const Null &n) : _paddr(0), _port(0) { }
+        Address() : _paddr(Ethernet::ZERO), _port(0) { }
+        Address(const Null &n) : _paddr(Ethernet::ZERO), _port(0) { }
         Address(Physical_Address paddr, Port port) : _paddr(paddr), _port(port) { }
-        operator bool() const { return (_paddr != 0 || _port != 0); }
+        operator bool() const { return (_paddr != Ethernet::ZERO || _port != 0); }
         bool operator==(const Address &other) const { return (_paddr == other._paddr) && (_port == other._port); }
         Physical_Address getPAddr() const { return _paddr; }
         Port getPort() const { return _port; }
@@ -34,6 +36,8 @@ public:
         Physical_Address _paddr;
         Port _port;
     };
+
+    static const Address Broadcast;
 
     // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo, etc.)
     class Header {
@@ -103,7 +107,9 @@ public:
     // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
     int receive(Buffer* buf, Address &from, void* data, unsigned int size) {
         Address to = Address();
-        unsigned int s= getNIC()->receive(buf, &from.paddr, &to.paddr, data, size); // TODO igual ao pdf, porém para que serve o to?
+        Physical_Address from_paddr = from.getPAddr();
+        Physical_Address to_paddr = to.getPAddr();
+        unsigned int s= getNIC()->receive(buf, &from_paddr, &to_paddr, data, size); // TODO igual ao pdf, porém para que serve o to?
         getNIC()->free(buf);
         return s;
     }
@@ -112,8 +118,17 @@ private:
     // Método update: chamado pela NIC quando um frame é recebido.
     // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
     void update(typename NIC::Observed* obs, typename NIC::Protocol_Number prot, Buffer* buf) {
-        if (!_nic->notify(prot, buf))  // TODO diferente do pdf
-            _nic->free(buf);
+        if (!this->notify(10, buf)) {
+            _nic->free(buf); // TODO diferente do pdf
+            #ifdef DEBUG
+            std::cerr << "Protocol::update: Communicator não notificado" << std::endl;
+            #endif
+        }
+        #ifdef DEBUG
+        else {
+            std::cerr << "Protocol::update: Communicator notificado" << std::endl;
+        }
+        #endif
     }
 
     // Retorna a NIC associada (diferente do singleton, retorna o _nic da instância)
@@ -124,6 +139,11 @@ private:
     static Protocol* _instance;  // TODO diferente do pdf
     NIC* _nic;
 };
+
 template <typename NIC>
 Protocol<NIC>* Protocol<NIC>::_instance = nullptr;
+
+template <typename NIC>
+const typename Protocol<NIC>::Address Protocol<NIC>::Broadcast = 
+    typename Protocol<NIC>::Address(Ethernet::BROADCAST_ADDRESS, 10);
 #endif // PROTOCOL_HH

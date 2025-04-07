@@ -19,15 +19,15 @@ public:
 public:
   Communicator(Channel *channel, Address address)
       : _channel(channel), _address(address) {
-    _channel->attach(this, address);
+    _channel->attach(this, address.getPort());
   }
 
   ~Communicator() {
-    Channel::detach(this, _address);
+    _channel->detach(this, _address.getPort());
   }
 
   bool send(const Message *message) {
-    return _channel->send(_address, Channel::Address::BROADCAST,
+    return _channel->send(_address, Channel::Broadcast,
                           message->data(), message->size()) > 0;
   }
 
@@ -36,7 +36,7 @@ public:
     Buffer *buf = Observer::updated();
 
     Address from;
-    int size = _channel->receive(buf, &from, message->data(), message->size());
+    int size = _channel->receive(buf, from, message->data(), message->size());
 
     return size > 0;
   }

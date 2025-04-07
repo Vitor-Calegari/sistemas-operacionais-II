@@ -37,7 +37,7 @@ public:
 
 private:
   std::counting_semaphore<> _semaphore;
-  std::queue<D> _data;
+  std::queue<D*> _data;
 };
 
 #endif
