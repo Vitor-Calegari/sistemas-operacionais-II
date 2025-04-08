@@ -26,7 +26,10 @@ int main (int argc, char *argv[]) {
             comm.send(&message);
         }
     } else {
+        int i = 0;
         while(1) {
+            std::cout << "Message " << std::dec << static_cast<int>(i) << ":" << std::endl;
+            i++;
             Message message = Message(5);
             comm.receive(&message);
             for (size_t i = 0; i < message.size(); i++) {

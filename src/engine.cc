@@ -82,7 +82,7 @@ Buffer<Ethernet::Frame> *Engine::allocate_frame_memory() {
     // Aloca e retorna ponteiro para um Ethernet::Frame.
     Buffer<Ethernet::Frame> *frame_ptr =
         new Buffer<Ethernet::Frame>(Ethernet::MAX_FRAME_SIZE_NO_FCS);
-    memset(frame_ptr, 0, sizeof(Buffer<Ethernet::Frame>));
+    frame_ptr->data()->clear();
     return frame_ptr;
   } catch (const std::bad_alloc &e) {
     std::cerr << "Engine Error: Failed to allocate frame memory - " << e.what()

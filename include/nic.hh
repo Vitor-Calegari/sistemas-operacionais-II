@@ -182,58 +182,59 @@ public:
   // TODO handle deveria ser aqui ou na Engine?
   void handle_signal(int signum) {
     if (signum == SIGIO) {
-// TODO Print temporário:
-#ifdef DEBUG
-      std::cout << "New packet received" << std::endl;
-#endif
-      // 1. Alocar um buffer para recepção.
-      BufferNIC *buf = nullptr;
-      // Usa a capacidade máxima do frame Ethernet
-      buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS);
-
-      // 2. Tentar receber o pacote usando a Engine.
-      struct sockaddr_ll sender_addr; // A engine original usa sockaddr genérico
-      socklen_t sender_addr_len = sizeof(sender_addr);
-      int bytes_received = Engine::receive(
-          buf, sender_addr, sender_addr_len); // Chamada à API original
-#ifdef DEBUG
-      if (bytes_received >= 0) {
-        printEth(buf);
-      }
-#endif
-
-      if (bytes_received > 0) {
-        // Pacote recebido!
-
-        // Atualiza estatísticas (protegido por mutex)
-        {
-          std::lock_guard<std::mutex> lock(_stats_mutex);
-          _statistics.rx_packets++;
-          _statistics.rx_bytes += bytes_received;
+      int bytes_received = 1;
+      while (bytes_received >= 1) {
+        #ifdef DEBUG
+        std::cout << "New packet received" << std::endl;
+        #endif
+        // 1. Alocar um buffer para recepção.
+        BufferNIC *buf = nullptr;
+        // Usa a capacidade máxima do frame Ethernet
+        buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS);
+  
+        // 2. Tentar receber o pacote usando a Engine.
+        struct sockaddr_ll sender_addr;
+        socklen_t sender_addr_len = sizeof(sender_addr);
+        bytes_received = Engine::receive(
+            buf, sender_addr, sender_addr_len);
+        #ifdef DEBUG
+        if (bytes_received > 0) {
+          printEth(buf);
         }
-
-        bool notified = notify(buf->data()->prot, buf);
-#ifdef DEBUG
-        std::cout << "NIC::handle_signal: "
-                  << (notified ? "Protocol Notificado"
-                               : "Protocol Não notificado")
-                  << std::endl;
-#endif
-        // Se NENHUM observador (Protocolo) estava interessado (registrado
-        // para este EtherType), a NIC deve liberar o buffer que alocou.
-        if (!notified)
+        #endif
+        if (bytes_received > 0) {
+          // Pacote recebido!
+  
+          // Atualiza estatísticas (protegido por mutex)
+          {
+            std::lock_guard<std::mutex> lock(_stats_mutex);
+            _statistics.rx_packets++;
+            _statistics.rx_bytes += bytes_received;
+          }
+  
+          bool notified = notify(buf->data()->prot, buf);
+          #ifdef DEBUG
+          std::cout << "NIC::handle_signal: "
+                    << (notified ? "Protocol Notificado"
+                                 : "Protocol Não notificado")
+                    << std::endl;
+          #endif
+          // Se NENHUM observador (Protocolo) estava interessado (registrado
+          // para este EtherType), a NIC deve liberar o buffer que alocou.
+          if (!notified)
+            free(buf);
+  
+        } else if (bytes_received == 0) {
+          // Não há mais pacotes disponíveis no momento (recvfrom retornaria 0 ou
+          // -1 com EAGAIN/EWOULDBLOCK). A engine original retorna -1 em erro, não
+          // 0. Então só chegamos aqui se for < 0.
           free(buf);
-
-      } else if (bytes_received == 0) {
-        // Não há mais pacotes disponíveis no momento (recvfrom retornaria 0 ou
-        // -1 com EAGAIN/EWOULDBLOCK). A engine original retorna -1 em erro, não
-        // 0. Então só chegamos aqui se for < 0.
-        free(buf);
-      } else { // bytes_received < 0
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-          perror("NIC::handle_signal recvfrom error");
+        } else { // bytes_received < 0
+          if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            perror("NIC::handle_signal recvfrom error");
+          }
+          free(buf);
         }
-        free(buf);
       }
     }
   }
