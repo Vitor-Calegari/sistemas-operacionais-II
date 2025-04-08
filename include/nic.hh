@@ -7,10 +7,10 @@
 #include <mutex>
 
 #include "buffer.hh"
+#include "conditional_data_observer.hh"
+#include "conditionally_data_observed.hh"
 #include "engine.hh"
 #include "ethernet.hh"
-#include "conditionally_data_observed.hh"
-#include "conditional_data_observer.hh"
 
 #ifdef DEBUG
 #include "utils.hh"
@@ -21,17 +21,19 @@
 //
 // D (Observed_Data): Buffer<Ethernet::Frame>* - Notifica com ponteiros para
 // buffers recebidos.
-// C (Observing_Condition): Ethernet::Protocol - Filtra observadores pelo EtherType.
-template<typename Engine>
-class NIC
-    : public Ethernet,
-      public Conditionally_Data_Observed<Buffer<Ethernet::Frame>, Ethernet::Protocol>,
-      private Engine
-{
+// C (Observing_Condition): Ethernet::Protocol - Filtra observadores pelo
+// EtherType.
+template <typename Engine>
+class NIC : public Ethernet,
+            public Conditionally_Data_Observed<Buffer<Ethernet::Frame>,
+                                               Ethernet::Protocol>,
+            private Engine {
 public:
   // TODO Valores temporareos
-  static const unsigned int SEND_BUFFERS = 1;//Traits<NIC<Engine>>::SEND_BUFFERS;
-  static const unsigned int RECEIVE_BUFFERS = 1;//Traits<NIC<Engine>>::RECEIVE_BUFFERS;
+  static const unsigned int SEND_BUFFERS =
+      1; // Traits<NIC<Engine>>::SEND_BUFFERS;
+  static const unsigned int RECEIVE_BUFFERS =
+      1; // Traits<NIC<Engine>>::RECEIVE_BUFFERS;
 
   static const unsigned int BUFFER_SIZE =
       SEND_BUFFERS * sizeof(Buffer<Ethernet::Frame>) +
@@ -49,7 +51,9 @@ public:
   // Args:
   //   engine: Ponteiro para a instância da Engine a ser usada.
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
-  NIC(const char *interface_name) : Engine(interface_name)  //TODO Passar o parametro interface_name aqui é uma boa escolha?
+  NIC(const char *interface_name)
+      : Engine(interface_name) // TODO Passar o parametro interface_name aqui é
+                               // uma boa escolha?
   {
     // Setup Handler -----------------------------------------------------
 
@@ -95,19 +99,20 @@ public:
         _buffer_pool[i]->data()->dst = dst;
         _buffer_pool[i]->data()->prot = prot;
         // Mínimo de 64 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
-        _buffer_pool[i]->setMaxSize(maxSize < Ethernet::MIN_FRAME_SIZE
-                           ? Ethernet::MIN_FRAME_SIZE
-                           : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
-                                  ? Ethernet::MAX_FRAME_SIZE_NO_FCS
-                                  : maxSize));
+        _buffer_pool[i]->setMaxSize(
+            maxSize < Ethernet::MIN_FRAME_SIZE
+                ? Ethernet::MIN_FRAME_SIZE
+                : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
+                       ? Ethernet::MAX_FRAME_SIZE_NO_FCS
+                       : maxSize));
         _buffer_pool[i]->setSize(Ethernet::HEADER_SIZE);
         return _buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
       }
     }
-    // Se nenhum buffer livre foi encontrado
-    #ifdef DEBUG
+// Se nenhum buffer livre foi encontrado
+#ifdef DEBUG
     std::cerr << "NIC::alloc: Buffer pool exhausted!" << std::endl;
-    #endif
+#endif
     return nullptr;
   }
 
@@ -146,9 +151,9 @@ public:
       // std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes." <<
       // std::endl;
     } else {
-      #ifdef DEBUG
+#ifdef DEBUG
       std::cerr << "NIC::send(buf): Engine failed to send packet." << std::endl;
-      #endif
+#endif
     }
 
     free(buf);
@@ -169,7 +174,8 @@ public:
     return _statistics; // Retorna referência direta (cuidado com concorrência)
   }
 
-  int receive(BufferNIC * buf, Address * from, Address * to, void * data, unsigned int size) {
+  int receive(BufferNIC *buf, Address *from, Address *to, void *data,
+              unsigned int size) {
     return buf->size();
   }
 
@@ -178,10 +184,10 @@ private:
   // TODO handle deveria ser aqui ou na Engine?
   void handle_signal(int signum) {
     if (signum == SIGIO) {
-      // TODO Print temporário:
-      #ifdef DEBUG
+// TODO Print temporário:
+#ifdef DEBUG
       std::cout << "New packet received" << std::endl;
-      #endif
+#endif
       // 1. Alocar um buffer para recepção.
       BufferNIC *buf = nullptr;
       // Usa a capacidade máxima do frame Ethernet
@@ -189,14 +195,14 @@ private:
 
       // 2. Tentar receber o pacote usando a Engine.
       struct sockaddr_ll sender_addr; // A engine original usa sockaddr genérico
-      socklen_t sender_addr_len;
-      int bytes_received =
-          Engine::receive(buf, sender_addr, sender_addr_len); // Chamada à API original
-      #ifdef DEBUG
+      socklen_t sender_addr_len = sizeof(sender_addr);
+      int bytes_received = Engine::receive(
+          buf, sender_addr, sender_addr_len); // Chamada à API original
+#ifdef DEBUG
       if (bytes_received >= 0) {
         printEth(buf);
       }
-      #endif
+#endif
 
       if (bytes_received > 0) {
         // Pacote recebido!
@@ -208,11 +214,13 @@ private:
           _statistics.rx_bytes += bytes_received;
         }
 
-
         bool notified = notify(buf->data()->prot, buf);
-        #ifdef DEBUG
-        std::cout << "NIC::handle_signal: " << (notified ? "Protocol Notificado" : "Protocol Não notificado") << std::endl;
-        #endif
+#ifdef DEBUG
+        std::cout << "NIC::handle_signal: "
+                  << (notified ? "Protocol Notificado"
+                               : "Protocol Não notificado")
+                  << std::endl;
+#endif
         // Se NENHUM observador (Protocolo) estava interessado (registrado
         // para este EtherType), a NIC deve liberar o buffer que alocou.
         if (!notified)
@@ -223,16 +231,14 @@ private:
         // -1 com EAGAIN/EWOULDBLOCK). A engine original retorna -1 em erro, não
         // 0. Então só chegamos aqui se for < 0.
         free(buf);
-      } else {     // bytes_received < 0
-            if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                perror("NIC::handle_signal recvfrom error");
-            }
+      } else { // bytes_received < 0
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+          perror("NIC::handle_signal recvfrom error");
+        }
         free(buf);
       }
     }
   }
-
-  
 
   // --- Membros ---
   Statistics _statistics; // Estatísticas de rede
@@ -240,7 +246,8 @@ private:
       _stats_mutex; // Mutex para proteger o acesso às estatísticas
 
   // Pool de Buffers
-  BufferNIC * _buffer_pool[BUFFER_SIZE];       // Vetor que contém os buffers pré-alocados
+  BufferNIC
+      *_buffer_pool[BUFFER_SIZE]; // Vetor que contém os buffers pré-alocados
   std::mutex _pool_mutex; // Mutex para proteger o acesso ao pool (_buffer_pool
                           // e flags _in_use)
 };
