@@ -14,7 +14,7 @@ int main (int argc, char *argv[]) {
 
     Protocol<NIC<Engine>> * prot = Protocol<NIC<Engine>>::getInstance(&nic);
 
-    Protocol<NIC<Engine>>::Address addr = Protocol<NIC<Engine>>::Address(Ethernet::Address(), 10);
+    Protocol<NIC<Engine>>::Address addr = Protocol<NIC<Engine>>::Address(Ethernet::Address(), 0xEEEE);
 
     Communicator<Protocol<NIC<Engine>>> comm = Communicator<Protocol<NIC<Engine>>>(prot, addr);
 
@@ -29,7 +29,10 @@ int main (int argc, char *argv[]) {
         while(1) {
             Message message = Message(5);
             comm.receive(&message);
-            std::cout << message.data() << std::endl;
+            for (size_t i = 0; i < message.size(); i++) {
+                std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
+            }
+            std::cout << std::endl;
         }
     }
 

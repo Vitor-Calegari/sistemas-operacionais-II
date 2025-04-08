@@ -8,7 +8,9 @@
 #include "conditionally_data_observed.hh"
 #include "concurrent_observed.hh"
 
-
+#ifdef DEBUG
+#include "utils.hh"
+#endif
 template <typename NIC>
 class Protocol : public Concurrent_Observed<typename NIC::BufferNIC, unsigned short>, private NIC::Observer {
 public:
@@ -35,17 +37,17 @@ public:
     private:
         Physical_Address _paddr;
         Port _port;
-    };
+    } __attribute__((packed));
 
     static const Address Broadcast;
 
     // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo, etc.)
     class Header {
     public:
-        Header() : length(0), origin(Address()){}
+        Header() : origin(Address()), payloadSize(0){}
         Address origin;
-        unsigned int length;
-    };
+        unsigned short payloadSize;
+    } __attribute__((packed));
 
     // MTU disponível para o payload: espaço total do buffer menos o tamanho do Header
     inline static const unsigned int MTU = NIC::MTU - sizeof(Header);
@@ -71,7 +73,7 @@ public:
         return _instance;
     }
 
-    Protocol(Protocol const&)               = delete;
+    Protocol(Protocol const&)        = delete;
     void operator=(Protocol const&)  = delete;
 
 protected:
@@ -92,14 +94,46 @@ public:
         Buffer* buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size);
         if (!buf)
             return -1;
-        // Em vez de interpretar o frame inteiro como um Packet, acessa o payload.
-        // Presume-se que o Ethernet::Frame possui um cabeçalho fixo de tamanho Ethernet::HEADER_SIZE.
-        unsigned char* payloadPtr = reinterpret_cast<unsigned char*>(buf) + Ethernet::HEADER_SIZE;
-        //buf->data()->data;
-        Packet* pkt = reinterpret_cast<Packet*>(payloadPtr);
+        // Payload do Ethernet::Frame é o Protocol::Packet
+        Packet* pkt = reinterpret_cast<Packet*>(buf->data()->data);
         pkt->header()->origin = from;
+        pkt->header()->payloadSize = size;
         buf->setSize(buf->size() + sizeof(Header) + size);
         std::memcpy(pkt->template data<char>(), data, size);
+        #ifdef DEBUG
+        std::cout << "*************************Protocol Packet*************************" << std::endl;
+        std::cout << std::dec << std::endl;
+        std::cout << "Packet content: " << std::endl;
+        std::cout << "Origin Address: ";
+        for (int i = 0; i < 6; ++i) {
+            std::cout << std::hex << std::uppercase << (int)pkt->header()->origin.getPAddr().mac[i];
+            if (i < 5) std::cout << ":";
+        }
+        std::cout << ", Port: " << std::dec << pkt->header()->origin.getPort() << std::endl;
+        std::cout << "Payload Size: " << pkt->header()->payloadSize << std::endl;
+        char hex_chars[] = "0123456789ABCDEF";
+        char buffer[3]; // Two hex digits and a null terminator
+        buffer[2] = '\0';
+
+        std::cout << "Payload Data: ";
+        for (unsigned int i = 0; i < size; ++i) {
+            unsigned char byte = pkt->template data<char>()[i];
+            buffer[0] = hex_chars[(byte >> 4) & 0xF];
+            buffer[1] = hex_chars[byte & 0xF];
+            std::cout << buffer << " ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "Full Packet Data: ";
+        unsigned char* packetBytes = reinterpret_cast<unsigned char*>(pkt);
+        for (unsigned int i = 0; i < sizeof(Header) + size; ++i) {
+            unsigned char byte = packetBytes[i];
+            buffer[0] = hex_chars[(byte >> 4) & 0xF];
+            buffer[1] = hex_chars[byte & 0xF];
+            std::cout << buffer << " ";
+        }
+        std::cout << std::endl;
+        #endif
         return _nic->send(buf);
     }
 
@@ -109,9 +143,13 @@ public:
         Address to = Address();
         Physical_Address from_paddr = from.getPAddr();
         Physical_Address to_paddr = to.getPAddr();
-        unsigned int s= getNIC()->receive(buf, &from_paddr, &to_paddr, data, size); // TODO igual ao pdf, porém para que serve o to?
+        Packet pkt = Packet();
+        getNIC()->receive(buf, &from_paddr, &to_paddr, &pkt, MTU + sizeof(Header));
+        unsigned int s = pkt.header()->payloadSize;
+        unsigned int messageSize = size > s ? s : size;
+        std::memcpy(data, pkt.template data<char>(), messageSize);
         getNIC()->free(buf);
-        return s;
+        return messageSize; //Protocol deveria informar quantos bytes está sendo transmitido em seu interior?
     }
 
 private:

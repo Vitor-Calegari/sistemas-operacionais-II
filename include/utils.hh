@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include <cstring>
 #include "ethernet.hh"
 #include "buffer.hh"
 

@@ -144,8 +144,10 @@ public:
         _statistics.tx_bytes +=
             bytes_sent; // Idealmente, bytes_sent == buf->size()
       }
-      // std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes." <<
-      // std::endl;
+#ifdef DEBUG
+      std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes." <<
+      std::endl;
+#endif
     } else {
 #ifdef DEBUG
       std::cerr << "NIC::send(buf): Engine failed to send packet." << std::endl;
@@ -172,7 +174,8 @@ public:
 
   int receive(BufferNIC *buf, Address *from, Address *to, void *data,
               unsigned int size) {
-    return buf->size();
+    std::memcpy(data, buf->data()->data, size);
+    return buf->size() - Ethernet::HEADER_SIZE;
   }
 
   // Método membro que processa o sinal (chamado pelo handler estático)

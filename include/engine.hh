@@ -93,7 +93,6 @@ public:
     int buflen = recvfrom(_self->_socket_raw, buf->data(), buf->maxSize(), 0,
                           (struct sockaddr *)&sender_addr,
                           (socklen_t *)&sender_addr_len);
-    std::cout << buf << std::endl;
     if (buflen < 0) {
       // Erro real ou apenas indicação de não bloqueio?
       if (errno == EWOULDBLOCK || errno == EAGAIN) {

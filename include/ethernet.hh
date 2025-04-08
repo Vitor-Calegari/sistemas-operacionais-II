@@ -1,7 +1,6 @@
 #ifndef ETHERNET_HH
 #define ETHERNET_HH
 
-#include <cstddef>
 #include <cstring>
 
 // Define a classe Ethernet e seus componentes
@@ -31,7 +30,7 @@ public:
         bool operator!=(const Address &other) const;
         // Operador de conversão para bool: Retorna true se o endereço não for zero.
         explicit operator bool() const;
-    };
+    } __attribute__((packed));
 
     // Tipo que representa o protocolo (16 bits)
     typedef unsigned short Protocol;
