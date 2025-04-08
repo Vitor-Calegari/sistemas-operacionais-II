@@ -4,13 +4,18 @@
 #include "protocol.hh"
 #include <iostream>
 
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    std::cerr << "Uso: send? 1 para sim, 0 para nao";
-    return 1;
-  }
+#define NUM_MSGS 10
 
-  const int send = atoi(argv[1]);
+int main(int argc, char *argv[]) {
+  int send;
+  if (argc < 2) {
+    // Novo processo será o receiver.
+    auto ret = fork();
+
+    send = ret != 0;
+  } else {
+    send = atoi(argv[1]);
+  }
 
   NIC<Engine> nic = NIC<Engine>("lo");
 
@@ -23,18 +28,22 @@ int main(int argc, char *argv[]) {
       Communicator<Protocol<NIC<Engine>>>(prot, addr);
 
   if (send) {
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < NUM_MSGS; i++) {
       unsigned char data[5] = { 0xAA, 0xBB, 0xCC, 0xDD, 0xFF };
       Message message = Message(5);
       std::memcpy(message.data(), data, 5);
+      std::cout << "Sending (" << std::dec << i << "): ";
+      for (size_t i = 0; i < message.size(); i++) {
+        std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
+      }
+      std::cout << std::endl;
       comm.send(&message);
     }
   } else {
-    for (int i_m = 0;; ++i_m) {
+    for (int i_m = 0; argc >= 2 || i_m < NUM_MSGS; ++i_m) {
       Message message = Message(5);
       comm.receive(&message);
-      std::cout << "Message " << std::dec << static_cast<int>(i_m) << ":"
-                << std::endl;
+      std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
       }
