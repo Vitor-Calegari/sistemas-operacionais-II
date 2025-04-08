@@ -1,10 +1,11 @@
 MAKENAME = Car
 
-MAIN = car
-MODULES = message observed observer
+MAIN = communicator_test
+MODULES = engine ethernet message utils
 
 SRC_DIR = src
 INCL_DIR = include
+TST_DIR = tests/src
 BUILD_DIR = build
 BIN_DIR = bin
 

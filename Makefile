@@ -2,6 +2,7 @@ include Config.mk
 include Utils.mk
 
 vpath %.cc $(SRC_DIR)
+vpath %.cc $(TST_DIR)
 
 ifdef INCL_DIR
 	CXXFLAGS += -I$(INCL_DIR)
