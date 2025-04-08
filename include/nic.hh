@@ -1,14 +1,17 @@
 #ifndef NIC_HH
 #define NIC_HH
 
-#include <arpa/inet.h> // Para htons, ntohs
+#include <csignal>
+#ifdef DEBUG
 #include <iostream> // Para debug output (opcional)
+#endif
+
+#include <arpa/inet.h> // Para htons, ntohs
 #include <mutex>
 
 #include "buffer.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
-#include "engine.hh"
 #include "ethernet.hh"
 
 #ifdef DEBUG
@@ -145,8 +148,8 @@ public:
             bytes_sent; // Idealmente, bytes_sent == buf->size()
       }
 #ifdef DEBUG
-      std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes." <<
-      std::endl;
+      std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes."
+                << std::endl;
 #endif
     } else {
 #ifdef DEBUG
@@ -172,8 +175,8 @@ public:
     return _statistics; // Retorna referência direta (cuidado com concorrência)
   }
 
-  int receive(BufferNIC *buf, Address *from, Address *to, void *data,
-              unsigned int size) {
+  int receive(BufferNIC *buf, [[maybe_unused]] Address *from,
+              [[maybe_unused]] Address *to, void *data, unsigned int size) {
     std::memcpy(data, buf->data()->data, size);
     return buf->size() - Ethernet::HEADER_SIZE;
   }
@@ -184,50 +187,49 @@ public:
     if (signum == SIGIO) {
       int bytes_received = 1;
       while (bytes_received >= 1) {
-        #ifdef DEBUG
+#ifdef DEBUG
         std::cout << "New packet received" << std::endl;
-        #endif
+#endif
         // 1. Alocar um buffer para recepção.
         BufferNIC *buf = nullptr;
         // Usa a capacidade máxima do frame Ethernet
         buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS);
-  
+
         // 2. Tentar receber o pacote usando a Engine.
         struct sockaddr_ll sender_addr;
         socklen_t sender_addr_len = sizeof(sender_addr);
-        bytes_received = Engine::receive(
-            buf, sender_addr, sender_addr_len);
-        #ifdef DEBUG
+        bytes_received = Engine::receive(buf, sender_addr, sender_addr_len);
+#ifdef DEBUG
         if (bytes_received > 0) {
           printEth(buf);
         }
-        #endif
+#endif
         if (bytes_received > 0) {
           // Pacote recebido!
-  
+
           // Atualiza estatísticas (protegido por mutex)
           {
             std::lock_guard<std::mutex> lock(_stats_mutex);
             _statistics.rx_packets++;
             _statistics.rx_bytes += bytes_received;
           }
-  
+
           bool notified = notify(buf->data()->prot, buf);
-          #ifdef DEBUG
+#ifdef DEBUG
           std::cout << "NIC::handle_signal: "
                     << (notified ? "Protocol Notificado"
                                  : "Protocol Não notificado")
                     << std::endl;
-          #endif
+#endif
           // Se NENHUM observador (Protocolo) estava interessado (registrado
           // para este EtherType), a NIC deve liberar o buffer que alocou.
           if (!notified)
             free(buf);
-  
+
         } else if (bytes_received == 0) {
-          // Não há mais pacotes disponíveis no momento (recvfrom retornaria 0 ou
-          // -1 com EAGAIN/EWOULDBLOCK). A engine original retorna -1 em erro, não
-          // 0. Então só chegamos aqui se for < 0.
+          // Não há mais pacotes disponíveis no momento (recvfrom retornaria 0
+          // ou -1 com EAGAIN/EWOULDBLOCK). A engine original retorna -1 em
+          // erro, não 0. Então só chegamos aqui se for < 0.
           free(buf);
         } else { // bytes_received < 0
           if (errno != EAGAIN && errno != EWOULDBLOCK) {

@@ -11,7 +11,7 @@ class Concurrent_Observed {
 public:
   typedef D Observed_Data;
   typedef C Observing_Condition;
-  using Observers = Ordered_List<Concurrent_Observer<D, C>*, C>;
+  using Observers = Ordered_List<Concurrent_Observer<D, C> *, C>;
 
 public:
   Concurrent_Observed() = default;

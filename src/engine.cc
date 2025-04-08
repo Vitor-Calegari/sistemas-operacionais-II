@@ -1,8 +1,13 @@
 #include "engine.hh"
+#include <csignal>
+#include <cstdlib>
+#include <iostream>
+#include <new>
+#include <unistd.h>
 
 Engine *Engine::_self = nullptr;
-void* Engine::obj = nullptr;
-void (*Engine::handler)(void*, int) = nullptr;
+void *Engine::obj = nullptr;
+void (*Engine::handler)(void *, int) = nullptr;
 
 Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
   _self = this;
@@ -50,9 +55,9 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
     exit(EXIT_FAILURE);
   }
 
-    confSignalReception();
+  confSignalReception();
 
-    setupSignalHandler();
+  setupSignalHandler();
 
 #ifdef DEBUG
   // Print Debug -------------------------------------------------------
@@ -126,10 +131,10 @@ bool Engine::get_interface_info() {
 }
 
 void Engine::setupSignalHandler() {
-    // Armazena a função de callback
-    struct sigaction sigAction;
-    sigAction.sa_handler = Engine::signalHandler;
-    sigAction.sa_flags = SA_RESTART;
+  // Armazena a função de callback
+  struct sigaction sigAction;
+  sigAction.sa_handler = Engine::signalHandler;
+  sigAction.sa_flags = SA_RESTART;
 
   // Limpa possiveis sinais existentes antes da configuracao
   sigemptyset(&sigAction.sa_mask);
@@ -178,7 +183,7 @@ void Engine::confSignalReception() {
 
 // Função estática para envelopar a função que tratará a interrupção
 void Engine::signalHandler(int signum) {
-    if (_self->handler) {
-      _self->handler(_self->obj, signum); 
-    }
+  if (_self->handler) {
+    _self->handler(_self->obj, signum);
   }
+}

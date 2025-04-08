@@ -27,8 +27,8 @@ public:
   }
 
   bool send(const Message *message) {
-    return _channel->send(_address, Channel::Broadcast,
-                          message->data(), message->size()) > 0;
+    return _channel->send(_address, Channel::Broadcast, message->data(),
+                          message->size()) > 0;
   }
 
   bool receive(Message *message) {
@@ -42,7 +42,7 @@ public:
   }
 
 private:
-  void update(typename Channel::Observed *obs,
+  void update([[maybe_unused]] typename Channel::Observed *obs,
               typename Channel::Observer::Observing_Condition c, Buffer *buf) {
     // Releases the thread waiting for data.
     Observer::update(c, buf);

@@ -43,12 +43,12 @@ public:
   Ordered_List() : List() {
   }
 
-  void insert(D el, C c) {
-    List::merge({ { el, c } });
+  void insert(D d, C c) {
+    List::merge({ { d, c } });
   }
 
-  void remove(D el, C c) {
-    List::remove(Ordered_Node<D, C>{ el, c });
+  void remove(D d, C c) {
+    List::remove(Ordered_Node<D, C>{ d, c });
   }
 };
 

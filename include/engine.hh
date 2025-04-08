@@ -1,23 +1,23 @@
 #ifndef ENGINE_HH
 #define ENGINE_HH
 
+#include <cerrno>
+#include <cstdio>
 #include <cstring>
-#include <iostream>
 
 #include <arpa/inet.h>
-#include <linux/if_packet.h>
 #include <linux/filter.h>
+#include <linux/if_packet.h>
+#include <net/if.h>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
-#include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <net/if.h>
+#include <sys/socket.h>
 
 #include <fcntl.h>
-#include <signal.h>
 
-#include "ethernet.hh"
 #include "buffer.hh"
+#include "ethernet.hh"
 
 class Engine {
 
@@ -61,12 +61,12 @@ public:
   // Retorna: Ponteiro para a memória alocada (do tipo Ethernet::Frame*).
   // Lança exceção em caso de falha.
   // (Implementação atual usa 'new', futuras podem usar memória compartilhada)
-  Buffer<Ethernet::Frame>* allocate_frame_memory();
+  Buffer<Ethernet::Frame> *allocate_frame_memory();
 
   // Libera a memória previamente alocada por allocate_frame_memory.
   // Args:
   //   frame_ptr: Ponteiro para a memória a ser liberada.
-  void free_frame_memory(Buffer<Ethernet::Frame>* frame_ptr);
+  void free_frame_memory(Buffer<Ethernet::Frame> *frame_ptr);
 
   // Obtém informações da interface (MAC, índice) usando ioctl.
   bool get_interface_info();
@@ -97,11 +97,11 @@ public:
       // Erro real ou apenas indicação de não bloqueio?
       if (errno == EWOULDBLOCK || errno == EAGAIN) {
         buf->setSize(0); // Nenhum dado recebido agora
-        return 0;       // Não é um erro fatal em modo não bloqueante
+        return 0;        // Não é um erro fatal em modo não bloqueante
       } else {
         perror("Engine::receive recvfrom error");
         buf->setSize(0); // Indica erro zerando o tamanho
-        return -1;      // Erro real
+        return -1;       // Erro real
       }
     } else {
       // Dados recebidos com sucesso, ajusta o tamanho real do buffer.
@@ -115,7 +115,7 @@ public:
   //   func: Função que tratará o sinal.
   void setupSignalHandler();
 
-// protected:
+  // protected:
   // Retorna o descritor do socket raw.
   // Necessário para operações como ioctl na classe NIC.
   int getSocketFd() const {
@@ -123,19 +123,21 @@ public:
   }
 
 public:
-  const Ethernet::Address & getAddress() { return _address; }
+  const Ethernet::Address &getAddress() {
+    return _address;
+  }
 
   template <typename T, void (T::*handle_signal)(int)>
-  static void bind(T* obj) {
+  static void bind(T *obj) {
     _self->obj = obj;
-    _self->handler = &handlerWrapper<T, handle_signal>; 
+    _self->handler = &handlerWrapper<T, handle_signal>;
   }
 
 private:
   template <typename T, void (T::*handle_signal)(int)>
-  static void handlerWrapper(void* obj, int arg) {
-      T* typedObj = static_cast<T*>(obj);
-      (typedObj->*handle_signal)(arg);
+  static void handlerWrapper(void *obj, int arg) {
+    T *typedObj = static_cast<T *>(obj);
+    (typedObj->*handle_signal)(arg);
   }
 
   // Configura a recepção de sinais SIGIO para o socket.
@@ -144,16 +146,15 @@ private:
   // Socket é um inteiro pois seu valor representa um file descriptor
   int _socket_raw;
   int _interface_index;
-  const char * _interface_name;
+  const char *_interface_name;
   Ethernet::Address _address;
 
   static void signalHandler(int signum);
 
-  static void * obj;
-  static void (*handler)(void*, int); 
+  static void *obj;
+  static void (*handler)(void *, int);
 
   static Engine *_self;
-
 };
 
 #endif

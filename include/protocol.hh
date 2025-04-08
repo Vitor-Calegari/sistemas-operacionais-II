@@ -1,191 +1,232 @@
 #ifndef PROTOCOL_HH
 #define PROTOCOL_HH
 
-#include <cstring>
-#include "nic.hh"
-#include "ethernet.hh"
+#include <netinet/in.h>
+
+#include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
-#include "concurrent_observed.hh"
+#include "ethernet.hh"
+#include <cstring>
 
 #ifdef DEBUG
-#include "utils.hh"
+#include <iostream>
 #endif
+
 template <typename NIC>
-class Protocol : public Concurrent_Observed<typename NIC::BufferNIC, unsigned short>, private NIC::Observer {
+class Protocol
+    : public Concurrent_Observed<typename NIC::BufferNIC, unsigned short>,
+      private NIC::Observer {
 public:
-    inline static const typename NIC::Protocol_Number PROTO = htons(0x88B5); //Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
+  inline static const typename NIC::Protocol_Number PROTO =
+      htons(0x88B5); // Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
 
-    typedef typename NIC::BufferNIC     Buffer;
-    typedef typename NIC::Address       Physical_Address;
-    typedef unsigned short              Port;
+  typedef typename NIC::BufferNIC Buffer;
+  typedef typename NIC::Address Physical_Address;
+  typedef unsigned short Port;
 
-    typedef Conditional_Data_Observer<Buffer, Port> Observer;
-    typedef Conditionally_Data_Observed<Buffer, Port> Observed;
+  typedef Conditional_Data_Observer<Buffer, Port> Observer;
+  typedef Conditionally_Data_Observed<Buffer, Port> Observed;
 
-    // Endereço do protocolo: combinação de endereço físico e porta
-    class Address {
-    public:
-        enum Null { NONE };
-        Address() : _paddr(Ethernet::ZERO), _port(0) { }
-        Address(const Null &n) : _paddr(Ethernet::ZERO), _port(0) { }
-        Address(Physical_Address paddr, Port port) : _paddr(paddr), _port(port) { }
-        operator bool() const { return (_paddr != Ethernet::ZERO || _port != 0); }
-        bool operator==(const Address &other) const { return (_paddr == other._paddr) && (_port == other._port); }
-        Physical_Address getPAddr() const { return _paddr; }
-        Port getPort() const { return _port; }
-    private:
-        Physical_Address _paddr;
-        Port _port;
-    } __attribute__((packed));
-
-    static const Address Broadcast;
-
-    // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo, etc.)
-    class Header {
-    public:
-        Header() : origin(Address()), payloadSize(0){}
-        Address origin;
-        unsigned short payloadSize;
-    } __attribute__((packed));
-
-    // MTU disponível para o payload: espaço total do buffer menos o tamanho do Header
-    inline static const unsigned int MTU = NIC::MTU - sizeof(Header);
-    typedef unsigned char Data[MTU];
-
-    // Pacote do protocolo: composto pelo Header e o Payload
-    class Packet : public Header {
-    public:
-        Packet() {
-            std::memset(_data, 0, sizeof(_data));
-        }
-        Header* header() { return this; }
-        template <typename T>
-        T* data() { return reinterpret_cast<T*>(&_data); }
-    private:
-        Data _data;
-    } __attribute__((packed));
-
-    static Protocol* getInstance(NIC* nic) {
-        if (!_instance) {
-            _instance = new Protocol(nic);
-        }
-        return _instance;
+  // Endereço do protocolo: combinação de endereço físico e porta
+  class Address {
+  public:
+    enum Null { NONE };
+    Address() : _paddr(Ethernet::ZERO), _port(0) {
+    }
+    Address([[maybe_unused]]
+            const Null &n)
+        : _paddr(Ethernet::ZERO), _port(0) {
+    }
+    Address(Physical_Address paddr, Port port) : _paddr(paddr), _port(port) {
+    }
+    operator bool() const {
+      return (_paddr != Ethernet::ZERO || _port != 0);
+    }
+    bool operator==(const Address &other) const {
+      return (_paddr == other._paddr) && (_port == other._port);
+    }
+    Physical_Address getPAddr() const {
+      return _paddr;
+    }
+    Port getPort() const {
+      return _port;
     }
 
-    Protocol(Protocol const&)        = delete;
-    void operator=(Protocol const&)  = delete;
+  private:
+    Physical_Address _paddr;
+    Port _port;
+  } __attribute__((packed));
+
+  static const Address Broadcast;
+
+  // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo,
+  // etc.)
+  class Header {
+  public:
+    Header() : origin(Address()), payloadSize(0) {
+    }
+    Address origin;
+    unsigned short payloadSize;
+  } __attribute__((packed));
+
+  // MTU disponível para o payload: espaço total do buffer menos o tamanho do
+  // Header
+  inline static const unsigned int MTU = NIC::MTU - sizeof(Header);
+  typedef unsigned char Data[MTU];
+
+  // Pacote do protocolo: composto pelo Header e o Payload
+  class Packet : public Header {
+  public:
+    Packet() {
+      std::memset(_data, 0, sizeof(_data));
+    }
+    Header *header() {
+      return this;
+    }
+    template <typename T>
+    T *data() {
+      return reinterpret_cast<T *>(&_data);
+    }
+
+  private:
+    Data _data;
+  } __attribute__((packed));
+
+  static Protocol *getInstance(NIC *nic) {
+    if (!_instance) {
+      _instance = new Protocol(nic);
+    }
+    return _instance;
+  }
+
+  Protocol(Protocol const &) = delete;
+  void operator=(Protocol const &) = delete;
 
 protected:
-    // Construtor: associa o protocolo à NIC e registra-se como observador do protocolo PROTO
-    Protocol(NIC* nic) : _nic(nic) {
-        _nic->attach(this, PROTO);
-    }
+  // Construtor: associa o protocolo à NIC e registra-se como observador do
+  // protocolo PROTO
+  Protocol(NIC *nic) : _nic(nic) {
+    _nic->attach(this, PROTO);
+  }
+
 public:
-    // Destrutor: remove o protocolo da NIC
-    ~Protocol() {
-        _nic->detach(this, PROTO);
+  // Destrutor: remove o protocolo da NIC
+  ~Protocol() {
+    _nic->detach(this, PROTO);
+  }
+
+  // Envia uma mensagem:
+  // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
+  // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
+  int send(const Address &from, const Address &to, const void *data,
+           unsigned int size) {
+    Buffer *buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size);
+    if (!buf)
+      return -1;
+    // Payload do Ethernet::Frame é o Protocol::Packet
+    Packet *pkt = reinterpret_cast<Packet *>(buf->data()->data);
+    pkt->header()->origin = from;
+    pkt->header()->payloadSize = size;
+    buf->setSize(buf->size() + sizeof(Header) + size);
+    std::memcpy(pkt->template data<char>(), data, size);
+#ifdef DEBUG
+    std::cout
+        << "*************************Protocol Packet*************************"
+        << std::endl;
+    std::cout << std::dec << std::endl;
+    std::cout << "Packet content: " << std::endl;
+    std::cout << "Origin Address: ";
+    for (int i = 0; i < 6; ++i) {
+      std::cout << std::hex << std::uppercase
+                << (int)pkt->header()->origin.getPAddr().mac[i];
+      if (i < 5)
+        std::cout << ":";
     }
+    std::cout << ", Port: " << std::dec << pkt->header()->origin.getPort()
+              << std::endl;
+    std::cout << "Payload Size: " << pkt->header()->payloadSize << std::endl;
+    char hex_chars[] = "0123456789ABCDEF";
+    char buffer[3]; // Two hex digits and a null terminator
+    buffer[2] = '\0';
 
-    // Envia uma mensagem:
-    // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o cabeçalho Ethernet)
-    // como um Packet, monta o pacote e delega o envio à NIC.
-    int send(const Address &from, const Address &to, const void* data, unsigned int size) {
-        Buffer* buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size);
-        if (!buf)
-            return -1;
-        // Payload do Ethernet::Frame é o Protocol::Packet
-        Packet* pkt = reinterpret_cast<Packet*>(buf->data()->data);
-        pkt->header()->origin = from;
-        pkt->header()->payloadSize = size;
-        buf->setSize(buf->size() + sizeof(Header) + size);
-        std::memcpy(pkt->template data<char>(), data, size);
-        #ifdef DEBUG
-        std::cout << "*************************Protocol Packet*************************" << std::endl;
-        std::cout << std::dec << std::endl;
-        std::cout << "Packet content: " << std::endl;
-        std::cout << "Origin Address: ";
-        for (int i = 0; i < 6; ++i) {
-            std::cout << std::hex << std::uppercase << (int)pkt->header()->origin.getPAddr().mac[i];
-            if (i < 5) std::cout << ":";
-        }
-        std::cout << ", Port: " << std::dec << pkt->header()->origin.getPort() << std::endl;
-        std::cout << "Payload Size: " << pkt->header()->payloadSize << std::endl;
-        char hex_chars[] = "0123456789ABCDEF";
-        char buffer[3]; // Two hex digits and a null terminator
-        buffer[2] = '\0';
-
-        std::cout << "Payload Data: ";
-        for (unsigned int i = 0; i < size; ++i) {
-            unsigned char byte = pkt->template data<char>()[i];
-            buffer[0] = hex_chars[(byte >> 4) & 0xF];
-            buffer[1] = hex_chars[byte & 0xF];
-            std::cout << buffer << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "Full Packet Data: ";
-        unsigned char* packetBytes = reinterpret_cast<unsigned char*>(pkt);
-        for (unsigned int i = 0; i < sizeof(Header) + size; ++i) {
-            unsigned char byte = packetBytes[i];
-            buffer[0] = hex_chars[(byte >> 4) & 0xF];
-            buffer[1] = hex_chars[byte & 0xF];
-            std::cout << buffer << " ";
-        }
-        std::cout << std::endl;
-        #endif
-        return _nic->send(buf);
+    std::cout << "Payload Data: ";
+    for (unsigned int i = 0; i < size; ++i) {
+      unsigned char byte = pkt->template data<char>()[i];
+      buffer[0] = hex_chars[(byte >> 4) & 0xF];
+      buffer[1] = hex_chars[byte & 0xF];
+      std::cout << buffer << " ";
     }
+    std::cout << std::endl;
 
-    // Recebe uma mensagem:
-    // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
-    int receive(Buffer* buf, Address &from, void* data, unsigned int size) {
-        Address to = Address();
-        Physical_Address from_paddr = from.getPAddr();
-        Physical_Address to_paddr = to.getPAddr();
-        Packet pkt = Packet();
-        getNIC()->receive(buf, &from_paddr, &to_paddr, &pkt, MTU + sizeof(Header));
-        unsigned int s = pkt.header()->payloadSize;
-        unsigned int messageSize = size > s ? s : size;
-        std::memcpy(data, pkt.template data<char>(), messageSize);
-        getNIC()->free(buf);
-        return messageSize; //Protocol deveria informar quantos bytes está sendo transmitido em seu interior?
+    std::cout << "Full Packet Data: ";
+    unsigned char *packetBytes = reinterpret_cast<unsigned char *>(pkt);
+    for (unsigned int i = 0; i < sizeof(Header) + size; ++i) {
+      unsigned char byte = packetBytes[i];
+      buffer[0] = hex_chars[(byte >> 4) & 0xF];
+      buffer[1] = hex_chars[byte & 0xF];
+      std::cout << buffer << " ";
     }
+    std::cout << std::endl;
+#endif
+    return _nic->send(buf);
+  }
+
+  // Recebe uma mensagem:
+  // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
+  int receive(Buffer *buf, Address &from, void *data, unsigned int size) {
+    Address to = Address();
+    Physical_Address from_paddr = from.getPAddr();
+    Physical_Address to_paddr = to.getPAddr();
+    Packet pkt = Packet();
+    getNIC()->receive(buf, &from_paddr, &to_paddr, &pkt, MTU + sizeof(Header));
+    unsigned int s = pkt.header()->payloadSize;
+    unsigned int messageSize = size > s ? s : size;
+    std::memcpy(data, pkt.template data<char>(), messageSize);
+    getNIC()->free(buf);
+    return messageSize; // Protocol deveria informar quantos bytes está sendo
+                        // transmitido em seu interior?
+  }
 
 private:
-    // Método update: chamado pela NIC quando um frame é recebido.
-    // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
-    void update(typename NIC::Observed* obs, typename NIC::Protocol_Number prot, Buffer* buf) {
-        // TODO O update não precisa passar a prot como parametro, apenas carregar o buffer
-        // TODO Aparentemente, não é necessário o obs também pois fizemos Protocol herdar Concurrent Observed
-        Packet * pkt = (Packet *)buf->data()->data;
-        Port port = pkt->header()->origin.getPort();
-        if (!this->notify(port, buf)) {
-            _nic->free(buf); // TODO diferente do pdf
-            #ifdef DEBUG
-            std::cerr << "Protocol::update: Communicator não notificado" << std::endl;
-            #endif
-        }
-        #ifdef DEBUG
-        else {
-            std::cerr << "Protocol::update: Communicator notificado" << std::endl;
-        }
-        #endif
+  // Método update: chamado pela NIC quando um frame é recebido.
+  // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
+  void update([[maybe_unused]] typename NIC::Observed *obs,
+              [[maybe_unused]] typename NIC::Protocol_Number prot,
+              Buffer *buf) {
+    // TODO O update não precisa passar a prot como parametro, apenas carregar o
+    // buffer
+    // TODO Aparentemente, não é necessário o obs também pois fizemos Protocol
+    // herdar Concurrent Observed
+    Packet *pkt = (Packet *)buf->data()->data;
+    Port port = pkt->header()->origin.getPort();
+    if (!this->notify(port, buf)) {
+      _nic->free(buf); // TODO diferente do pdf
+#ifdef DEBUG
+      std::cerr << "Protocol::update: Communicator não notificado" << std::endl;
+#endif
     }
-
-    // Retorna a NIC associada (diferente do singleton, retorna o _nic da instância)
-    NIC* getNIC() {
-        return _nic;
+#ifdef DEBUG
+    else {
+      std::cerr << "Protocol::update: Communicator notificado" << std::endl;
     }
+#endif
+  }
 
-    static Protocol* _instance;  // TODO diferente do pdf
-    NIC* _nic;
+  // Retorna a NIC associada (diferente do singleton, retorna o _nic da
+  // instância)
+  NIC *getNIC() {
+    return _nic;
+  }
+
+  static Protocol *_instance; // TODO diferente do pdf
+  NIC *_nic;
 };
 
 template <typename NIC>
-Protocol<NIC>* Protocol<NIC>::_instance = nullptr;
+Protocol<NIC> *Protocol<NIC>::_instance = nullptr;
 
 template <typename NIC>
-const typename Protocol<NIC>::Address Protocol<NIC>::Broadcast = 
+const typename Protocol<NIC>::Address Protocol<NIC>::Broadcast =
     typename Protocol<NIC>::Address(Ethernet::BROADCAST_ADDRESS, 10);
 #endif // PROTOCOL_HH
