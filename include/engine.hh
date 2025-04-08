@@ -14,7 +14,6 @@
 #include <net/if.h>
 
 #include <fcntl.h>
-#include <functional>
 #include <signal.h>
 
 #include "ethernet.hh"
@@ -115,7 +114,7 @@ public:
   // Configura o handler de sinal (SIGIO).
   // Args:
   //   func: Função que tratará o sinal.
-  void setupSignalHandler(std::function<void(int)> func);
+  void setupSignalHandler();
 
 // protected:
   // Retorna o descritor do socket raw.
@@ -127,7 +126,19 @@ public:
 public:
   const Ethernet::Address & getAddress() { return _address; }
 
+  template <typename T, void (T::*handle_signal)(int)>
+  static void bind(T* obj) {
+    _self->obj = obj;
+    _self->handler = &handlerWrapper<T, handle_signal>; 
+  }
+
 private:
+  template <typename T, void (T::*handle_signal)(int)>
+  static void handlerWrapper(void* obj, int arg) {
+      T* typedObj = static_cast<T*>(obj);
+      (typedObj->*handle_signal)(arg);
+  }
+
   // Configura a recepção de sinais SIGIO para o socket.
   void confSignalReception();
 
@@ -139,9 +150,11 @@ private:
 
   static void signalHandler(int signum);
 
-  std::function<void(int)> signalHandlerFunction;
-  
+  static void * obj;
+  static void (*handler)(void*, int); 
+
   static Engine *_self;
+
 };
 
 #endif

@@ -2,7 +2,6 @@
 #define NIC_HH
 
 #include <arpa/inet.h> // Para htons, ntohs
-#include <functional>
 #include <iostream> // Para debug output (opcional)
 #include <mutex>
 
@@ -53,10 +52,7 @@ public:
   {
     // Setup Handler -----------------------------------------------------
 
-    std::function<void(int)> callback =
-        std::bind(&NIC::handle_signal, this, std::placeholders::_1);
-
-    Engine::setupSignalHandler(callback);
+    Engine::template bind<NIC<Engine>, &NIC<Engine>::handle_signal>(this);
 
     // Inicializa pool de buffers ----------------------------------------
 
@@ -173,7 +169,6 @@ public:
     return buf->size();
   }
 
-private:
   // Método membro que processa o sinal (chamado pelo handler estático)
   // TODO handle deveria ser aqui ou na Engine?
   void handle_signal(int signum) {

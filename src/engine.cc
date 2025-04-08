@@ -1,6 +1,8 @@
 #include "engine.hh"
 
-Engine* Engine::_self = nullptr;
+Engine *Engine::_self = nullptr;
+void* Engine::obj = nullptr;
+void (*Engine::handler)(void*, int) = nullptr;
 
 Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
     _self = this;
@@ -47,6 +49,8 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
     }
 
     confSignalReception();
+
+    setupSignalHandler();
 
     #ifdef DEBUG
     // Print Debug -------------------------------------------------------
@@ -116,9 +120,8 @@ bool Engine::get_interface_info() {
     return true;
   }
 
-void Engine::setupSignalHandler(std::function<void(int)> func) {
+void Engine::setupSignalHandler() {
     // Armazena a função de callback
-    signalHandlerFunction = func;
     struct sigaction sigAction;
     sigAction.sa_handler = Engine::signalHandler;
     sigAction.sa_flags = SA_RESTART;
@@ -169,10 +172,7 @@ void Engine::confSignalReception() {
 
 // Função estática para envelopar a função que tratará a interrupção
 void Engine::signalHandler(int signum) {
-    if (_self && _self->signalHandlerFunction) {
-        _self->signalHandlerFunction(signum);
-    } else {
-        perror("Signal handler failed");
-        exit(EXIT_FAILURE);
+    if (_self->handler) {
+      _self->handler(_self->obj, signum); 
     }
-}
+  }
