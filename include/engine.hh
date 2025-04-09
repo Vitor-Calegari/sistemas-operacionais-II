@@ -51,7 +51,9 @@ public:
     int send_len = sendto(_self->_socket_raw, buf->data(), buf->size(), 0,
                           (const sockaddr *)&sadr_ll, sizeof(sadr_ll));
     if (send_len < 0) {
+#ifdef DEBUG
       printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
+#endif
       return -1;
     }
     return send_len;

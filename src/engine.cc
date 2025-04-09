@@ -109,7 +109,8 @@ Buffer<Ethernet::Frame> *Engine::allocate_frame_memory() {
 
 // Libera memória do frame. Placeholder com 'delete'.
 void Engine::free_frame_memory(Buffer<Ethernet::Frame> *frame_ptr) {
-  delete frame_ptr;
+  if (frame_ptr != nullptr)
+    delete frame_ptr;
 }
 
 bool Engine::get_interface_info() {
@@ -150,8 +151,7 @@ void Engine::setupSignalHandler() {
   // Limpa possiveis sinais existentes antes da configuracao
   sigemptyset(&sigAction.sa_mask);
 
-  // Condigura sigaction de forma que, quando SIGIO for recebido,
-  // ´function´ sera chamada
+  // Configura sigaction
   // nullptr indica que nao queremos salvar a sigaction anterior
   if (sigaction(SIGIO, &sigAction, nullptr) < 0) {
     perror("sigaction");

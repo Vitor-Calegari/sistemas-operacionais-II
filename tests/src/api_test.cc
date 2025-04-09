@@ -15,7 +15,7 @@
 using namespace std;
 using namespace std::chrono;
 
-const int num_messages_per_comm = 1200;
+const int num_messages_per_comm = 2000;
 const size_t MESSAGE_SIZE = 256; 
 
 int main() {
@@ -48,6 +48,7 @@ int main() {
 
         for (int j = 0; j < num_messages_per_comm; ) {
             Message msg(MESSAGE_SIZE);
+            memset(msg.data(), 0, MESSAGE_SIZE);
             // Registra o timestamp no envio
             auto t_send = high_resolution_clock::now();
             int64_t send_time_us = duration_cast<microseconds>(t_send.time_since_epoch()).count();
@@ -74,6 +75,7 @@ int main() {
         Message msg(MESSAGE_SIZE);
         
         for (int j = 0; j < num_messages_per_comm; j++){
+            memset(msg.data(), 0, MESSAGE_SIZE);
             if (!communicator.receive(&msg)) {
                 cerr << "Erro ao receber mensagem no processo " << getpid() << endl;
                 exit(1);

@@ -122,7 +122,7 @@ public:
   int send(const Address &from, const Address &to, const void *data,
            unsigned int size) {
     Buffer *buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size);
-    if (!buf)
+    if (buf == nullptr)
       return -1;
     // Payload do Ethernet::Frame é o Protocol::Packet
     Packet *pkt = reinterpret_cast<Packet *>(buf->data()->data);
