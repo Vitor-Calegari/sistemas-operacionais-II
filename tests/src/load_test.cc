@@ -1,91 +1,66 @@
 #include <iostream>
-#include <chrono>
-#include <vector>
-#include <thread>
-#include <mutex>
-#include <atomic>
-#include <condition_variable>
-#include <algorithm>  // para std::fill
-
+#include <unistd.h>
+#include <sys/wait.h>
+#include <cstdlib>
 #include "communicator.hh"
 #include "protocol.hh"
 #include "engine.hh"
 #include "nic.hh"
+#include "message.hh"  // classe Message que espera o tamanho da mensagem
 
-// Constantes globais
-const int num_remotes = 25;
-const int num_messages_per_remote = 100;
+// Constantes globais para o teste de carga
+const int num_communicators = 25;
+const int num_messages_per_comm = 100;
+const std::size_t MESSAGE_SIZE = 256; 
 
-// Variáveis globais para sincronização
-std::mutex mtx;
-std::condition_variable cv;
-std::atomic<int> messages_received = 0;
-
-// Função para simular o envio de mensagens por um comunicador
-void communicator_thread(int id, int num_messages, std::vector<std::unique_ptr<Message>>& received_messages) {
-    for (int i = 0; i < num_messages; ++i) {
-        // Cria uma mensagem padrão
-        auto msg = std::make_unique<Message>(256); // Tamanho da mensagem: 256 bytes
-        char* data = reinterpret_cast<char*>(msg->data());
-        std::fill(data, data + msg->size(), 'A'); // Preenche o payload com 'A'
-
-        // Adiciona o ID do remetente no início do payload
-        data[0] = static_cast<char>(id);
-
-        // Adiciona a mensagem à lista compartilhada
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            received_messages.push_back(std::move(msg));
-            messages_received++;
-        }
-
-        // Notifica o receptor
-        cv.notify_all();
-    }
-}
-
-// Função para processar mensagens recebidas
-void receiver_thread(int total_messages, std::vector<std::unique_ptr<Message>>& received_messages) {
-    int received_count = 0;
-
-    while (received_count < total_messages) {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&]() { return messages_received > received_count; });
-
-        // Processa a mensagem recebida
-        const auto& msg = received_messages[received_count];
-        const char* data = reinterpret_cast<const char*>(msg->data());
-        int senderId = static_cast<int>(data[0]); // Extrai o ID do remetente do payload
-        std::cout << "Message received from sender " << senderId << std::endl;
-
-        received_count++;
-    }
-}
-
-// Função principal
 int main() {
-    const int total_messages = num_remotes * num_messages_per_remote;
-    std::vector<std::unique_ptr<Message>> received_messages;
-    received_messages.reserve(total_messages);  // Reserva espaço para evitar realocações
-
-    // Inicia a thread do receptor
-    std::thread receiver(receiver_thread, total_messages, std::ref(received_messages));
-
-    // Inicia as threads dos comunicadores
-    std::vector<std::thread> communicators;
-    for (int i = 0; i < num_remotes; ++i) {
-        communicators.emplace_back(communicator_thread, i, num_messages_per_remote, std::ref(received_messages));
+    for (int i = 0; i < num_communicators; i++) {
+        pid_t pid = fork();
+        if (pid < 0) {
+            std::cerr << "Erro ao criar processo" << std::endl;
+            exit(1);
+        }
+        if (pid == 0) {  
+            // Código do processo-filho
+            NIC<Engine> nic("lo");
+            auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
+            
+            // Crie um endereço único para cada processo – ajuste conforme sua implementação
+            typename Protocol<NIC<Engine>>::Address addr;  
+            // Exemplo: addr = typename Protocol<NIC<Engine>>::Address(getpid());
+            
+            Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
+            
+            for (int j = 0; j < num_messages_per_comm; j++) {
+                Message msg(MESSAGE_SIZE);  // Passe o tamanho da mensagem
+                // Preencher a mensagem com os dados necessários...
+                if (!communicator.send(&msg)) {
+                    std::cerr << "Erro no envio da mensagem no processo " << getpid() << std::endl;
+                    exit(1);
+                }
+                if (!communicator.receive(&msg)) {
+                    std::cerr << "Erro no recebimento da mensagem no processo " << getpid() << std::endl;
+                    exit(1);
+                }
+            }
+            exit(0);  // Sucesso no processo-filho
+        }
     }
-
-    // Aguarda todas as threads terminarem
-    for (auto& communicator : communicators) {
-        communicator.join();
+    
+    // Processo pai aguarda todos os filhos
+    int status;
+    bool sucesso = true;
+    for (int i = 0; i < num_communicators; i++) {
+        wait(&status);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+            sucesso = false;
+        }
     }
-    receiver.join();
-
-    std::cout << "All messages received successfully!" << std::endl;
+    
+    if (sucesso)
+        std::cout << "Teste de carga concluído com sucesso." << std::endl;
+    else
+        std::cerr << "Falha no teste de carga." << std::endl;
+    
     return 0;
 }
-
-//g++ -std=c++20 tests/src/load_test.cc -Iinclude -o load_test src/engine.cc src/ethernet.cc src/message.cc src/utils.cc -lpthread
-// ./load_test
