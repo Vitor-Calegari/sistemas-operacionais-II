@@ -1,6 +1,6 @@
 MAKENAME = Car
 
-TESTS = ordered_list_test communicator_test
+TESTS = ordered_list_test communicator_test api_test load_test
 MODULES = engine ethernet message utils
 
 SRC_DIR = src
@@ -10,5 +10,5 @@ BUILD_DIR = build
 BIN_DIR = bin
 
 CXX = g++
-CXXFLAGS = -std=c++20 -O0 -g -Wall -Wextra -Wpedantic -Werror
-LDFLAGS = -lm
+CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic -Werror
+LDFLAGS = -lm -lpthread
