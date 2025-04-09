@@ -8,6 +8,15 @@ define assemble_object =
 	echo $(MAKENAME) "Make: object" $(@F) "assembled ("$(^F)")"
 endef
 
+define run_tests =
+	for test in $(TESTS) ; do                            \
+		echo "\n======================================"; \
+		echo $(MAKENAME) "Testing: running" $$test;      \
+		echo "--------------------------------------";   \
+		./$(BIN_DIR)/$$test;                             \
+	done
+endef
+
 define create_dir =
 	if ! [ -d $@ ]; then \
 	  mkdir $@;          \

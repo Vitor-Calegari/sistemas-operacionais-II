@@ -1,6 +1,6 @@
 MAKENAME = Car
 
-MAIN = communicator_test
+TESTS = ordered_list_test communicator_test
 MODULES = engine ethernet message utils
 
 SRC_DIR = src

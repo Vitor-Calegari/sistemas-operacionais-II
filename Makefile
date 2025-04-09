@@ -8,11 +8,18 @@ ifdef INCL_DIR
 	CXXFLAGS += -I$(INCL_DIR)
 endif
 
-OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(MAIN) $(MODULES))
+OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(MODULES))
+TESTS_OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(TESTS))
+TESTS_TARGETS = $(patsubst %,$(BIN_DIR)/%,$(TESTS))
 
-.PHONY: clean
+.PHONY: clean test
 
-$(BIN_DIR)/$(MAIN): $(OBJS) | $(BIN_DIR)
+all: test
+
+test: $(OBJS) $(TESTS_OBJS) $(TESTS_TARGETS)
+	@$(run_tests)
+
+$(BIN_DIR)/%: $(BUILD_DIR)/%.o $(OBJS) | $(BIN_DIR)
 	@$(link_binary)
 
 $(BUILD_DIR)/%.o: %.cc | $(BUILD_DIR)
