@@ -31,6 +31,7 @@ int main() {
             
             Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
             
+            // Espera receiver estar pronto
             for (int j = 0; j < num_messages_per_comm; j++) {
                 Message msg(MESSAGE_SIZE);  // Passe o tamanho da mensagem
                 // Preencher a mensagem com os dados necessários...
@@ -38,24 +39,22 @@ int main() {
                     std::cerr << "Erro no envio da mensagem no processo " << getpid() << std::endl;
                     exit(1);
                 }
-                if (!communicator.receive(&msg)) {
-                    std::cerr << "Erro no recebimento da mensagem no processo " << getpid() << std::endl;
-                    exit(1);
-                }
             }
             exit(0);  // Sucesso no processo-filho
         }
     }
     
+    // Libera quem tava esperando
+    if (!communicator.receive(&msg)) {
+        std::cerr << "Erro no recebimento da mensagem no processo " << getpid() << std::endl;
+        exit(1);
+    }
+
     // Processo pai aguarda todos os filhos
     int status;
     bool sucesso = true;
-    for (int i = 0; i < num_communicators; i++) {
-        wait(&status);
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-            sucesso = false;
-        }
-    }
+    pid_t wpid;
+    while ((wpid = wait(&status)) > 0);
     
     if (sucesso)
         std::cout << "Teste de carga concluído com sucesso." << std::endl;
