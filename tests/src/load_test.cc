@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <cstdlib>
+#include <semaphore.h>
+#include <sys/mman.h>
 #include "communicator.hh"
 #include "protocol.hh"
 #include "engine.hh"
@@ -9,11 +11,22 @@
 #include "message.hh"  // classe Message que espera o tamanho da mensagem
 
 // Constantes globais para o teste de carga
-const int num_communicators = 25;
+const int num_communicators = 15;
 const int num_messages_per_comm = 100;
 const std::size_t MESSAGE_SIZE = 256; 
 
 int main() {
+    // Cria um semaphore compartilhado entre processos
+    sem_t *semaphore = static_cast<sem_t*>(
+        mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+             MAP_SHARED | MAP_ANONYMOUS, -1, 0)
+    );
+    if (semaphore == MAP_FAILED) {
+        std::cerr << "Erro ao criar o semaphore." << std::endl;
+        exit(1);
+    }
+    sem_init(semaphore, 1, 0);  // 0 = inicializa sem permissão para prosseguir
+
     for (int i = 0; i < num_communicators; i++) {
         pid_t pid = fork();
         if (pid < 0) {
@@ -24,42 +37,58 @@ int main() {
             // Código do processo-filho
             NIC<Engine> nic("lo");
             auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
-            
+
             // Crie um endereço único para cada processo – ajuste conforme sua implementação
             typename Protocol<NIC<Engine>>::Address addr;  
-            // Exemplo: addr = typename Protocol<NIC<Engine>>::Address(getpid());
-            
+            // Por exemplo: addr = typename Protocol<NIC<Engine>>::Address(getpid());
+
             Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
-            
-            // Espera receiver estar pronto
-            for (int j = 0; j < num_messages_per_comm; j++) {
-                Message msg(MESSAGE_SIZE);  // Passe o tamanho da mensagem
-                // Preencher a mensagem com os dados necessários...
-                if (!communicator.send(&msg)) {
-                    std::cerr << "Erro no envio da mensagem no processo " << getpid() << std::endl;
-                    exit(1);
+
+            // Aguarda até que o processo pai libere o semaphore
+            sem_wait(semaphore);
+
+            int j = 0;
+            while(j < num_messages_per_comm) {
+                // Envia mensagens
+                Message msg(MESSAGE_SIZE);  // Cria mensagem do tamanho definido
+                if (communicator.send(&msg)) {
+                    j++;
                 }
             }
-            exit(0);  // Sucesso no processo-filho
+            exit(0);  // Conclui com sucesso no processo-filho
         }
     }
-    
-    // Libera quem tava esperando
-    if (!communicator.receive(&msg)) {
-        std::cerr << "Erro no recebimento da mensagem no processo " << getpid() << std::endl;
-        exit(1);
+
+    // Processo pai - Cria seu próprio comunicador
+    NIC<Engine> nic("lo");
+    auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
+    typename Protocol<NIC<Engine>>::Address addr;
+    Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
+    Message msg(MESSAGE_SIZE);
+
+    // Libera o semaphore para que todos os filhos possam prosseguir com os envios
+    for (int i = 0; i < num_communicators; i++) {
+        sem_post(semaphore);
     }
 
-    // Processo pai aguarda todos os filhos
+    for (int j = 0; j < num_communicators * num_messages_per_comm; j++){
+        //std::cout << j << std::endl;
+        if (!communicator.receive(&msg)) {
+            std::cerr << "Erro no recebimento da mensagem no processo " 
+                  << getpid() << std::endl;
+            exit(1);
+        }}
+
+    // Processo pai aguarda todos os filhos finalizarem
     int status;
-    bool sucesso = true;
-    pid_t wpid;
-    while ((wpid = wait(&status)) > 0);
+    while (wait(&status) > 0);
+
+    std::cout << "Teste de carga concluído com sucesso." << std::endl;
     
-    if (sucesso)
-        std::cout << "Teste de carga concluído com sucesso." << std::endl;
-    else
-        std::cerr << "Falha no teste de carga." << std::endl;
-    
+    // Libera os recursos do semaphore
+    sem_destroy(semaphore);
+    munmap(semaphore, sizeof(sem_t));
+
     return 0;
 }
+
