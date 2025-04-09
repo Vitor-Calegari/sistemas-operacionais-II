@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     send = atoi(argv[1]);
   }
 
-  NIC<Engine> nic = NIC<Engine>("wlp0s20f3");
+  NIC<Engine> nic = NIC<Engine>("lo");
 
   Protocol<NIC<Engine>> *prot = Protocol<NIC<Engine>>::getInstance(&nic);
 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
 
   if (send) {
     int i = 0;
-    while (i < NUM_MSGS){
+    while (i < NUM_MSGS) {
       Message message = Message(MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
@@ -54,7 +54,9 @@ int main(int argc, char *argv[]) {
         std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
       }
       std::cout << std::endl;
-      if (comm.send(&message)) { i++; }
+      if (comm.send(&message)) {
+        i++;
+      }
     }
   } else {
     for (int i_m = 0; argc >= 2 || i_m < NUM_MSGS; ++i_m) {
