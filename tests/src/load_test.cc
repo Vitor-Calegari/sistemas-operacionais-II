@@ -92,3 +92,5 @@ int main() {
     return 0;
 }
 
+//g++ -std=c++20 tests/src/load_test.cc -Iinclude -o load_test src/engine.cc src/ethernet.cc src/message.cc src/utils.cc
+// ./load_test
