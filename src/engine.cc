@@ -59,6 +59,17 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
 
   setupSignalHandler();
 
+  // Bind no socket de receive
+  struct sockaddr_ll sll_receive;
+  std::memset(&sll_receive, 0, sizeof(sll_receive));
+  sll_receive.sll_family = AF_PACKET;
+  sll_receive.sll_protocol = htons(ETH_P_ALL);
+  sll_receive.sll_ifindex = if_nametoindex(_interface_name);
+  if (::bind(_socket_raw, (struct sockaddr*)&sll_receive, sizeof(sll_receive)) < 0) {
+    perror("bind (receive socket)");
+    exit(EXIT_FAILURE);
+  }
+
 #ifdef DEBUG
   // Print Debug -------------------------------------------------------
 

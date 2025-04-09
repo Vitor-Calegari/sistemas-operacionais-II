@@ -2,6 +2,7 @@
 #define NIC_HH
 
 #include <csignal>
+#include <stdlib.h>
 #ifdef DEBUG
 #include <iostream> // Para debug output (opcional)
 #endif
@@ -89,7 +90,7 @@ public:
   // Retorna: Ponteiro para um Buffer livre, ou nullptr se o pool estiver
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
   BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size) {
-    std::lock_guard<std::mutex> lock(_pool_mutex); // Protege o acesso ao pool
+    // std::lock_guard<std::mutex> lock(_pool_mutex); // Protege o acesso ao pool
     unsigned int maxSize = Ethernet::HEADER_SIZE + size;
     for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
       if (!_buffer_pool[i]->is_in_use()) {
@@ -120,7 +121,7 @@ public:
   //   buf: Ponteiro para o buffer a ser liberado (deve ter sido obtido via
   //   alloc()).
   void free(BufferNIC *buf) {
-    std::lock_guard<std::mutex> lock(_pool_mutex);
+    // std::lock_guard<std::mutex> lock(_pool_mutex);
     if (!buf)
       return;
     buf->data()->clear();
@@ -142,7 +143,7 @@ public:
     if (bytes_sent > 0) {
       // Atualiza estatísticas
       {
-        std::lock_guard<std::mutex> lock(_stats_mutex);
+        // std::lock_guard<std::mutex> lock(_stats_mutex);
         _statistics.tx_packets++;
         _statistics.tx_bytes +=
             bytes_sent; // Idealmente, bytes_sent == buf->size()
@@ -171,7 +172,7 @@ public:
 
   // Retorna as estatísticas de rede acumuladas.
   const Statistics &statistics() const {
-    std::lock_guard<std::mutex> lock(_stats_mutex);
+    // std::lock_guard<std::mutex> lock(_stats_mutex);
     return _statistics; // Retorna referência direta (cuidado com concorrência)
   }
 
@@ -209,7 +210,7 @@ public:
 
           // Atualiza estatísticas (protegido por mutex)
           {
-            std::lock_guard<std::mutex> lock(_stats_mutex);
+            // std::lock_guard<std::mutex> lock(_stats_mutex);
             _statistics.rx_packets++;
             _statistics.rx_bytes += bytes_received;
           }
@@ -231,11 +232,13 @@ public:
           // ou -1 com EAGAIN/EWOULDBLOCK). A engine original retorna -1 em
           // erro, não 0. Então só chegamos aqui se for < 0.
           free(buf);
+          break;
         } else { // bytes_received < 0
           if (errno != EAGAIN && errno != EWOULDBLOCK) {
             perror("NIC::handle_signal recvfrom error");
           }
           free(buf);
+          break;
         }
       }
     }
@@ -243,14 +246,9 @@ public:
 
   // --- Membros ---
   Statistics _statistics; // Estatísticas de rede
-  mutable std::mutex
-      _stats_mutex; // Mutex para proteger o acesso às estatísticas
 
   // Pool de Buffers
-  BufferNIC
-      *_buffer_pool[BUFFER_SIZE]; // Vetor que contém os buffers pré-alocados
-  std::mutex _pool_mutex; // Mutex para proteger o acesso ao pool (_buffer_pool
-                          // e flags _in_use)
+  BufferNIC *_buffer_pool[BUFFER_SIZE];
 };
 
 #endif // NIC_HH

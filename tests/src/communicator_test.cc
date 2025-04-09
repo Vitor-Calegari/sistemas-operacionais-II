@@ -6,7 +6,7 @@
 #include <iostream>
 #include <random>
 
-#define NUM_MSGS 10
+#define NUM_MSGS 1000
 #define MSG_SIZE 5
 
 int randint(int p, int r) {
