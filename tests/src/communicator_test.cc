@@ -8,7 +8,7 @@
 #include <random>
 #include <sys/wait.h>
 
-#define NUM_MSGS 1000
+#define NUM_MSGS 10000
 #define MSG_SIZE 5
 
 int randint(int p, int r) {
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     send = atoi(argv[1]);
   }
 
-  NIC<Engine> nic = NIC<Engine>("lo");
+  NIC<Engine> nic = NIC<Engine>("wlp0s20f3");
 
   Protocol<NIC<Engine>> *prot = Protocol<NIC<Engine>>::getInstance(&nic);
 
@@ -45,7 +45,8 @@ int main(int argc, char *argv[]) {
       Communicator<Protocol<NIC<Engine>>>(prot, addr);
 
   if (send) {
-    for (int i = 0; i < NUM_MSGS; i++) {
+    int i = 0;
+    while (i < NUM_MSGS){
       Message message = Message(MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
@@ -53,7 +54,7 @@ int main(int argc, char *argv[]) {
         std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
       }
       std::cout << std::endl;
-      comm.send(&message);
+      if (comm.send(&message)) { i++; }
     }
   } else {
     for (int i_m = 0; argc >= 2 || i_m < NUM_MSGS; ++i_m) {
