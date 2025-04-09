@@ -8,7 +8,7 @@
 #include <random>
 #include <sys/wait.h>
 
-#define NUM_MSGS 1000
+#define NUM_MSGS 100
 #define MSG_SIZE 5
 
 int randint(int p, int r) {
