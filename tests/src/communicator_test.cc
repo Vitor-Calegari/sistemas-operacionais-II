@@ -2,9 +2,20 @@
 #include "engine.hh"
 #include "nic.hh"
 #include "protocol.hh"
+#include <cstddef>
 #include <iostream>
+#include <random>
 
 #define NUM_MSGS 10
+#define MSG_SIZE 5
+
+int randint(int p, int r) {
+  std::random_device rd;
+  std::mt19937 rng(rd());
+  std::uniform_int_distribution<int> uni(p, r);
+
+  return uni(rng);
+}
 
 int main(int argc, char *argv[]) {
   int send;
@@ -29,19 +40,18 @@ int main(int argc, char *argv[]) {
 
   if (send) {
     for (int i = 0; i < NUM_MSGS; i++) {
-      unsigned char data[5] = { 0xAA, 0xBB, 0xCC, 0xDD, 0xFF };
-      Message message = Message(5);
-      std::memcpy(message.data(), data, 5);
+      Message message = Message(MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
+        message.data()[i] = std::byte(randint(0, 255));
         std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
       }
       std::cout << std::endl;
       comm.send(&message);
     }
   } else {
-    for (int i_m = 0; argc >= 2 || i_m < NUM_MSGS; ++i_m) {
-      Message message = Message(5);
+    for (int i_m = 0; argc >= 2 || i_m < 2 * NUM_MSGS; ++i_m) {
+      Message message = Message(MSG_SIZE);
       comm.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {
