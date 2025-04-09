@@ -2,9 +2,11 @@
 #include "engine.hh"
 #include "nic.hh"
 #include "protocol.hh"
+#include <csignal>
 #include <cstddef>
 #include <iostream>
 #include <random>
+#include <sys/wait.h>
 
 #define NUM_MSGS 1000
 #define MSG_SIZE 5
@@ -20,10 +22,14 @@ int randint(int p, int r) {
 int main(int argc, char *argv[]) {
   int send;
   if (argc < 2) {
-    // Novo processo será o receiver.
+    // Novo processo será o sender.
     auto ret = fork();
 
-    send = ret != 0;
+    send = ret == 0;
+
+    if (ret == 0) {
+      sleep(1);
+    }
   } else {
     send = atoi(argv[1]);
   }
@@ -50,7 +56,7 @@ int main(int argc, char *argv[]) {
       comm.send(&message);
     }
   } else {
-    for (int i_m = 0; argc >= 2 || i_m < 2 * NUM_MSGS; ++i_m) {
+    for (int i_m = 0; argc >= 2 || i_m < NUM_MSGS; ++i_m) {
       Message message = Message(MSG_SIZE);
       comm.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
