@@ -15,10 +15,11 @@
 using namespace std;
 using namespace std::chrono;
 
-const int num_messages_per_comm = 2000;
+const int num_messages_per_comm = 10000;
 const size_t MESSAGE_SIZE = 256; 
 
 int main() {
+    std::cout << "\n\n\n\033[3A" << std::flush;
     // Criação do semaphore compartilhado
     sem_t *semaphore = static_cast<sem_t*>(
         mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
@@ -40,12 +41,12 @@ int main() {
         // Processo-filho: envia mensagens
         NIC<Engine> nic("lo");
         auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
-        typename Protocol<NIC<Engine>>::Address addr;  
+        Protocol<NIC<Engine>>::Address addr = Protocol<NIC<Engine>>::Address(Ethernet::ZERO, 10);  
         Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
 
         // Aguarda liberação do semaphore pelo pai
         sem_wait(semaphore);
-
+        std::cout << "\033[1B\rSent: 0\033[K\033[1A" << std::flush;
         for (int j = 0; j < num_messages_per_comm; ) {
             Message msg(MESSAGE_SIZE);
             memset(msg.data(), 0, MESSAGE_SIZE);
@@ -55,7 +56,9 @@ int main() {
             memcpy(msg.data(), &send_time_us, sizeof(send_time_us));
             
             // Envia a mensagem e incrementa o contador caso seja bem-sucedido
+            std::cout << "\033[1B\rSent: " << std::dec << j << "\033[K\033[1A" << std::flush;
             if (communicator.send(&msg)) {
+                sleep(0.001);
                 j++;
             }
         }
@@ -64,16 +67,18 @@ int main() {
         // Processo pai: recebe mensagens
         NIC<Engine> nic("lo");
         auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
-        typename Protocol<NIC<Engine>>::Address addr;
+        Protocol<NIC<Engine>>::Address addr = Protocol<NIC<Engine>>::Address(Ethernet::ZERO, 10);  
         Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
         
         // Libera o semaphore para que o filho inicie o envio
-        sem_post(semaphore);
 
         long long total_latency_us = 0;
         int msg_count = 0;
         Message msg(MESSAGE_SIZE);
         
+        sem_post(semaphore);
+        std::cout << "\033[2B\rReceived: 0\033[K\033[2A" << std::flush;
+
         for (int j = 0; j < num_messages_per_comm; j++){
             memset(msg.data(), 0, MESSAGE_SIZE);
             if (!communicator.receive(&msg)) {
@@ -90,6 +95,7 @@ int main() {
             long long latency_us = t_recv_us - t_sent_us;
             total_latency_us += latency_us;
             msg_count++;
+            std::cout << "\033[2B\rReceived: " << std::dec << msg_count << "\033[K\033[2A" << std::flush;
         }
         
         // Aguarda o término do filho
