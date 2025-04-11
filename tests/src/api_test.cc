@@ -17,6 +17,7 @@ using namespace std::chrono;
 
 const int num_messages_per_comm = 10000;
 const size_t MESSAGE_SIZE = 256; 
+const auto INTERFACE_NAME = "lo";
 
 int main() {
     std::cout << "\n\n\n\033[3A" << std::flush;
@@ -39,7 +40,7 @@ int main() {
 
     if (pid == 0) {  
         // Processo-filho: envia mensagens
-        NIC<Engine> nic("lo");
+        NIC<Engine> nic(INTERFACE_NAME);
         auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
         Protocol<NIC<Engine>>::Address addr = Protocol<NIC<Engine>>::Address(Ethernet::ZERO, 10);  
         Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
@@ -65,7 +66,7 @@ int main() {
         exit(0);
     } else {
         // Processo pai: recebe mensagens
-        NIC<Engine> nic("lo");
+        NIC<Engine> nic(INTERFACE_NAME);
         auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
         Protocol<NIC<Engine>>::Address addr = Protocol<NIC<Engine>>::Address(Ethernet::ZERO, 10);  
         Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);

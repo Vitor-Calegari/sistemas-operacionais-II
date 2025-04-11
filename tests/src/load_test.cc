@@ -15,6 +15,8 @@ const int num_communicators = 15;
 const int num_messages_per_comm = 100;
 const std::size_t MESSAGE_SIZE = 256; 
 
+const auto INTERFACE_NAME = "lo";
+
 int main() {
     // Cria um semaphore compartilhado entre processos
     sem_t *semaphore = static_cast<sem_t*>(
@@ -35,7 +37,7 @@ int main() {
         }
         if (pid == 0) {  
             // Código do processo-filho
-            NIC<Engine> nic("lo");
+            NIC<Engine> nic(INTERFACE_NAME);
             auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
 
             // Crie um endereço único para cada processo – ajuste conforme sua implementação
@@ -60,7 +62,7 @@ int main() {
     }
 
     // Processo pai - Cria seu próprio comunicador
-    NIC<Engine> nic("lo");
+    NIC<Engine> nic(INTERFACE_NAME);
     auto prot = Protocol<NIC<Engine>>::getInstance(&nic);
     typename Protocol<NIC<Engine>>::Address addr;
     Communicator<Protocol<NIC<Engine>>> communicator(prot, addr);
