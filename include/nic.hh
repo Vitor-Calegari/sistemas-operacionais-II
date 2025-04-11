@@ -177,6 +177,13 @@ public:
         // Usa a capacidade máxima do frame Ethernet
         buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS);
 
+        if (buf == nullptr) {
+#ifdef DEBUG
+          std::cout << "NIC buffer is full" << std::endl;
+#endif
+          break;
+        }
+
         // 2. Tentar receber o pacote usando a Engine.
         struct sockaddr_ll sender_addr;
         socklen_t sender_addr_len = sizeof(sender_addr);
