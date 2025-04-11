@@ -165,10 +165,10 @@ public:
   }
 
   // Método membro que processa o sinal (chamado pelo handler estático)
-  void handle_signal(int signum) {
-    int bytes_received = 1;
-    while (bytes_received >= 1) {
-#ifdef DEBUG
+  void handle_signal([[maybe_unused]]int signum) {
+    int bytes_received;
+    do {
+      #ifdef DEBUG
       std::cout << "New packet received" << std::endl;
 #endif
       // 1. Alocar um buffer para recepção.
@@ -220,7 +220,7 @@ public:
 #endif
         free(buf);
       }
-    }
+    } while (bytes_received >= 1);
   }
 
   // --- Membros ---
