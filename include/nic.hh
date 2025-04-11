@@ -32,16 +32,13 @@ class NIC : public Ethernet,
                                                Ethernet::Protocol>,
             private Engine {
 public:
-  // TODO Valores temporareos
-  static const unsigned int SEND_BUFFERS =
-      1; // Traits<NIC<Engine>>::SEND_BUFFERS;
-  static const unsigned int RECEIVE_BUFFERS =
-      1; // Traits<NIC<Engine>>::RECEIVE_BUFFERS;
+
+  static const unsigned int SEND_BUFFERS = 1024;
+  static const unsigned int RECEIVE_BUFFERS = 1024;
 
   static const unsigned int BUFFER_SIZE =
-      SEND_BUFFERS * sizeof(Buffer<Ethernet::Frame>) +
-      RECEIVE_BUFFERS * sizeof(Buffer<Ethernet::Frame>);
-  typedef Ethernet::Address Address; // Re-expõe Address de Ethernet
+      SEND_BUFFERS + RECEIVE_BUFFERS;
+  typedef Ethernet::Address Address;
   typedef Ethernet::Protocol Protocol_Number;
   typedef Conditional_Data_Observer<Buffer<Ethernet::Frame>, Protocol_Number>
       Observer;
@@ -49,14 +46,10 @@ public:
       Observed;
   typedef Buffer<Ethernet::Frame> BufferNIC;
 
-  // Construtor: Recebe um ponteiro para a Engine (cuja vida útil é gerenciada
-  // externamente) e o nome da interface de rede.
   // Args:
-  //   engine: Ponteiro para a instância da Engine a ser usada.
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
   NIC(const char *interface_name)
-      : Engine(interface_name) // TODO Passar o parametro interface_name aqui é
-                               // uma boa escolha?
+      : Engine(interface_name)
   {
     // Setup Handler -----------------------------------------------------
 
@@ -90,7 +83,6 @@ public:
   // Retorna: Ponteiro para um Buffer livre, ou nullptr se o pool estiver
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
   BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size) {
-    // std::lock_guard<std::mutex> lock(_pool_mutex); // Protege o acesso ao pool
     unsigned int maxSize = Ethernet::HEADER_SIZE + size;
     for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
       if (!_buffer_pool[i]->is_in_use()) {
@@ -121,7 +113,6 @@ public:
   //   buf: Ponteiro para o buffer a ser liberado (deve ter sido obtido via
   //   alloc()).
   void free(BufferNIC *buf) {
-    // std::lock_guard<std::mutex> lock(_pool_mutex);
     if (!buf)
       return;
     buf->data()->clear();
@@ -141,19 +132,11 @@ public:
     int bytes_sent = Engine::send(buf);
 
     if (bytes_sent > 0) {
-      // Atualiza estatísticas
-      {
-        // std::lock_guard<std::mutex> lock(_stats_mutex);
         _statistics.tx_packets++;
-        _statistics.tx_bytes +=
-            bytes_sent; // Idealmente, bytes_sent == buf->size()
-      }
+        _statistics.tx_bytes += bytes_sent;
 #ifdef DEBUG
-      std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes."
-                << std::endl;
-#endif
+      std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes."  << std::endl;
     } else {
-#ifdef DEBUG
       std::cerr << "NIC::send(buf): Engine failed to send packet." << std::endl;
 #endif
     }
@@ -172,8 +155,7 @@ public:
 
   // Retorna as estatísticas de rede acumuladas.
   const Statistics &statistics() const {
-    // std::lock_guard<std::mutex> lock(_stats_mutex);
-    return _statistics; // Retorna referência direta (cuidado com concorrência)
+    return _statistics;
   }
 
   int receive(BufferNIC *buf, [[maybe_unused]] Address *from,
@@ -183,7 +165,6 @@ public:
   }
 
   // Método membro que processa o sinal (chamado pelo handler estático)
-  // TODO handle deveria ser aqui ou na Engine?
   void handle_signal(int signum) {
     if (signum == SIGIO) {
       int bytes_received = 1;
@@ -209,11 +190,8 @@ public:
           // Pacote recebido!
 
           // Atualiza estatísticas (protegido por mutex)
-          {
-            // std::lock_guard<std::mutex> lock(_stats_mutex);
-            _statistics.rx_packets++;
-            _statistics.rx_bytes += bytes_received;
-          }
+          _statistics.rx_packets++;
+          _statistics.rx_bytes += bytes_received;
 
           bool notified = notify(buf->data()->prot, buf);
 #ifdef DEBUG
@@ -234,9 +212,11 @@ public:
           free(buf);
           break;
         } else { // bytes_received < 0
+#ifdef DEBUG
           if (errno != EAGAIN && errno != EWOULDBLOCK) {
             perror("NIC::handle_signal recvfrom error");
           }
+#endif
           free(buf);
           break;
         }

@@ -201,7 +201,7 @@ private:
     Packet *pkt = (Packet *)buf->data()->data;
     Port port = pkt->header()->origin.getPort();
     if (!this->notify(port, buf)) {
-      _nic->free(buf); // TODO diferente do pdf
+      _nic->free(buf);
 #ifdef DEBUG
       std::cerr << "Protocol::update: Communicator não notificado" << std::endl;
 #endif
@@ -219,7 +219,7 @@ private:
     return _nic;
   }
 
-  static Protocol *_instance; // TODO diferente do pdf
+  static Protocol *_instance;
   NIC *_nic;
 };
 

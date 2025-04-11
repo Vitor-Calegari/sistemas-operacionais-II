@@ -74,8 +74,6 @@ public:
   bool get_interface_info();
 
   // *************TODO**************
-  // Ainda está errado os parâmetros
-  // Porque o receive da engine teria parametros?
   // Mensagens transferidas em broadcast são recebidas pela mesma engine que as
   // enviou, como lidar?
   // *******************************
