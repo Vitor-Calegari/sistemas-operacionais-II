@@ -14,24 +14,30 @@ Engine engine = Engine("lo");
 
 typedef Buffer<Ethernet::Frame> EthFrame;
 
-void handleSignal(int signal) {
-  if (signal == SIGIO) {
-    std::cout << "SIGIO recebido: dados disponíveis no socket\n";
+class Handler {
+public:
+  Engine * engine;
+
+  void handle_signal(int signal) {
+    if (signal == SIGIO) {
+      std::cout << "SIGIO recebido: dados disponíveis no socket\n";
+    }
+    std::cout << "Dados recebidos:\n";
+  
+    EthFrame *buf = new EthFrame(1522);
+  
+    struct sockaddr_ll saddr;
+    socklen_t saddrlen;
+  
+    engine->receive(buf, saddr, saddrlen);
+  
+    printEth(buf);
+    fflush(stdout);
+  
+    delete buf;
   }
-  std::cout << "Dados recebidos:\n";
+};
 
-  EthFrame *buf = new EthFrame(1522);
-
-  struct sockaddr_ll saddr;
-  socklen_t saddrlen;
-
-  engine.receive(buf, saddr, saddrlen);
-
-  printEth(buf);
-  fflush(stdout);
-
-  delete buf;
-}
 
 // Funcões para montar o quadro ethernet --------------------------------------
 
@@ -92,8 +98,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   const int send = atoi(argv[1]);
-
-  engine.setupSignalHandler(handleSignal);
+  Handler handler = Handler();
+  handler.engine = &engine;
+  engine.template bind<Handler, &Handler::handle_signal>(&handler);
 
   if (send) {
 
