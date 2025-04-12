@@ -10,7 +10,9 @@
 
 // Arquivo de testes temporario para testar funcionamento da engine
 
-Engine engine = Engine("lo");
+const auto INTERFACE_NAME = "enxf8e43bf0c430";
+
+Engine engine = Engine(INTERFACE_NAME);
 
 typedef Buffer<Ethernet::Frame> EthFrame;
 
@@ -18,23 +20,26 @@ class Handler {
 public:
   Engine * engine;
 
-  void handle_signal(int signal) {
-    if (signal == SIGIO) {
-      std::cout << "SIGIO recebido: dados disponíveis no socket\n";
-    }
-    std::cout << "Dados recebidos:\n";
-  
-    EthFrame *buf = new EthFrame(1522);
-  
-    struct sockaddr_ll saddr;
-    socklen_t saddrlen;
-  
-    engine->receive(buf, saddr, saddrlen);
-  
-    printEth(buf);
-    fflush(stdout);
-  
-    delete buf;
+  void handle_signal() {
+    int recv_len = 0;
+    std::cout << "SIGIO recebido: dados disponíveis no socket\n";
+    do {
+      std::cout << "Dados recebidos:\n";
+    
+      EthFrame *buf = new EthFrame(1522);
+    
+      struct sockaddr_ll saddr;
+      socklen_t saddrlen;
+    
+      recv_len = engine->receive(buf, saddr, saddrlen);
+      
+      if (recv_len > 0) {
+        printEth(buf);
+        fflush(stdout);
+      }
+    
+      delete buf;  
+    } while (recv_len > 0);
   }
 };
 
@@ -43,8 +48,8 @@ public:
 
 void get_mac(EthFrame *buf, ifreq ifreq_c, int sock_raw) {
   memset(&ifreq_c, 0, sizeof(ifreq_c));
-  strncpy(ifreq_c.ifr_name, "lo", IFNAMSIZ - 1);
-
+  strncpy(ifreq_c.ifr_name, INTERFACE_NAME, IFNAMSIZ - 1);
+  ifreq_c.ifr_name[IFNAMSIZ - 1] = '\0';
   if ((ioctl(sock_raw, SIOCGIFHWADDR, &ifreq_c)) < 0)
     printf("error in SIOCGIFHWADDR ioctl reading");
 
@@ -82,7 +87,8 @@ void get_data(EthFrame *buf) {
 
 void get_eth_index(ifreq &ifreq_i, int sock_raw) {
   memset(&ifreq_i, 0, sizeof(ifreq_i));
-  strncpy(ifreq_i.ifr_name, "lo", IFNAMSIZ - 1);
+  strncpy(ifreq_i.ifr_name, INTERFACE_NAME, IFNAMSIZ - 1);
+  ifreq_i.ifr_name[IFNAMSIZ - 1] = '\0';
 
   if ((ioctl(sock_raw, SIOCGIFINDEX, &ifreq_i)) < 0)
     printf("error in index ioctl reading");
@@ -103,19 +109,22 @@ int main(int argc, char *argv[]) {
   engine.template bind<Handler, &Handler::handle_signal>(&handler);
 
   if (send) {
-
-    // Setta interface
-    struct ifreq ifreq_c, ifreq_i;
-
-    EthFrame *buf = new EthFrame();
-    buf->setMaxSize(1514);
-    get_eth_index(ifreq_i, engine.getSocketFd()); // interface number
-    get_mac(buf, ifreq_c,
-            engine.getSocketFd()); // Setta macs do quadro de ethernet
-    get_data(buf);                 // Setta dados do quadro
-
-    engine.send(buf);
-    delete buf;
+    
+    for (int i = 0; i < 3; i++) 
+    {
+      // Setta interface
+      struct ifreq ifreq_c, ifreq_i;
+  
+      EthFrame *buf = new EthFrame();
+      buf->setMaxSize(1514);
+      get_eth_index(ifreq_i, engine.getSocketFd()); // interface number
+      get_mac(buf, ifreq_c,
+              engine.getSocketFd()); // Setta macs do quadro de ethernet
+      get_data(buf);                 // Setta dados do quadro
+  
+      engine.send(buf);
+      delete buf;
+    }
   } else {
     while (1) {
       sleep(10);
