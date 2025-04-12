@@ -32,12 +32,10 @@ class NIC : public Ethernet,
                                                Ethernet::Protocol>,
             private Engine {
 public:
-
   static const unsigned int SEND_BUFFERS = 1024;
   static const unsigned int RECEIVE_BUFFERS = 1024;
 
-  static const unsigned int BUFFER_SIZE =
-      SEND_BUFFERS + RECEIVE_BUFFERS;
+  static const unsigned int BUFFER_SIZE = SEND_BUFFERS + RECEIVE_BUFFERS;
   typedef Ethernet::Address Address;
   typedef Ethernet::Protocol Protocol_Number;
   typedef Conditional_Data_Observer<Buffer<Ethernet::Frame>, Protocol_Number>
@@ -49,8 +47,7 @@ public:
   // Args:
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
   NIC(const char *interface_name)
-      : Engine(interface_name)
-  {
+      : Engine(interface_name), last_used_buffer(BUFFER_SIZE - 1) {
     // Setup Handler -----------------------------------------------------
 
     Engine::template bind<NIC<Engine>, &NIC<Engine>::handle_signal>(this);
@@ -84,8 +81,11 @@ public:
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
   BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size) {
     unsigned int maxSize = Ethernet::HEADER_SIZE + size;
-    for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
+
+    for (unsigned int j = 0; j < BUFFER_SIZE; ++j) {
+      int i = (last_used_buffer + j) % BUFFER_SIZE;
       if (!_buffer_pool[i]->is_in_use()) {
+        last_used_buffer = i;
         _buffer_pool[i]->mark_in_use(); // Marca como usado ANTES de retornar
         _buffer_pool[i]->data()->src = Engine::getAddress();
         _buffer_pool[i]->data()->dst = dst;
@@ -132,10 +132,11 @@ public:
     int bytes_sent = Engine::send(buf);
 
     if (bytes_sent > 0) {
-        _statistics.tx_packets++;
-        _statistics.tx_bytes += bytes_sent;
+      _statistics.tx_packets++;
+      _statistics.tx_bytes += bytes_sent;
 #ifdef DEBUG
-      std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes."  << std::endl;
+      std::cout << "NIC::send(buf): Sent " << bytes_sent << " bytes."
+                << std::endl;
     } else {
       std::cerr << "NIC::send(buf): Engine failed to send packet." << std::endl;
 #endif
@@ -165,10 +166,10 @@ public:
   }
 
   // Método membro que processa o sinal (chamado pelo handler estático)
-  void handle_signal([[maybe_unused]]int signum) {
+  void handle_signal([[maybe_unused]] int signum) {
     int bytes_received;
     do {
-      #ifdef DEBUG
+#ifdef DEBUG
       std::cout << "New packet received" << std::endl;
 #endif
       // 1. Alocar um buffer para recepção.
@@ -200,7 +201,7 @@ public:
 #ifdef DEBUG
         std::cout << "NIC::handle_signal: "
                   << (notified ? "Protocol Notificado"
-                                : "Protocol Não notificado")
+                               : "Protocol Não notificado")
                   << std::endl;
 #endif
         // Se NENHUM observador (Protocolo) estava interessado (registrado
@@ -228,6 +229,7 @@ public:
 
   // Pool de Buffers
   BufferNIC *_buffer_pool[BUFFER_SIZE];
+  unsigned int last_used_buffer;
 };
 
 #endif // NIC_HH
