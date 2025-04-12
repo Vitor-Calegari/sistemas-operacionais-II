@@ -8,7 +8,7 @@
 #include <random>
 #include <sys/wait.h>
 
-#define NUM_MSGS 100
+#define NUM_MSGS 10000
 #define MSG_SIZE 5
 
 int randint(int p, int r) {
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
       }
     }
   } else {
-    for (int i_m = 0; argc >= 2 || i_m < NUM_MSGS; ++i_m) {
+    for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
       Message message = Message(MSG_SIZE);
       comm.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";

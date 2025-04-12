@@ -7,9 +7,9 @@
 
 Engine *Engine::_self = nullptr;
 void *Engine::obj = nullptr;
-void (*Engine::handler)(void *, int) = nullptr;
+void (*Engine::handler)(void *) = nullptr;
 
-Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
+Engine::Engine(const char *interface_name) : _interface_name(interface_name), _thread_running(true) {
   _self = this;
   // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
   // SOCK_RAW para criar um raw socket
@@ -70,6 +70,21 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
     exit(EXIT_FAILURE);
   }
 
+  if (sem_init(&_engineSemaphore, 0, 0) != 0) {
+    perror("sem_init");
+    exit(EXIT_FAILURE);
+  }
+
+  recvThread = std::thread([this]() {
+      while (1) {
+        sem_wait(&_engineSemaphore);
+        pthread_mutex_lock(&_threadStopMutex);
+        if (!_thread_running) { break; }
+        pthread_mutex_unlock(&_threadStopMutex);
+        _self->handler(_self->obj);
+      }
+  });
+
 #ifdef DEBUG
   // Print Debug -------------------------------------------------------
 
@@ -83,9 +98,17 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name) {
 }
 
 Engine::~Engine() {
-  if (_socket_raw != -1) {
-    close(_socket_raw); // Fecha o socket ao destruir o objeto Engine
+  stopRecvThread();
+  
+  if (sem_destroy(&_engineSemaphore) != 0) {
+    perror("sem_destroy");
+    exit(EXIT_FAILURE);
   }
+
+  if (recvThread.joinable()) { recvThread.join(); } 
+
+  if (_socket_raw != -1) { close(_socket_raw); }
+
 #ifdef DEBUG
   std::cout << "Engine for interface " << _interface_name << " destroyed."
             << std::endl;
@@ -193,8 +216,13 @@ void Engine::confSignalReception() {
 }
 
 // Função estática para envelopar a função que tratará a interrupção
-void Engine::signalHandler(int signum) {
-  if (_self->handler) {
-    _self->handler(_self->obj, signum);
-  }
+void Engine::signalHandler(int sig) {
+  sem_post(&(_self->_engineSemaphore));
+}
+
+void Engine::stopRecvThread() {
+  pthread_mutex_lock(&_threadStopMutex);
+  _thread_running = 0;
+  pthread_mutex_unlock(&_threadStopMutex);
+  sem_post(&_engineSemaphore);
 }

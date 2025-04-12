@@ -10,12 +10,12 @@
 #include "protocol.hh"
 #include "engine.hh"
 #include "nic.hh"
-#include "message.hh"  // A classe Message espera o tamanho da mensagem
+#include "message.hh"
 
 using namespace std;
 using namespace std::chrono;
 
-const int num_messages_per_comm = 10000;
+const int num_messages_per_comm = 100000;
 const size_t MESSAGE_SIZE = 256; 
 const auto INTERFACE_NAME = "lo";
 
@@ -59,7 +59,7 @@ int main() {
             // Envia a mensagem e incrementa o contador caso seja bem-sucedido
             std::cout << "\033[1B\rSent: " << std::dec << j << "\033[K\033[1A" << std::flush;
             if (communicator.send(&msg)) {
-                sleep(0.001);
+                sleep(0.00001);
                 j++;
             }
         }

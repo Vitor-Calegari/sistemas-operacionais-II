@@ -13,6 +13,8 @@
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <thread>
+#include <semaphore.h>
 
 #include <fcntl.h>
 
@@ -73,10 +75,6 @@ public:
   // Obtém informações da interface (MAC, índice) usando ioctl.
   bool get_interface_info();
 
-  // *************TODO**************
-  // Mensagens transferidas em broadcast são recebidas pela mesma engine que as
-  // enviou, como lidar?
-  // *******************************
   // Recebe dados do socket raw.
   // Args:
   //   buf: Referência a um Buffer onde os dados recebidos serão armazenados. O
@@ -127,17 +125,17 @@ public:
     return _address;
   }
 
-  template <typename T, void (T::*handle_signal)(int)>
+  template <typename T, void (T::*handle_signal)()>
   static void bind(T *obj) {
     _self->obj = obj;
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
 
 private:
-  template <typename T, void (T::*handle_signal)(int)>
-  static void handlerWrapper(void *obj, int arg) {
+  template <typename T, void (T::*handle_signal)()>
+  static void handlerWrapper(void *obj) {
     T *typedObj = static_cast<T *>(obj);
-    (typedObj->*handle_signal)(arg);
+    (typedObj->*handle_signal)();
   }
 
   // Configura a recepção de sinais SIGIO para o socket.
@@ -149,12 +147,20 @@ private:
   const char *_interface_name;
   Ethernet::Address _address;
 
-  static void signalHandler(int signum);
+  static void signalHandler(int sig);
 
   static void *obj;
-  static void (*handler)(void *, int);
+  static void (*handler)(void *);
 
   static Engine *_self;
+
+  // ---- Controle da thread de recepcao ----
+  std::thread recvThread;
+  bool _thread_running;
+  sem_t _engineSemaphore;
+  pthread_mutex_t _threadStopMutex = PTHREAD_MUTEX_INITIALIZER;
+
+  void stopRecvThread();
 };
 
 #endif
