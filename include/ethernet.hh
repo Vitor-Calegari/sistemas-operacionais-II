@@ -13,7 +13,7 @@ public:
   static const int HEADER_SIZE = 14;
   // Tamanho máximo quadro desconsiderando FCS
   static const unsigned int MAX_FRAME_SIZE_NO_FCS = HEADER_SIZE + MTU;
-  static const int MIN_FRAME_SIZE = 64;
+  static const int MIN_FRAME_SIZE = 60;
   static const unsigned char BROADCAST_ADDRESS[6];
   static const unsigned char ZERO[6];
   // Estrutura que representa um endereço MAC (6 bytes)

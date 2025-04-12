@@ -90,7 +90,9 @@ public:
         _buffer_pool[i]->data()->src = Engine::getAddress();
         _buffer_pool[i]->data()->dst = dst;
         _buffer_pool[i]->data()->prot = prot;
-        // Mínimo de 64 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
+        // Mínimo de 60 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
+        // Tamanho minimo do quadro ethernet e 64 bytes, porem nao incluimos fcs
+        // assim resultando em apenas 60 bytes
         _buffer_pool[i]->setMaxSize(
             maxSize < Ethernet::MIN_FRAME_SIZE
                 ? Ethernet::MIN_FRAME_SIZE
