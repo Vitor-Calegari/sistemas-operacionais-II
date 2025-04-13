@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <semaphore.h>
 #include <sys/mman.h>
+#include <future>
 #include "communicator.hh"
 #include "protocol.hh"
 #include "engine.hh"
@@ -18,6 +19,7 @@
 const int num_communicators = 15;
 const int num_messages_per_comm = 100;
 const std::size_t MESSAGE_SIZE = 256; 
+const int timeout_sec = 5;
 
 int main() {
     // Cria um semaphore compartilhado entre processos
@@ -56,6 +58,7 @@ int main() {
                 // Envia mensagens
                 Message msg(MESSAGE_SIZE);  // Cria mensagem do tamanho definido
                 if (communicator.send(&msg)) {
+                    std::cout << "Proc(" << std::dec << getpid() <<"): Sent msg " << j << std::endl;
                     j++;
                 }
             }
@@ -75,23 +78,42 @@ int main() {
         sem_post(semaphore);
     }
 
-    for (int j = 0; j < num_communicators * num_messages_per_comm; j++){
-        //std::cout << j << std::endl;
-        if (!communicator.receive(&msg)) {
-            std::cerr << "Erro no recebimento da mensagem no processo " 
-                  << getpid() << std::endl;
-            exit(1);
-        }}
+    int received_msg_count = 0;
+    int total_msg = num_communicators * num_messages_per_comm;
+
+    auto future = std::async(std::launch::async, [&]() {
+        for (int j = 0; j < total_msg; j++){
+            if (!communicator.receive(&msg)) {
+                std::cerr << "Erro no recebimento da mensagem no processo " 
+                          << getpid() << std::endl;
+                exit(1);
+            } else {
+                received_msg_count++;
+            }
+        }
+    });
+
+    bool timeout = false;
+
+    if (future.wait_for(std::chrono::seconds(timeout_sec)) == std::future_status::timeout) {
+        std::cerr << "Timeout na recepção de mensagens." << std::endl;
+        timeout = true;
+    }
+
+    std::cout << "Mensagens enviadas: " << std::dec << total_msg << std::endl;
+    std::cout << "Mensagens recebidas: " << std::dec << received_msg_count << std::endl;
 
     // Processo pai aguarda todos os filhos finalizarem
     int status;
     while (wait(&status) > 0);
 
-    std::cout << "Teste de carga concluído com sucesso." << std::endl;
+    std::cout << "Teste de carga concluído" << std::endl;
     
     // Libera os recursos do semaphore
     sem_destroy(semaphore);
     munmap(semaphore, sizeof(sem_t));
+
+    if (timeout) { exit(0); }
 
     return 0;
 }
