@@ -19,8 +19,6 @@ const int num_communicators = 15;
 const int num_messages_per_comm = 100;
 const std::size_t MESSAGE_SIZE = 256; 
 
-const auto INTERFACE_NAME = "lo";
-
 int main() {
     // Cria um semaphore compartilhado entre processos
     sem_t *semaphore = static_cast<sem_t*>(

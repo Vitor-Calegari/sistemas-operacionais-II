@@ -216,7 +216,7 @@ void Engine::confSignalReception() {
 }
 
 // Função estática para envelopar a função que tratará a interrupção
-void Engine::signalHandler(int sig) {
+void Engine::signalHandler([[maybe_unused]]int sig) {
   sem_post(&(_self->_engineSemaphore));
 }
 
