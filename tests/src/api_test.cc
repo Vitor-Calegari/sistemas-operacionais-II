@@ -17,7 +17,10 @@ using namespace std::chrono;
 
 const int num_messages_per_comm = 100000;
 const size_t MESSAGE_SIZE = 256; 
-const auto INTERFACE_NAME = "lo";
+
+#ifndef INTERFACE_NAME
+#define INTERFACE_NAME "lo"
+#endif
 
 int main() {
     std::cout << "\n\n\n\033[3A" << std::flush;

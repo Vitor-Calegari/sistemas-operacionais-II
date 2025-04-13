@@ -8,6 +8,10 @@ ifdef INCL_DIR
 	CXXFLAGS += -I$(INCL_DIR)
 endif
 
+ifdef INTERFACE_NAME
+	CXXFLAGS += -DINTERFACE_NAME=$(INTERFACE_NAME)
+endif
+
 OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(MODULES))
 TESTS_OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(TESTS))
 TESTS_TARGETS = $(patsubst %,$(BIN_DIR)/%,$(TESTS))

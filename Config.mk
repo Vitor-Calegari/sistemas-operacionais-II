@@ -1,5 +1,7 @@
 MAKENAME = Car
 
+INTERFACE_NAME:=\"$(shell ip addr | awk '/state UP/ {print $$2}' | sed 's/.$$//')\"
+
 TESTS = communicator_test api_test load_test
 MODULES = engine ethernet message utils
 

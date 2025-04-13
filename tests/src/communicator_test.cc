@@ -11,6 +11,10 @@
 #define NUM_MSGS 10000
 #define MSG_SIZE 5
 
+#ifndef INTERFACE_NAME
+#define INTERFACE_NAME "lo"
+#endif
+
 int randint(int p, int r) {
   std::random_device rd;
   std::mt19937 rng(rd());
@@ -34,7 +38,7 @@ int main(int argc, char *argv[]) {
     send = atoi(argv[1]);
   }
 
-  NIC<Engine> nic = NIC<Engine>("lo");
+  NIC<Engine> nic = NIC<Engine>(INTERFACE_NAME);
 
   Protocol<NIC<Engine>> *prot = Protocol<NIC<Engine>>::getInstance(&nic);
 

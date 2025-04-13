@@ -10,6 +10,10 @@
 #include "nic.hh"
 #include "message.hh"  // classe Message que espera o tamanho da mensagem
 
+#ifndef INTERFACE_NAME
+#define INTERFACE_NAME "lo"
+#endif
+
 // Constantes globais para o teste de carga
 const int num_communicators = 15;
 const int num_messages_per_comm = 100;
