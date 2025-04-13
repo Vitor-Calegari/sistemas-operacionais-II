@@ -121,7 +121,7 @@ public:
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(const Address &from, const Address &to, const void *data,
            unsigned int size) {
-    Buffer *buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size);
+    Buffer *buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size, 1);
     if (buf == nullptr)
       return -1;
     // Payload do Ethernet::Frame é o Protocol::Packet

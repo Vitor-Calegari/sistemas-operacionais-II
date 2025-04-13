@@ -35,7 +35,6 @@ public:
   static const unsigned int SEND_BUFFERS = 1024;
   static const unsigned int RECEIVE_BUFFERS = 1024;
 
-  static const unsigned int BUFFER_SIZE = SEND_BUFFERS + RECEIVE_BUFFERS;
   typedef Ethernet::Address Address;
   typedef Ethernet::Protocol Protocol_Number;
   typedef Conditional_Data_Observer<Buffer<Ethernet::Frame>, Protocol_Number>
@@ -47,7 +46,7 @@ public:
   // Args:
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
   NIC(const char *interface_name)
-      : Engine(interface_name), last_used_buffer(BUFFER_SIZE - 1) {
+      : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1), last_used_recv_buffer(RECEIVE_BUFFERS - 1) {
     // Setup Handler -----------------------------------------------------
 
     Engine::template bind<NIC<Engine>, &NIC<Engine>::handle_signal>(this);
@@ -55,20 +54,31 @@ public:
     // Inicializa pool de buffers ----------------------------------------
 
     try {
-      for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
+      for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
         // Cria buffers com a capacidade máxima definida
-        _buffer_pool[i] = Engine::allocate_frame_memory();
+        _send_buffer_pool[i] = Engine::allocate_frame_memory();
+      }
+      for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
+        // Cria buffers com a capacidade máxima definida
+        _recv_buffer_pool[i] = Engine::allocate_frame_memory();
       }
     } catch (const std::bad_alloc &e) {
       perror("NIC Error: buffer pool alloc");
       exit(EXIT_FAILURE);
     }
+
+    Engine::turnRecvOn();
   }
 
   // Destrutor
   ~NIC() {
-    for (unsigned int i = 0; i < BUFFER_SIZE; ++i) {
-      Engine::free_frame_memory(_buffer_pool[i]);
+    handle_sem.acquire();
+    Engine::stopRecvThread();
+    for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
+      Engine::free_frame_memory(_send_buffer_pool[i]);
+    }
+    for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
+      Engine::free_frame_memory(_recv_buffer_pool[i]);
     }
   }
 
@@ -79,28 +89,32 @@ public:
   // Aloca um buffer do pool interno para envio ou recepção.
   // Retorna: Ponteiro para um Buffer livre, ou nullptr se o pool estiver
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
-  BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size) {
+  BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size, int send) {
     unsigned int maxSize = Ethernet::HEADER_SIZE + size;
 
-    for (unsigned int j = 0; j < BUFFER_SIZE; ++j) {
-      int i = (last_used_buffer + j) % BUFFER_SIZE;
-      if (!_buffer_pool[i]->is_in_use()) {
+    unsigned int last_used_buffer = send ? last_used_send_buffer : last_used_recv_buffer;
+    unsigned int buffer_size_l = send ? SEND_BUFFERS : RECEIVE_BUFFERS;
+    BufferNIC ** buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
+
+    for (unsigned int j = 0; j < buffer_size_l; ++j) {
+      int i = (last_used_buffer + j) % buffer_size_l;
+      if (!buffer_pool[i]->is_in_use()) {
         last_used_buffer = i;
-        _buffer_pool[i]->mark_in_use(); // Marca como usado ANTES de retornar
-        _buffer_pool[i]->data()->src = Engine::getAddress();
-        _buffer_pool[i]->data()->dst = dst;
-        _buffer_pool[i]->data()->prot = prot;
+        buffer_pool[i]->mark_in_use(); // Marca como usado ANTES de retornar
+        buffer_pool[i]->data()->src = Engine::getAddress();
+        buffer_pool[i]->data()->dst = dst;
+        buffer_pool[i]->data()->prot = prot;
         // Mínimo de 60 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
         // Tamanho minimo do quadro ethernet e 64 bytes, porem nao incluimos fcs
         // assim resultando em apenas 60 bytes
-        _buffer_pool[i]->setMaxSize(
+        buffer_pool[i]->setMaxSize(
             maxSize < Ethernet::MIN_FRAME_SIZE
                 ? Ethernet::MIN_FRAME_SIZE
                 : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
                        ? Ethernet::MAX_FRAME_SIZE_NO_FCS
                        : maxSize));
-        _buffer_pool[i]->setSize(Ethernet::HEADER_SIZE);
-        return _buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
+        buffer_pool[i]->setSize(Ethernet::HEADER_SIZE);
+        return buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
       }
     }
 // Se nenhum buffer livre foi encontrado
@@ -169,15 +183,13 @@ public:
 
   // Método membro que processa o sinal (chamado pelo handler estático)
   void handle_signal() {
+    handle_sem.acquire();
     int bytes_received = 0;
     do {
-#ifdef DEBUG
-      std::cout << "New packet received" << std::endl;
-#endif
       // 1. Alocar um buffer para recepção.
       BufferNIC *buf = nullptr;
       // Usa a capacidade máxima do frame Ethernet
-      buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS);
+      buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS, 0);
 
       if (buf == nullptr) {
 #ifdef DEBUG
@@ -224,14 +236,18 @@ public:
         free(buf);
       }
     } while (bytes_received > 0);
+    handle_sem.release();
   }
 
   // --- Membros ---
   Statistics _statistics; // Estatísticas de rede
 
   // Pool de Buffers
-  BufferNIC *_buffer_pool[BUFFER_SIZE];
-  unsigned int last_used_buffer;
+  BufferNIC *_send_buffer_pool[SEND_BUFFERS];
+  BufferNIC *_recv_buffer_pool[RECEIVE_BUFFERS];
+  unsigned int last_used_send_buffer;
+  unsigned int last_used_recv_buffer;
+  std::binary_semaphore handle_sem{1};
 };
 
 #endif // NIC_HH

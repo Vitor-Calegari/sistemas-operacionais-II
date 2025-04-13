@@ -130,6 +130,8 @@ public:
     _self->obj = obj;
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
+  void stopRecvThread();
+  void turnRecvOn();
 
 private:
   template <typename T, void (T::*handle_signal)()>
@@ -159,8 +161,6 @@ private:
   bool _thread_running;
   sem_t _engineSemaphore;
   pthread_mutex_t _threadStopMutex = PTHREAD_MUTEX_INITIALIZER;
-
-  void stopRecvThread();
 };
 
 #endif

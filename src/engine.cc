@@ -75,15 +75,7 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name), _t
     exit(EXIT_FAILURE);
   }
 
-  recvThread = std::thread([this]() {
-      while (1) {
-        sem_wait(&_engineSemaphore);
-        pthread_mutex_lock(&_threadStopMutex);
-        if (!_thread_running) { break; }
-        pthread_mutex_unlock(&_threadStopMutex);
-        _self->handler(_self->obj);
-      }
-  });
+  
 
 #ifdef DEBUG
   // Print Debug -------------------------------------------------------
@@ -97,9 +89,19 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name), _t
 #endif
 }
 
+void Engine::turnRecvOn() {
+  recvThread = std::thread([this]() {
+      while (1) {
+        sem_wait(&_engineSemaphore);
+        pthread_mutex_lock(&_threadStopMutex);
+        if (!_thread_running) { break; }
+        pthread_mutex_unlock(&_threadStopMutex);
+        _self->handler(_self->obj);
+      }
+  });
+}
+
 Engine::~Engine() {
-  stopRecvThread();
-  
   if (sem_destroy(&_engineSemaphore) != 0) {
     perror("sem_destroy");
     exit(EXIT_FAILURE);
