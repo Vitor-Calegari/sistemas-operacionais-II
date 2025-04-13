@@ -63,11 +63,17 @@ int main() {
     std::memcpy(send_msg.data(), &ms, sizeof(ms));
 
     for (int i = 0; i < num_messages; i++) {
+
+      bool sent = false;
       // Envia
-      if (!communicator.send(&send_msg)) {
-        std::cout << "Inspect Proc(" << std::dec << getpid()
-                  << "): Error sending msg " << i << std::endl;
-      }
+      do {
+        sent = communicator.send(&send_msg);
+        if (!sent) {
+            std::cout << "Inspect Proc(" << std::dec << getpid()
+                    << "): Error sending msg " << i << std::endl;
+        }
+      } while (sent == false);
+      
       // Recebe
       Message recv_msg(MESSAGE_SIZE); // Cria mensagem do tamanho definido
       if (!communicator.receive(&recv_msg)) {
@@ -117,11 +123,15 @@ int main() {
                 << recvd << std::endl;
       reinterpret_cast<struct msg_struct *>(recv_msg.data())->counter++;
 
+      bool sent = false;
       // Envia
-      if (!communicator.send(&recv_msg)) {
-        std::cout << "Counter Proc(" << std::dec << getpid()
+      do {
+        sent = communicator.send(&recv_msg);
+        if (!sent) {
+            std::cout << "Counter Proc(" << std::dec << getpid()
                   << "): Error sending msg " << i << std::endl;
-      }
+        }
+      } while (sent == false);
     }
   }
 
