@@ -93,11 +93,10 @@ public:
     Data _data;
   } __attribute__((packed));
 
-  static Protocol *getInstance(NIC *nic) {
-    if (!_instance) {
-      _instance = new Protocol(nic);
-    }
-    return _instance;
+  static Protocol &getInstance(NIC *nic) {
+    static Protocol instance(nic);
+
+    return instance;
   }
 
   Protocol(Protocol const &) = delete;
@@ -179,11 +178,11 @@ public:
     Physical_Address from_paddr = from.getPAddr();
     Physical_Address to_paddr = to.getPAddr();
     Packet pkt = Packet();
-    getNIC()->receive(buf, &from_paddr, &to_paddr, &pkt, MTU + sizeof(Header));
+    _nic->receive(buf, &from_paddr, &to_paddr, &pkt, MTU + sizeof(Header));
     unsigned int s = pkt.header()->payloadSize;
     unsigned int messageSize = size > s ? s : size;
     std::memcpy(data, pkt.template data<char>(), messageSize);
-    getNIC()->free(buf);
+    _nic->free(buf);
     return messageSize; // Protocol deveria informar quantos bytes está sendo
                         // transmitido em seu interior?
   }
@@ -213,18 +212,8 @@ private:
 #endif
   }
 
-  // Retorna a NIC associada (diferente do singleton, retorna o _nic da
-  // instância)
-  NIC *getNIC() {
-    return _nic;
-  }
-
-  static Protocol *_instance;
   NIC *_nic;
 };
-
-template <typename NIC>
-Protocol<NIC> *Protocol<NIC>::_instance = nullptr;
 
 template <typename NIC>
 const typename Protocol<NIC>::Address Protocol<NIC>::Broadcast =

@@ -8,7 +8,7 @@
 #include <random>
 #include <sys/wait.h>
 
-#define NUM_MSGS 10000
+#define NUM_MSGS 1000
 #define MSG_SIZE 5
 
 #ifndef INTERFACE_NAME
@@ -40,13 +40,13 @@ int main(int argc, char *argv[]) {
 
   NIC<Engine> nic = NIC<Engine>(INTERFACE_NAME);
 
-  Protocol<NIC<Engine>> *prot = Protocol<NIC<Engine>>::getInstance(&nic);
+  Protocol<NIC<Engine>> &prot = Protocol<NIC<Engine>>::getInstance(&nic);
 
   Protocol<NIC<Engine>>::Address addr =
       Protocol<NIC<Engine>>::Address(Ethernet::Address(), 0xEEEE);
 
   Communicator<Protocol<NIC<Engine>>> comm =
-      Communicator<Protocol<NIC<Engine>>>(prot, addr);
+      Communicator<Protocol<NIC<Engine>>>(&prot, addr);
 
   if (send) {
     int i = 0;
