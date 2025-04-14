@@ -11,12 +11,14 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <future>
 
 using namespace std;
 using namespace std::chrono;
 
 const int num_messages_per_comm = 100000;
 const size_t MESSAGE_SIZE = 256;
+const int timeout_sec = 10;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -86,25 +88,36 @@ int main() {
     sem_post(semaphore);
     std::cout << "\033[2B\rReceived: 0\033[K\033[2A" << std::flush;
 
-    for (int j = 0; j < num_messages_per_comm; j++) {
-      memset(msg.data(), 0, MESSAGE_SIZE);
-      if (!communicator.receive(&msg)) {
-        cerr << "Erro ao receber mensagem no processo " << getpid() << endl;
-        exit(1);
+    
+    auto future = std::async(std::launch::async, [&]() {
+      for (int j = 0; j < num_messages_per_comm; j++) {
+        memset(msg.data(), 0, MESSAGE_SIZE);
+        if (!communicator.receive(&msg)) {
+          cerr << "Erro ao receber mensagem no processo " << getpid() << endl;
+          exit(1);
+        }
+        // Registra o timestamp na recepção
+        auto t_recv = high_resolution_clock::now();
+        int64_t t_sent_us;
+        memcpy(&t_sent_us, msg.data(), sizeof(t_sent_us));
+  
+        // Calcula a latência
+        auto t_recv_us =
+            duration_cast<microseconds>(t_recv.time_since_epoch()).count();
+        long long latency_us = t_recv_us - t_sent_us;
+        total_latency_us += latency_us;
+        msg_count++;
+        std::cout << "\033[2B\rReceived: " << std::dec << msg_count
+                  << "\033[K\033[2A" << std::flush;
       }
-      // Registra o timestamp na recepção
-      auto t_recv = high_resolution_clock::now();
-      int64_t t_sent_us;
-      memcpy(&t_sent_us, msg.data(), sizeof(t_sent_us));
-
-      // Calcula a latência
-      auto t_recv_us =
-          duration_cast<microseconds>(t_recv.time_since_epoch()).count();
-      long long latency_us = t_recv_us - t_sent_us;
-      total_latency_us += latency_us;
-      msg_count++;
-      std::cout << "\033[2B\rReceived: " << std::dec << msg_count
-                << "\033[K\033[2A" << std::flush;
+    });
+  
+    bool timeout = false;
+  
+    if (future.wait_for(std::chrono::seconds(timeout_sec)) ==
+        std::future_status::timeout) {
+      std::cerr << "Timeout na recepção de mensagens." << std::endl;
+      timeout = true;
     }
 
     // Aguarda o término do filho
@@ -118,6 +131,10 @@ int main() {
     // Libera recursos do semaphore compartilhado
     sem_destroy(semaphore);
     munmap(semaphore, sizeof(sem_t));
+
+    if (timeout) {
+      exit(0);
+    }
   }
 
   return 0;
