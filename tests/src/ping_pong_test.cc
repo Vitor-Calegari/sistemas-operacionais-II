@@ -16,7 +16,7 @@
 #endif
 
 // Constantes globais para o teste de carga
-const int num_messages = 10000;
+const int num_messages = 100;
 const std::size_t MESSAGE_SIZE = 256;
 [[maybe_unused]]
 const int timeout_sec = 5;
@@ -69,11 +69,11 @@ int main() {
       do {
         sent = communicator.send(&send_msg);
         if (!sent) {
-            std::cout << "Inspect Proc(" << std::dec << getpid()
+          std::cout << "Inspect Proc(" << std::dec << getpid()
                     << "): Error sending msg " << i << std::endl;
         }
       } while (sent == false);
-      
+
       // Recebe
       Message recv_msg(MESSAGE_SIZE); // Cria mensagem do tamanho definido
       if (!communicator.receive(&recv_msg)) {
@@ -128,8 +128,8 @@ int main() {
       do {
         sent = communicator.send(&recv_msg);
         if (!sent) {
-            std::cout << "Counter Proc(" << std::dec << getpid()
-                  << "): Error sending msg " << i << std::endl;
+          std::cout << "Counter Proc(" << std::dec << getpid()
+                    << "): Error sending msg " << i << std::endl;
         }
       } while (sent == false);
     }

@@ -9,7 +9,7 @@ ifdef INCL_DIR
 endif
 
 ifdef INTERFACE_NAME
-$(info $(MAKENAME) Make: Selected network interface $(INTERFACE_NAME))
+$(info $(MAKENAME) Make: selected network interface $(INTERFACE_NAME))
 	CXXFLAGS += -DINTERFACE_NAME=\"$(INTERFACE_NAME)\"
 endif
 

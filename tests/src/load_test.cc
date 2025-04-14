@@ -58,8 +58,8 @@ int main() {
         // Envia mensagens
         Message msg(MESSAGE_SIZE); // Cria mensagem do tamanho definido
         if (communicator.send(&msg)) {
-          std::cout << "Proc(" << std::dec << getpid() << "): Sent msg " << j
-                    << std::endl;
+          // std::cout << "Proc(" << std::dec << getpid() << "): Sent msg " << j
+          //           << std::endl;
           j++;
         }
       }

@@ -2,7 +2,7 @@ MAKENAME = Car
 
 INTERFACE_NAME:=$(shell ip addr | awk '/state UP/ {print $$2}' | sed 's/.$$//')
 
-TESTS = communicator_test api_test load_test ping_pong_test
+TESTS = communicator_test ping_pong_test load_test api_test
 MODULES = engine ethernet message utils
 
 SRC_DIR = src

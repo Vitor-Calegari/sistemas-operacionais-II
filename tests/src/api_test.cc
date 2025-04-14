@@ -6,12 +6,12 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <future>
 #include <iostream>
 #include <semaphore.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <future>
 
 using namespace std;
 using namespace std::chrono;
@@ -88,7 +88,6 @@ int main() {
     sem_post(semaphore);
     std::cout << "\033[2B\rReceived: 0\033[K\033[2A" << std::flush;
 
-    
     auto future = std::async(std::launch::async, [&]() {
       for (int j = 0; j < num_messages_per_comm; j++) {
         memset(msg.data(), 0, MESSAGE_SIZE);
@@ -100,7 +99,7 @@ int main() {
         auto t_recv = high_resolution_clock::now();
         int64_t t_sent_us;
         memcpy(&t_sent_us, msg.data(), sizeof(t_sent_us));
-  
+
         // Calcula a latência
         auto t_recv_us =
             duration_cast<microseconds>(t_recv.time_since_epoch()).count();
@@ -111,9 +110,9 @@ int main() {
                   << "\033[K\033[2A" << std::flush;
       }
     });
-  
+
     bool timeout = false;
-  
+
     if (future.wait_for(std::chrono::seconds(timeout_sec)) ==
         std::future_status::timeout) {
       std::cerr << "Timeout na recepção de mensagens." << std::endl;
@@ -126,7 +125,7 @@ int main() {
 
     double avg_latency_us =
         (msg_count > 0 ? static_cast<double>(total_latency_us) / msg_count : 0);
-    cout << "Latência média observada: " << avg_latency_us << " us" << endl;
+    cout << "Latência média observada: " << avg_latency_us << " μs" << endl;
 
     // Libera recursos do semaphore compartilhado
     sem_destroy(semaphore);
