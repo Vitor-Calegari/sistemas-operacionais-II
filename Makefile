@@ -11,6 +11,13 @@ endif
 ifdef INTERFACE_NAME
 $(info $(MAKENAME) Make: selected network interface $(INTERFACE_NAME))
 	CXXFLAGS += -DINTERFACE_NAME=\"$(INTERFACE_NAME)\"
+else
+$(info $(MAKENAME) Make: selected loopback as network interface)
+$(info !!!!!!!!!!!!!!!!!!!!!)
+$(info $(MAKENAME) Make: loopback duplicates the number of receives,)
+$(info thus causing some tests to have incorrect behavior.)
+$(info If possible, have a non-loopback active network interface.)
+$(info !!!!!!!!!!!!!!!!!!!!!)
 endif
 
 OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(MODULES))

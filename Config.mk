@@ -1,4 +1,4 @@
-MAKENAME = Car
+MAKENAME = INE5424
 
 INTERFACE_NAME:=$(shell ip addr | awk '/state UP/ {print $$2}' | sed 's/.$$//')
 
