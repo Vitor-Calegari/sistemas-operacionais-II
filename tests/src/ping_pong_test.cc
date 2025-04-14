@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #ifndef INTERFACE_NAME
-#define INTERFACE_NAME "enxf8e43bf0c430"
+#define INTERFACE_NAME "lo"
 #endif
 
 // Constantes globais para o teste de carga
