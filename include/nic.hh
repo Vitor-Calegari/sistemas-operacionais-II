@@ -1,13 +1,6 @@
 #ifndef NIC_HH
 #define NIC_HH
 
-#include <csignal>
-#include <stdlib.h>
-#ifdef DEBUG
-#include <iostream> // Para debug output (opcional)
-#endif
-
-#include <arpa/inet.h> // Para htons, ntohs
 #include <mutex>
 
 #include "buffer.hh"
@@ -16,6 +9,7 @@
 #include "ethernet.hh"
 
 #ifdef DEBUG
+#include <iostream>
 #include "utils.hh"
 #endif
 // A classe NIC (Network Interface Controller).

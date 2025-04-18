@@ -1,8 +1,6 @@
 #ifndef PROTOCOL_HH
 #define PROTOCOL_HH
 
-#include <netinet/in.h>
-
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
