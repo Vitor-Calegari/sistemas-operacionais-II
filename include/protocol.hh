@@ -58,15 +58,16 @@ public:
     Port _port;
   } __attribute__((packed));
 
-  static const Address Broadcast;
+  static const Address BROADCAST;
 
   // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo,
   // etc.)
   class Header {
   public:
-    Header() : origin(Address()), payloadSize(0) {
+    Header() : origin(Address()), dest(Address()), payloadSize(0) {
     }
     Address origin;
+    Address dest;
     unsigned short payloadSize;
   } __attribute__((packed));
 
@@ -118,16 +119,22 @@ public:
   // Envia uma mensagem:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
-  int send(const Address &from, const Address &to, const void *data,
+  int send(Address &from, Address &to, void *data,
            unsigned int size) {
-    Buffer *buf = _nic->alloc(to.getPAddr(), PROTO, sizeof(Header) + size, 1);
+    Buffer *buf = _nic->alloc(sizeof(Header) + size, 1);
     if (buf == nullptr)
       return -1;
+    // Estrutura do frame ethernet todo:
+    // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
+    buf->data()->src = from.getPAddr();
+    buf->data()->dst = BROADCAST.getPAddr();  // Sempre broadcast
+    buf->data()->prot = PROTO;
     // Payload do Ethernet::Frame é o Protocol::Packet
     Packet *pkt = reinterpret_cast<Packet *>(buf->data()->data);
     pkt->header()->origin = from;
+    pkt->header()->dest = to;
     pkt->header()->payloadSize = size;
-    buf->setSize(buf->size() + sizeof(Header) + size);
+    buf->setSize(NIC::HEADER_SIZE + sizeof(Header) + size);
     std::memcpy(pkt->template data<char>(), data, size);
 #ifdef DEBUG
     std::cout
@@ -173,17 +180,16 @@ public:
 
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
-  int receive(Buffer *buf, Address &from, void *data, unsigned int size) {
-    Address to = Address();
-    Physical_Address from_paddr = from.getPAddr();
-    Physical_Address to_paddr = to.getPAddr();
+  int receive(Buffer *buf, Address *from, Address *to, void *data, unsigned int size) {
     Packet pkt = Packet();
-    _nic->receive(buf, &from_paddr, &to_paddr, &pkt, MTU + sizeof(Header));
-    unsigned int s = pkt.header()->payloadSize;
-    unsigned int messageSize = size > s ? s : size;
-    std::memcpy(data, pkt.template data<char>(), messageSize);
+    _nic->receive(buf, &pkt, MTU + sizeof(Header));
+    *from = pkt.header()->origin;
+    *to = pkt.header()->dest;
+    unsigned int message_data_size = pkt.header()->payloadSize;
+    unsigned int actual_received_bytes = size > message_data_size ? message_data_size : size;
+    std::memcpy(data, pkt.template data<char>(), actual_received_bytes);
     _nic->free(buf);
-    return messageSize; // Protocol deveria informar quantos bytes está sendo
+    return actual_received_bytes; // Protocol deveria informar quantos bytes está sendo
                         // transmitido em seu interior?
   }
 
@@ -193,29 +199,23 @@ private:
   void update([[maybe_unused]] typename NIC::Observed *obs,
               [[maybe_unused]] typename NIC::Protocol_Number prot,
               Buffer *buf) {
-    // TODO O update não precisa passar a prot como parametro, apenas carregar o
-    // buffer
-    // TODO Aparentemente, não é necessário o obs também pois fizemos Protocol
-    // herdar Concurrent Observed
     Packet *pkt = (Packet *)buf->data()->data;
-    Port port = pkt->header()->origin.getPort();
+    Port port = pkt->header()->dest.getPort();
     if (!this->notify(port, buf)) {
       _nic->free(buf);
 #ifdef DEBUG
       std::cerr << "Protocol::update: Communicator não notificado" << std::endl;
-#endif
     }
-#ifdef DEBUG
     else {
       std::cerr << "Protocol::update: Communicator notificado" << std::endl;
-    }
 #endif
+    }
   }
 
   NIC *_nic;
 };
 
 template <typename NIC>
-const typename Protocol<NIC>::Address Protocol<NIC>::Broadcast =
-    typename Protocol<NIC>::Address(Ethernet::BROADCAST_ADDRESS, 10);
+const typename Protocol<NIC>::Address Protocol<NIC>::BROADCAST =
+    typename Protocol<NIC>::Address(NIC::BROADCAST_ADDRESS, 10);
 #endif // PROTOCOL_HH

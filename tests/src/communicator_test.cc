@@ -38,20 +38,24 @@ int main(int argc, char *argv[]) {
     send = atoi(argv[1]);
   }
 
-  NIC<Engine> nic = NIC<Engine>(INTERFACE_NAME);
+  using SocketNIC = NIC<Engine>;
+  using Protocol = Protocol<SocketNIC>;
+  using Message = Message<Protocol::Address>;
+  using Communicator = Communicator<Protocol, Message>; 
 
-  Protocol<NIC<Engine>> &prot = Protocol<NIC<Engine>>::getInstance(&nic);
+  SocketNIC nic = SocketNIC(INTERFACE_NAME);
 
-  Protocol<NIC<Engine>>::Address addr =
-      Protocol<NIC<Engine>>::Address(Ethernet::Address(), 0xEEEE);
+  Protocol &prot = Protocol::getInstance(&nic);
 
-  Communicator<Protocol<NIC<Engine>>> comm =
-      Communicator<Protocol<NIC<Engine>>>(&prot, addr);
+  Protocol::Address addr =
+      Protocol::Address(nic.address(), 10);
+
+  Communicator comm = Communicator(&prot, addr);
 
   if (send) {
     int i = 0;
     while (i < NUM_MSGS) {
-      Message message = Message(MSG_SIZE);
+      Message message = Message(comm.addr(), Protocol::Address(nic.address(), 10), MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));

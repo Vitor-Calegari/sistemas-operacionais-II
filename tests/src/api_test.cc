@@ -16,12 +16,12 @@
 using namespace std;
 using namespace std::chrono;
 
-const int num_messages_per_comm = 100000;
+const int num_messages_per_comm = 1000;
 const size_t MESSAGE_SIZE = 256;
 const int timeout_sec = 10;
 
 #ifndef INTERFACE_NAME
-#define INTERFACE_NAME "lo"
+#define INTERFACE_NAME "wlp0s20f3"
 #endif
 
 int main() {
@@ -42,19 +42,24 @@ int main() {
     exit(1);
   }
 
+  using SocketNIC = NIC<Engine>;
+  using Protocol = Protocol<SocketNIC>;
+  using Message = Message<Protocol::Address>;
+  using Communicator = Communicator<Protocol, Message>; 
+
   if (pid == 0) {
     // Processo-filho: envia mensagens
-    NIC<Engine> nic(INTERFACE_NAME);
-    auto &prot = Protocol<NIC<Engine>>::getInstance(&nic);
-    Protocol<NIC<Engine>>::Address addr =
-        Protocol<NIC<Engine>>::Address(Ethernet::ZERO, 10);
-    Communicator<Protocol<NIC<Engine>>> communicator(&prot, addr);
+    SocketNIC nic(INTERFACE_NAME);
+    auto &prot = Protocol::getInstance(&nic);
+    Protocol::Address addr =
+        Protocol::Address(nic.address(), 10);
+    Communicator communicator(&prot, addr);
 
     // Aguarda liberação do semaphore pelo pai
     sem_wait(semaphore);
     std::cout << "\033[1B\rSent: 0\033[K\033[1A" << std::flush;
     for (int j = 0; j < num_messages_per_comm;) {
-      Message msg(MESSAGE_SIZE);
+      Message msg = Message(communicator.addr(), Protocol::Address(nic.address(), 11), MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
       // Registra o timestamp no envio
       auto t_send = high_resolution_clock::now();
@@ -73,11 +78,11 @@ int main() {
     exit(0);
   } else {
     // Processo pai: recebe mensagens
-    NIC<Engine> nic(INTERFACE_NAME);
-    auto &prot = Protocol<NIC<Engine>>::getInstance(&nic);
-    Protocol<NIC<Engine>>::Address addr =
-        Protocol<NIC<Engine>>::Address(Ethernet::ZERO, 10);
-    Communicator<Protocol<NIC<Engine>>> communicator(&prot, addr);
+    SocketNIC nic(INTERFACE_NAME);
+    auto &prot = Protocol::getInstance(&nic);
+    Protocol::Address addr =
+        Protocol::Address(nic.address(), 11);
+    Communicator communicator(&prot, addr);
 
     // Libera o semaphore para que o filho inicie o envio
 

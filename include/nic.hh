@@ -89,7 +89,7 @@ public:
   // Aloca um buffer do pool interno para envio ou recepção.
   // Retorna: Ponteiro para um Buffer livre, ou nullptr se o pool estiver
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
-  BufferNIC *alloc(Address dst, Protocol_Number prot, unsigned int size, int send) {
+  BufferNIC *alloc(unsigned int size, int send) {
     unsigned int maxSize = Ethernet::HEADER_SIZE + size;
 
     unsigned int last_used_buffer = send ? last_used_send_buffer : last_used_recv_buffer;
@@ -100,10 +100,7 @@ public:
       int i = (last_used_buffer + j) % buffer_size_l;
       if (!buffer_pool[i]->is_in_use()) {
         last_used_buffer = i;
-        buffer_pool[i]->mark_in_use(); // Marca como usado ANTES de retornar
-        buffer_pool[i]->data()->src = Engine::getAddress();
-        buffer_pool[i]->data()->dst = dst;
-        buffer_pool[i]->data()->prot = prot;
+        buffer_pool[i]->mark_in_use();
         // Mínimo de 60 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
         // Tamanho minimo do quadro ethernet e 64 bytes, porem nao incluimos fcs
         // assim resultando em apenas 60 bytes
@@ -113,7 +110,6 @@ public:
                 : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
                        ? Ethernet::MAX_FRAME_SIZE_NO_FCS
                        : maxSize));
-        buffer_pool[i]->setSize(Ethernet::HEADER_SIZE);
         return buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
       }
     }
@@ -166,7 +162,7 @@ public:
   // --- Métodos de Gerenciamento e Informação ---
 
   // Retorna o endereço MAC desta NIC.
-  const Address &address() const {
+  Address address() {
     return Engine::getAddress();
   }
 
@@ -175,8 +171,7 @@ public:
     return _statistics;
   }
 
-  int receive(BufferNIC *buf, [[maybe_unused]] Address *from,
-              [[maybe_unused]] Address *to, void *data, unsigned int size) {
+  int receive(BufferNIC *buf, void *data, unsigned int size) {
     std::memcpy(data, buf->data()->data, size);
     return buf->size() - Ethernet::HEADER_SIZE;
   }
@@ -187,9 +182,7 @@ public:
     int bytes_received = 0;
     do {
       // 1. Alocar um buffer para recepção.
-      BufferNIC *buf = nullptr;
-      // Usa a capacidade máxima do frame Ethernet
-      buf = alloc(Address(), 0, Ethernet::MAX_FRAME_SIZE_NO_FCS, 0);
+      BufferNIC *buf = alloc(Ethernet::MAX_FRAME_SIZE_NO_FCS, 0);
 
       if (buf == nullptr) {
 #ifdef DEBUG

@@ -4,7 +4,7 @@
 #include "concurrent_observer.hh"
 #include "message.hh"
 
-template <typename Channel>
+template <typename Channel, typename Message>
 class Communicator : public Concurrent_Observer<
                          typename Channel::Observer::Observed_Data,
                          typename Channel::Observer::Observing_Condition> {
@@ -26,8 +26,11 @@ public:
     _channel->detach(this, _address.getPort());
   }
 
-  bool send(const Message *message) {
-    return _channel->send(_address, Channel::Broadcast, message->data(),
+  Address addr() { return _address; }
+
+
+  bool send(Message *message) {
+    return _channel->send(*message->sourceAddr(), *message->destAddr(), message->data(),
                           message->size()) > 0;
   }
 
@@ -35,8 +38,8 @@ public:
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
 
-    Address from;
-    int size = _channel->receive(buf, from, message->data(), message->size());
+    int size = _channel->receive(buf, message->sourceAddr(), message->destAddr(), message->data(), message->size());
+    message->setSize(size);
 
     return size > 0;
   }
