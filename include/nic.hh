@@ -29,6 +29,7 @@ public:
   static const unsigned int SEND_BUFFERS = 1024;
   static const unsigned int RECEIVE_BUFFERS = 1024;
 
+  typedef Ethernet::Header Header;
   typedef Ethernet::Address Address;
   typedef Ethernet::Protocol Protocol_Number;
   typedef Conditional_Data_Observer<Buffer<Ethernet::Frame>, Protocol_Number>
@@ -166,7 +167,7 @@ public:
   }
 
   int receive(BufferNIC *buf, void *data, unsigned int size) {
-    std::memcpy(data, buf->data()->data, size);
+    std::memcpy(data, buf->data()->template data<char>(), size);
     return buf->size() - Ethernet::HEADER_SIZE;
   }
 

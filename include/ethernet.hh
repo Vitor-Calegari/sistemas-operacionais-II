@@ -17,9 +17,9 @@ public:
   static const unsigned char BROADCAST_ADDRESS[6];
   static const unsigned char ZERO[6];
   // Estrutura que representa um endereço MAC (6 bytes)
-  struct Address {
+  class Address {
+  public:
     unsigned char mac[6];
-
     // Construtor padrão: Inicializa com endereço zero (00:00:00:00:00:00).
     Address();
     // Construtor que recebe um array de 6 bytes.
@@ -35,14 +35,26 @@ public:
   // Tipo que representa o protocolo (16 bits)
   typedef unsigned short Protocol;
 
+  class Header {
+    public:
+      Header() : dst(Address()), src(Address()), prot(0) {
+      }
+      Address dst;   // Endereço MAC de destino (6 bytes)
+      Address src;   // Endereço MAC de origem (6 bytes)
+      Protocol prot; // EtherType (Protocolo) (2 bytes)
+    } __attribute__((packed));
+
   // Estrutura que representa um frame Ethernet
-  struct Frame {
-    Address dst;   // Endereço MAC de destino (6 bytes)
-    Address src;   // Endereço MAC de origem (6 bytes)
-    Protocol prot; // EtherType (Protocolo) (2 bytes)
-    unsigned char
-        data[MTU]; // Payload (dados da camada superior) - até 1500 bytes
+  class Frame : public Header {
+  public:
+    Header * header() { return this; }
+    template <typename T>
+    T *data() {
+      return reinterpret_cast<T *>(&_data);
+    }
     void clear();
+  private:
+    unsigned char _data[MTU];
   } __attribute__((packed));
 
   // Estrutura para estatísticas de transmissão/recepção

@@ -18,6 +18,7 @@ public:
   inline static const typename NIC::Protocol_Number PROTO =
       htons(0x88B5);
 
+  typedef typename NIC::Header NICHeader;
   typedef typename NIC::BufferNIC Buffer;
   typedef typename NIC::Address Physical_Address;
   typedef unsigned short Port;
@@ -127,11 +128,11 @@ public:
     buf->data()->dst = BROADCAST.getPAddr();  // Sempre broadcast
     buf->data()->prot = PROTO;
     // Payload do Ethernet::Frame é o Protocol::Packet
-    Packet *pkt = reinterpret_cast<Packet *>(buf->data()->data);
+    Packet *pkt = buf->data()->template data<Packet>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->payloadSize = size;
-    buf->setSize(NIC::HEADER_SIZE + sizeof(Header) + size);
+    buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
     std::memcpy(pkt->template data<char>(), data, size);
 #ifdef DEBUG
     std::cout
@@ -196,7 +197,7 @@ private:
   void update([[maybe_unused]] typename NIC::Observed *obs,
               [[maybe_unused]] typename NIC::Protocol_Number prot,
               Buffer *buf) {
-    Packet *pkt = (Packet *)buf->data()->data;
+    Packet *pkt = buf->data()->template data<Packet>();
     Port port = pkt->header()->dest.getPort();
     if (!this->notify(port, buf)) {
       _nic->free(buf);

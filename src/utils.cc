@@ -29,7 +29,7 @@ std::string ethernet_header(struct Ethernet::Frame *buffer) {
   return header;
 }
 
-std::string payload(struct Ethernet::Frame *buffer, int buflen) {
+std::string payload(Ethernet::Frame *buffer, int buflen) {
   int remaining_data = buflen - 14; // mac + mac + prot
 
   std::string result = "\nData\n";
@@ -39,7 +39,7 @@ std::string payload(struct Ethernet::Frame *buffer, int buflen) {
     if (i != 0 && i % 16 == 0) {
       result += "\n";
     }
-    snprintf(temp, sizeof(temp), " %.2X ", buffer->data[i]);
+    snprintf(temp, sizeof(temp), " %.2X ", buffer->template data<char>()[i]);
     result += temp;
   }
 

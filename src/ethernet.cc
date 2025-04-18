@@ -39,5 +39,5 @@ void Ethernet::Frame::clear() {
   src = Address();
   dst = Address();
   prot = 0;
-  std::memset(data, 0, MTU);
+  std::memset(_data, 0, MTU);
 }
