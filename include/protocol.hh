@@ -4,7 +4,6 @@
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
-#include "ethernet.hh"
 #include <cstring>
 
 #ifdef DEBUG
@@ -17,7 +16,7 @@ class Protocol
       private NIC::Observer {
 public:
   inline static const typename NIC::Protocol_Number PROTO =
-      htons(0x88B5); // Traits<Protocol>::ETHERNET_PROTOCOL_NUMBER;
+      htons(0x88B5);
 
   typedef typename NIC::BufferNIC Buffer;
   typedef typename NIC::Address Physical_Address;
@@ -30,16 +29,16 @@ public:
   class Address {
   public:
     enum Null { NONE };
-    Address() : _paddr(Ethernet::ZERO), _port(0) {
+    Address() : _paddr(NIC::ZERO), _port(0) {
     }
     Address([[maybe_unused]]
             const Null &n)
-        : _paddr(Ethernet::ZERO), _port(0) {
+        : _paddr(NIC::ZERO), _port(0) {
     }
     Address(Physical_Address paddr, Port port) : _paddr(paddr), _port(port) {
     }
     operator bool() const {
-      return (_paddr != Ethernet::ZERO || _port != 0);
+      return (_paddr != NIC::ZERO || _port != 0);
     }
     bool operator==(const Address &other) const {
       return (_paddr == other._paddr) && (_port == other._port);
