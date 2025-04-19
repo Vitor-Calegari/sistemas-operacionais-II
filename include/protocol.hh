@@ -21,6 +21,7 @@ public:
   typedef typename NIC::Header NICHeader;
   typedef typename NIC::BufferNIC Buffer;
   typedef typename NIC::Address Physical_Address;
+  typedef unsigned short SysID;
   typedef unsigned short Port;
 
   typedef Conditional_Data_Observer<Buffer, Port> Observer;
@@ -30,13 +31,13 @@ public:
   class Address {
   public:
     enum Null { NONE };
-    Address() : _paddr(NIC::ZERO), _port(0) {
+    Address() : _paddr(NIC::ZERO), _sysID(0), _port(0) {
     }
     Address([[maybe_unused]]
             const Null &n)
         : _paddr(NIC::ZERO), _port(0) {
     }
-    Address(Physical_Address paddr, Port port) : _paddr(paddr), _port(port) {
+    Address(Physical_Address paddr, SysID sysID, Port port) : _paddr(paddr), _sysID(sysID), _port(port) {
     }
     operator bool() const {
       return (_paddr != NIC::ZERO || _port != 0);
@@ -47,12 +48,16 @@ public:
     Physical_Address getPAddr() const {
       return _paddr;
     }
+    Port getSysID() const {
+      return _sysID;
+    }
     Port getPort() const {
       return _port;
     }
 
   private:
     Physical_Address _paddr;
+    SysID _sysID;
     Port _port;
   } __attribute__((packed));
 
@@ -62,8 +67,7 @@ public:
   // etc.)
   class Header {
   public:
-    Header() : origin(Address()), dest(Address()), payloadSize(0) {
-    }
+    Header() : origin(Address()), dest(Address()), payloadSize(0) {}
     Address origin;
     Address dest;
     unsigned short payloadSize;
@@ -92,8 +96,8 @@ public:
     Data _data;
   } __attribute__((packed));
 
-  static Protocol &getInstance(NIC *nic) {
-    static Protocol instance(nic);
+  static Protocol &getInstance(NIC *nic, SysID sysID) {
+    static Protocol instance(nic, sysID);
 
     return instance;
   }
@@ -104,7 +108,7 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  Protocol(NIC *nic) : _nic(nic) {
+  Protocol(NIC *nic, SysID sysID) : _nic(nic), _sysID(sysID) {
     _nic->attach(this, PROTO);
   }
 
@@ -113,6 +117,9 @@ public:
   ~Protocol() {
     _nic->detach(this, PROTO);
   }
+
+  Physical_Address getNICPAddr() { return _nic->address(); }
+  SysID getSysID() { return _sysID; }
 
   // Envia uma mensagem:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
@@ -143,12 +150,22 @@ public:
     std::cout << "Origin Address: ";
     for (int i = 0; i < 6; ++i) {
       std::cout << std::hex << std::uppercase
-                << (int)pkt->header()->origin.getPAddr().mac[i];
+          << (int)pkt->header()->origin.getPAddr().mac[i];
       if (i < 5)
-        std::cout << ":";
+      std::cout << ":";
     }
-    std::cout << ", Port: " << std::dec << pkt->header()->origin.getPort()
-              << std::endl;
+    std::cout << ", SysID: " << std::dec << pkt->header()->origin.getSysID()
+          << ", Port: " << pkt->header()->origin.getPort() << std::endl;
+
+    std::cout << "Destination Address: ";
+    for (int i = 0; i < 6; ++i) {
+      std::cout << std::hex << std::uppercase
+          << (int)pkt->header()->dest.getPAddr().mac[i];
+      if (i < 5)
+      std::cout << ":";
+    }
+    std::cout << ", SysID: " << std::dec << pkt->header()->dest.getSysID()
+          << ", Port: " << pkt->header()->dest.getPort() << std::endl;
     std::cout << "Payload Size: " << pkt->header()->payloadSize << std::endl;
     char hex_chars[] = "0123456789ABCDEF";
     char buffer[3]; // Two hex digits and a null terminator
@@ -173,7 +190,12 @@ public:
     }
     std::cout << std::endl;
 #endif
-    return _nic->send(buf);
+    if (to.getSysID() == _sysID) {
+      return -1; // TODO Implementar nova engine
+    } else {
+      return _nic->send(buf);
+    }
+
   }
 
   // Recebe uma mensagem:
@@ -187,8 +209,7 @@ public:
     unsigned int actual_received_bytes = size > message_data_size ? message_data_size : size;
     std::memcpy(data, pkt.template data<char>(), actual_received_bytes);
     _nic->free(buf);
-    return actual_received_bytes; // Protocol deveria informar quantos bytes está sendo
-                        // transmitido em seu interior?
+    return actual_received_bytes;
   }
 
 private:
@@ -199,7 +220,9 @@ private:
               Buffer *buf) {
     Packet *pkt = buf->data()->template data<Packet>();
     Port port = pkt->header()->dest.getPort();
-    if (!this->notify(port, buf)) {
+    if (pkt->header()->dest.getSysID() != _sysID) {
+      _nic->free(buf);
+    } else if (!this->notify(port, buf)) {
       _nic->free(buf);
 #ifdef DEBUG
       std::cerr << "Protocol::update: Communicator não notificado" << std::endl;
@@ -211,9 +234,10 @@ private:
   }
 
   NIC *_nic;
+  SysID _sysID;
 };
 
 template <typename NIC>
 const typename Protocol<NIC>::Address Protocol<NIC>::BROADCAST =
-    typename Protocol<NIC>::Address(NIC::BROADCAST_ADDRESS, 10);
+    typename Protocol<NIC>::Address(NIC::BROADCAST_ADDRESS, 0, 10);
 #endif // PROTOCOL_HH

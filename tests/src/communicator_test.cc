@@ -25,8 +25,10 @@ int randint(int p, int r) {
 
 int main(int argc, char *argv[]) {
   int send;
+  int parentPID = 0;
   if (argc < 2) {
     // Novo processo será o sender.
+    parentPID = getpid();
     auto ret = fork();
 
     send = ret == 0;
@@ -45,17 +47,14 @@ int main(int argc, char *argv[]) {
 
   SocketNIC nic = SocketNIC(INTERFACE_NAME);
 
-  Protocol &prot = Protocol::getInstance(&nic);
+  Protocol &prot = Protocol::getInstance(&nic, getpid());
 
-  Protocol::Address addr =
-      Protocol::Address(nic.address(), 10);
-
-  Communicator comm = Communicator(&prot, addr);
+  Communicator comm = Communicator(&prot, 10);
 
   if (send) {
     int i = 0;
     while (i < NUM_MSGS) {
-      Message message = Message(comm.addr(), Protocol::Address(nic.address(), 10), MSG_SIZE);
+      Message message = Message(comm.addr(), Protocol::Address(nic.address(), parentPID, 10), MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));

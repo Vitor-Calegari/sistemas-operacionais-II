@@ -39,7 +39,7 @@ std::string payload(Ethernet::Frame *buffer, int buflen) {
     if (i != 0 && i % 16 == 0) {
       result += "\n";
     }
-    snprintf(temp, sizeof(temp), " %.2X ", buffer->template data<char>()[i]);
+    snprintf(temp, sizeof(temp), " %.2X ", buffer->template data<unsigned char>()[i]);
     result += temp;
   }
 

@@ -15,11 +15,12 @@ class Communicator : public Concurrent_Observer<
 public:
   typedef typename Channel::Buffer Buffer;
   typedef typename Channel::Address Address;
+  typedef typename Channel::Port  Port;
 
 public:
-  Communicator(Channel *channel, Address address)
-      : _channel(channel), _address(address) {
-    _channel->attach(this, address.getPort());
+  Communicator(Channel *channel, Port port)
+      : _channel(channel), _address(Address(channel->getNICPAddr(), channel->getSysID(), port)) {
+    _channel->attach(this, _address.getPort());
   }
 
   ~Communicator() {
