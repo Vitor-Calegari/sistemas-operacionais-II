@@ -34,7 +34,7 @@ int main() {
     std::cerr << "Erro ao criar o semaphore." << std::endl;
     exit(1);
   }
-  sem_init(semaphore, 1, 0); // 0 = inicializa sem permissão para prosseguir
+  sem_init(semaphore, 1, 0);
   
   pid_t parentPID = getpid();
 
@@ -57,7 +57,7 @@ int main() {
       int j = 0;
       while (j < num_messages_per_comm) {
         // Envia mensagens
-        Message msg(communicator.addr(), Protocol::Address(nic.address(), parentPID, 9999),MESSAGE_SIZE); // Cria mensagem do tamanho definido
+        Message msg(communicator.addr(), Protocol::Address(nic.address(), parentPID, 9999),MESSAGE_SIZE);
         if (communicator.send(&msg)) {
           // std::cout << "Proc(" << std::dec << getpid() << "): Sent msg " << j
           //           << std::endl;
@@ -123,7 +123,3 @@ int main() {
 
   return 0;
 }
-
-// g++ -std=c++20 tests/src/load_test.cc -Iinclude -o load_test src/engine.cc
-// src/ethernet.cc src/message.cc src/utils.cc
-//  ./load_test

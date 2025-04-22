@@ -1,6 +1,6 @@
 #include "communicator.hh"
 #include "engine.hh"
-#include "message.hh" // classe Message que espera o tamanho da mensagem
+#include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include <cstdlib>
@@ -38,7 +38,7 @@ int main() {
     std::cerr << "Erro ao criar o semaphore." << std::endl;
     exit(1);
   }
-  sem_init(semaphore, 1, 0); // 0 = inicializa sem permissão para prosseguir
+  sem_init(semaphore, 1, 0);
 
   pid_t parentPID = getpid();
   pid_t pid = fork();
@@ -52,8 +52,6 @@ int main() {
     NIC<Engine> nic(INTERFACE_NAME);
     auto &prot = Protocol::getInstance(&nic, getpid());
 
-    // Crie um endereço único para cada processo – ajuste conforme sua
-    // implementação
     Communicator communicator(&prot, 10);
 
     // Aguarda até que o processo pai libere o semaphore
@@ -77,7 +75,7 @@ int main() {
       } while (sent == false);
 
       // Recebe
-      Message recv_msg(MESSAGE_SIZE); // Cria mensagem do tamanho definido
+      Message recv_msg(MESSAGE_SIZE);
       if (!communicator.receive(&recv_msg)) {
         std::cout << "Inspect Proc(" << std::dec << getpid()
                   << "): Error sending msg " << i << std::endl;
@@ -112,7 +110,7 @@ int main() {
     int recvd = 0;
     for (int i = 0; i < num_messages; i++) {
       // Recebe
-      Message recv_msg(MESSAGE_SIZE); // Cria mensagem do tamanho definido
+      Message recv_msg(MESSAGE_SIZE);
       if (!communicator.receive(&recv_msg)) {
         std::cout << "Counter Proc(" << std::dec << getpid()
                   << "): Error sending msg " << i << std::endl;

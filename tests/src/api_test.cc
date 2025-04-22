@@ -35,7 +35,7 @@ int main() {
     exit(1);
   }
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
-  
+
   pid_t parentPID = getpid();
   pid_t pid = fork();
   if (pid < 0) {
@@ -140,6 +140,3 @@ int main() {
 
   return 0;
 }
-
-// g++ -std=c++20 tests/src/api_test.cc -Iinclude -o api_test src/engine.cc
-// src/ethernet.cc src/message.cc src/utils.cc sudo ./api_test
