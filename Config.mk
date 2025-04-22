@@ -3,7 +3,7 @@ MAKENAME = INE5424
 INTERFACE_NAME:=$(shell ip addr | awk '/state UP/ {print $$2}' | sed 's/.$$//')
 
 TESTS = communicator_test ping_pong_test load_test api_test
-MODULES = engine ethernet message utils
+MODULES = engine ethernet utils
 
 SRC_DIR = src
 INCL_DIR = include

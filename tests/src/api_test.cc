@@ -35,7 +35,8 @@ int main() {
     exit(1);
   }
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
-
+  
+  pid_t parentPID = getpid();
   pid_t pid = fork();
   if (pid < 0) {
     cerr << "Erro ao criar processo" << endl;
@@ -47,19 +48,18 @@ int main() {
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>; 
 
+
   if (pid == 0) {
     // Processo-filho: envia mensagens
     SocketNIC nic(INTERFACE_NAME);
-    auto &prot = Protocol::getInstance(&nic);
-    Protocol::Address addr =
-        Protocol::Address(nic.address(), 10);
-    Communicator communicator(&prot, addr);
+    Protocol &prot = Protocol::getInstance(&nic, getpid());
+    Communicator communicator(&prot, 10);
 
     // Aguarda liberação do semaphore pelo pai
     sem_wait(semaphore);
     std::cout << "\033[1B\rSent: 0\033[K\033[1A" << std::flush;
     for (int j = 0; j < num_messages_per_comm;) {
-      Message msg = Message(communicator.addr(), Protocol::Address(nic.address(), 11), MESSAGE_SIZE);
+      Message msg = Message(communicator.addr(), Protocol::Address(nic.address(), parentPID, 11), MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
       // Registra o timestamp no envio
       auto t_send = high_resolution_clock::now();
@@ -79,17 +79,14 @@ int main() {
   } else {
     // Processo pai: recebe mensagens
     SocketNIC nic(INTERFACE_NAME);
-    auto &prot = Protocol::getInstance(&nic);
-    Protocol::Address addr =
-        Protocol::Address(nic.address(), 11);
-    Communicator communicator(&prot, addr);
-
-    // Libera o semaphore para que o filho inicie o envio
-
+    Protocol &prot = Protocol::getInstance(&nic, getpid());
+    Communicator communicator(&prot, 11);
+    
     long long total_latency_us = 0;
     int msg_count = 0;
     Message msg(MESSAGE_SIZE);
-
+    
+    // Libera o semaphore para que o filho inicie o envio
     sem_post(semaphore);
     std::cout << "\033[2B\rReceived: 0\033[K\033[2A" << std::flush;
 

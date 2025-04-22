@@ -22,6 +22,10 @@ const std::size_t MESSAGE_SIZE = 256;
 const int timeout_sec = 5;
 
 int main() {
+  using SocketNIC = NIC<Engine>;
+  using Protocol = Protocol<SocketNIC>;
+  using Message = Message<Protocol::Address>;
+  using Communicator = Communicator<Protocol, Message>; 
   // Cria um semaphore compartilhado entre processos
   sem_t *semaphore =
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
@@ -31,6 +35,8 @@ int main() {
     exit(1);
   }
   sem_init(semaphore, 1, 0); // 0 = inicializa sem permissão para prosseguir
+  
+  pid_t parentPID = getpid();
 
   for (int i = 0; i < num_communicators; i++) {
     pid_t pid = fork();
@@ -41,14 +47,9 @@ int main() {
     if (pid == 0) {
       // Código do processo-filho
       NIC<Engine> nic(INTERFACE_NAME);
-      auto &prot = Protocol<NIC<Engine>>::getInstance(&nic);
+      auto &prot = Protocol::getInstance(&nic, getpid());
 
-      // Crie um endereço único para cada processo – ajuste conforme sua
-      // implementação
-      typename Protocol<NIC<Engine>>::Address addr;
-      // Por exemplo: addr = typename Protocol<NIC<Engine>>::Address(getpid());
-
-      Communicator<Protocol<NIC<Engine>>> communicator(&prot, addr);
+      Communicator communicator(&prot, i);
 
       // Aguarda até que o processo pai libere o semaphore
       sem_wait(semaphore);
@@ -56,7 +57,7 @@ int main() {
       int j = 0;
       while (j < num_messages_per_comm) {
         // Envia mensagens
-        Message msg(MESSAGE_SIZE); // Cria mensagem do tamanho definido
+        Message msg(communicator.addr(), Protocol::Address(nic.address(), parentPID, 9999),MESSAGE_SIZE); // Cria mensagem do tamanho definido
         if (communicator.send(&msg)) {
           // std::cout << "Proc(" << std::dec << getpid() << "): Sent msg " << j
           //           << std::endl;
@@ -69,9 +70,8 @@ int main() {
 
   // Processo pai - Cria seu próprio comunicador
   NIC<Engine> nic(INTERFACE_NAME);
-  auto &prot = Protocol<NIC<Engine>>::getInstance(&nic);
-  typename Protocol<NIC<Engine>>::Address addr;
-  Communicator<Protocol<NIC<Engine>>> communicator(&prot, addr);
+  auto &prot = Protocol::getInstance(&nic, getpid());
+  Communicator communicator(&prot, 9999);
   Message msg(MESSAGE_SIZE);
 
   // Libera o semaphore para que todos os filhos possam prosseguir com os envios
