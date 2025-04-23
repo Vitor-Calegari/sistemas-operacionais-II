@@ -30,10 +30,47 @@ public:
   static const unsigned int BUFFER_SIZE = 1024;
 
   // Construtor: Cria e configura o socket raw.
-  SharedEngine(const char *interface_name);
+  SharedEngine(const char *interface_name)
+      : empty(1024), _interface_name(interface_name), _thread_running(true) {
+    _self = this;
+
+    if (sem_init(&_engineSemaphore, 0, 0) != 0) {
+      perror("sem_init");
+      exit(EXIT_FAILURE);
+    }
+
+#ifdef DEBUG
+    // Print Debug -------------------------------------------------------
+
+    std::cout << "SharedEngine initialized for interface " << _interface_name
+              << " with MAC ";
+    // Imprime o MAC Address (formatação manual)
+    for (int i = 0; i < 6; ++i)
+      std::cout << std::hex << (int)_address.mac[i] << (i < 5 ? ":" : "");
+    std::cout << std::dec << " and index " << _interface_index << std::endl;
+#endif
+  }
 
   // Destrutor: Fecha o socket.
-  ~SharedEngine();
+  ~SharedEngine() {
+    if (sem_destroy(&_engineSemaphore) != 0) {
+      perror("sem_destroy");
+      exit(EXIT_FAILURE);
+    }
+
+    if (recvThread.joinable()) {
+      recvThread.join();
+    }
+
+    // if (_socket_raw != -1) {
+    //   close(_socket_raw);
+    // }
+
+#ifdef DEBUG
+    std::cout << "SharedEngine for interface " << _interface_name
+              << " destroyed." << std::endl;
+#endif
+  }
 
   // Envia dados usando um buffer pré-preenchido.
   // Args:
@@ -62,12 +99,28 @@ public:
   // Retorna: Ponteiro para a memória alocada (do tipo Ethernet::Frame*).
   // Lança exceção em caso de falha.
   // (Implementação atual usa 'new', futuras podem usar memória compartilhada)
-  Buffer *allocate_frame_memory();
+  Buffer *allocate_frame_memory() {
+    /*try {
+      // Aloca e retorna ponteiro para um Ethernet::Frame.
+      Buffer<Ethernet::Frame> *frame_ptr =
+          new Buffer<Ethernet::Frame>(Ethernet::MAX_FRAME_SIZE_NO_FCS);
+      frame_ptr->data()->clear();
+      return frame_ptr;
+    } catch (const std::bad_alloc &e) {
+      std::cerr << "SharedEngine Error: Failed to allocate frame memory - "
+                << e.what() << std::endl;
+      throw;
+    }*/
+    return nullptr;
+  }
 
   // Libera a memória previamente alocada por allocate_frame_memory.
   // Args:
   //   frame_ptr: Ponteiro para a memória a ser liberada.
-  void free_frame_memory(Buffer *frame_ptr);
+  void free_frame_memory(Buffer *frame_ptr) {
+    if (frame_ptr != nullptr)
+      delete frame_ptr;
+  }
 
   // Obtém informações da interface (MAC, índice) usando ioctl.
   bool get_interface_info();
@@ -118,8 +171,27 @@ public:
     _self->obj = obj;
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
-  void stopRecvThread();
-  void turnRecvOn();
+
+  void stopRecvThread() {
+    pthread_mutex_lock(&_threadStopMutex);
+    _thread_running = 0;
+    pthread_mutex_unlock(&_threadStopMutex);
+    sem_post(&_engineSemaphore);
+  }
+
+  void turnRecvOn() {
+    recvThread = std::thread([this]() {
+      while (1) {
+        sem_wait(&_engineSemaphore);
+        pthread_mutex_lock(&_threadStopMutex);
+        if (!_thread_running) {
+          break;
+        }
+        pthread_mutex_unlock(&_threadStopMutex);
+        _self->handler(_self->obj);
+      }
+    });
+  }
 
 private:
   std::binary_semaphore buffer_sem{ 1 };
@@ -144,7 +216,10 @@ private:
   const char *_interface_name;
   Ethernet::Address _address;
 
-  static void signalHandler(int sig);
+  // Função estática para envelopar a função que tratará a interrupção
+  static void signalHandler([[maybe_unused]] int sig) {
+    sem_post(&(_self->_engineSemaphore));
+  }
 
   static void *obj;
   static void (*handler)(void *);
@@ -157,5 +232,14 @@ private:
   sem_t _engineSemaphore;
   pthread_mutex_t _threadStopMutex = PTHREAD_MUTEX_INITIALIZER;
 };
+
+template <typename Buffer>
+SharedEngine<Buffer> *SharedEngine<Buffer>::_self = nullptr;
+
+template <typename Buffer>
+void *SharedEngine<Buffer>::obj = nullptr;
+
+template <typename Buffer>
+void (*SharedEngine<Buffer>::handler)(void *) = nullptr;
 
 #endif
