@@ -1,5 +1,6 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "shared_engine.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
@@ -43,23 +44,26 @@ int main() {
     exit(1);
   }
 
-  using SocketNIC = NIC<Engine>;
-  using Protocol = Protocol<SocketNIC>;
+  
+  using Buffer = Buffer<Ethernet::Frame>;
+  using SocketNIC = NIC<Engine<Buffer>>;
+  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
   using Message = Message<Protocol::Address>;
-  using Communicator = Communicator<Protocol, Message>; 
-
+  using Communicator = Communicator<Protocol, Message>;
 
   if (pid == 0) {
     // Processo-filho: envia mensagens
-    SocketNIC nic(INTERFACE_NAME);
-    Protocol &prot = Protocol::getInstance(&nic, getpid());
+    SocketNIC rsnic(INTERFACE_NAME);
+    SharedMemNIC smnic(INTERFACE_NAME);
+    Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
     Communicator communicator(&prot, 10);
 
     // Aguarda liberação do semaphore pelo pai
     sem_wait(semaphore);
     std::cout << "\033[1B\rSent: 0\033[K\033[1A" << std::flush;
     for (int j = 0; j < num_messages_per_comm;) {
-      Message msg = Message(communicator.addr(), Protocol::Address(nic.address(), parentPID, 11), MESSAGE_SIZE);
+      Message msg = Message(communicator.addr(), Protocol::Address(rsnic.address(), parentPID, 11), MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
       // Registra o timestamp no envio
       auto t_send = high_resolution_clock::now();
@@ -78,8 +82,9 @@ int main() {
     exit(0);
   } else {
     // Processo pai: recebe mensagens
-    SocketNIC nic(INTERFACE_NAME);
-    Protocol &prot = Protocol::getInstance(&nic, getpid());
+    SocketNIC rsnic(INTERFACE_NAME);
+    SharedMemNIC smnic(INTERFACE_NAME);
+    Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
     Communicator communicator(&prot, 11);
     
     long long total_latency_us = 0;

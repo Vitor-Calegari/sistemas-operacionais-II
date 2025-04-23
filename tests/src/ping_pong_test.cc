@@ -1,5 +1,6 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "shared_engine.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
@@ -26,8 +27,10 @@ struct msg_struct {
 };
 
 int main() {
-  using SocketNIC = NIC<Engine>;
-  using Protocol = Protocol<SocketNIC>;
+  using Buffer = Buffer<Ethernet::Frame>;
+  using SocketNIC = NIC<Engine<Buffer>>;
+  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>; 
   // Cria um semaphore compartilhado entre processos
@@ -49,15 +52,16 @@ int main() {
 
   if (pid == 0) {
     // Código do processo-filho
-    NIC<Engine> nic(INTERFACE_NAME);
-    auto &prot = Protocol::getInstance(&nic, getpid());
+    SocketNIC rsnic(INTERFACE_NAME);
+    SharedMemNIC smnic(INTERFACE_NAME);
+    auto &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
 
     Communicator communicator(&prot, 10);
 
     // Aguarda até que o processo pai libere o semaphore
     sem_wait(semaphore);
 
-    Message send_msg(communicator.addr(), Protocol::Address(nic.address(), parentPID, 11), MESSAGE_SIZE);
+    Message send_msg(communicator.addr(), Protocol::Address(rsnic.address(), parentPID, 11), MESSAGE_SIZE);
     struct msg_struct ms;
     ms.counter = 0;
     std::memcpy(send_msg.data(), &ms, sizeof(ms));
@@ -96,8 +100,9 @@ int main() {
     exit(0); // Conclui com sucesso no processo-filho
   } else {
     // Processo Pai
-    NIC<Engine> nic(INTERFACE_NAME);
-    auto &prot = Protocol::getInstance(&nic, getpid());
+    SocketNIC rsnic(INTERFACE_NAME);
+    SharedMemNIC smnic(INTERFACE_NAME);
+    auto &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
     Communicator communicator(&prot, 11);
 
     Message send_msg(MESSAGE_SIZE);
