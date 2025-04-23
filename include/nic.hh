@@ -2,6 +2,7 @@
 #define NIC_HH
 
 #include <mutex>
+#include <semaphore>
 
 #include "buffer.hh"
 #include "conditional_data_observer.hh"
@@ -9,8 +10,8 @@
 #include "ethernet.hh"
 
 #ifdef DEBUG
-#include <iostream>
 #include "utils.hh"
+#include <iostream>
 #endif
 // A classe NIC (Network Interface Controller).
 // Ela age como a interface de rede, usando a Engine fornecida para E/S,
@@ -41,7 +42,8 @@ public:
   // Args:
   //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
   NIC(const char *interface_name)
-      : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1), last_used_recv_buffer(RECEIVE_BUFFERS - 1) {
+      : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1),
+        last_used_recv_buffer(RECEIVE_BUFFERS - 1) {
     // Setup Handler -----------------------------------------------------
 
     Engine::template bind<NIC<Engine>, &NIC<Engine>::handle_signal>(this);
@@ -87,9 +89,10 @@ public:
   BufferNIC *alloc(unsigned int size, int send) {
     unsigned int maxSize = Ethernet::HEADER_SIZE + size;
 
-    unsigned int last_used_buffer = send ? last_used_send_buffer : last_used_recv_buffer;
+    unsigned int last_used_buffer =
+        send ? last_used_send_buffer : last_used_recv_buffer;
     unsigned int buffer_size_l = send ? SEND_BUFFERS : RECEIVE_BUFFERS;
-    BufferNIC ** buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
+    BufferNIC **buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
 
     for (unsigned int j = 0; j < buffer_size_l; ++j) {
       int i = (last_used_buffer + j) % buffer_size_l;
@@ -235,7 +238,7 @@ public:
   BufferNIC *_recv_buffer_pool[RECEIVE_BUFFERS];
   unsigned int last_used_send_buffer;
   unsigned int last_used_recv_buffer;
-  std::binary_semaphore handle_sem{1};
+  std::binary_semaphore handle_sem{ 1 };
 };
 
 #endif // NIC_HH
