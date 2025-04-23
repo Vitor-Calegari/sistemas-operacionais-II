@@ -1,7 +1,9 @@
 #ifndef SHARED_ENGINE_HH
 #define SHARED_ENGINE_HH
 
+#include <algorithm>
 #include <cerrno>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 
@@ -11,6 +13,7 @@
 #include <net/if.h>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
+#include <queue>
 #include <semaphore.h>
 #include <semaphore>
 #include <sys/ioctl.h>
@@ -19,12 +22,13 @@
 
 #include <fcntl.h>
 
-#include "buffer.hh"
 #include "ethernet.hh"
 
+template <typename Buffer>
 class SharedEngine {
-
 public:
+  static const unsigned int BUFFER_SIZE = 1024;
+
   // Construtor: Cria e configura o socket raw.
   SharedEngine(const char *interface_name);
 
@@ -38,46 +42,32 @@ public:
   //   (sockaddr_ll).
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
-  template <typename Data>
-  int send(Buffer<Data> *buf) {
-    if (!buf)
+  int send(Buffer *buf) {
+    if (buf == nullptr) {
       return -1; // Validação básica
-
-    // Configura o endereço de destino para sendto
-    struct sockaddr_ll sadr_ll;
-    std::memset(&sadr_ll, 0, sizeof(sadr_ll));
-    sadr_ll.sll_family = AF_PACKET;
-    sadr_ll.sll_ifindex = _interface_index;
-    sadr_ll.sll_halen = ETH_ALEN;
+    }
 
     empty.acquire();
     buffer_sem.acquire();
-    std::memcpy(sadr_ll.sll_addr, buf->data()->dst.mac, ETH_ALEN);
 
-    int send_len = sendto(_self->_socket_raw, buf->data(), buf->size(), 0,
-                          (const sockaddr *)&sadr_ll, sizeof(sadr_ll));
+    eth_buf.push(buf);
+
     buffer_sem.release();
     full.release();
 
-    if (send_len < 0) {
-#ifdef DEBUG
-      printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
-#endif
-      return -1;
-    }
-    return send_len;
+    return eth_buf.front()->size();
   }
 
   // Aloca memória bruta para um frame Ethernet.
   // Retorna: Ponteiro para a memória alocada (do tipo Ethernet::Frame*).
   // Lança exceção em caso de falha.
   // (Implementação atual usa 'new', futuras podem usar memória compartilhada)
-  Buffer<Ethernet::Frame> *allocate_frame_memory();
+  Buffer *allocate_frame_memory();
 
   // Libera a memória previamente alocada por allocate_frame_memory.
   // Args:
   //   frame_ptr: Ponteiro para a memória a ser liberada.
-  void free_frame_memory(Buffer<Ethernet::Frame> *frame_ptr);
+  void free_frame_memory(Buffer *frame_ptr);
 
   // Obtém informações da interface (MAC, índice) usando ioctl.
   bool get_interface_info();
@@ -92,36 +82,19 @@ public:
   // Returns:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
-  template <typename Data>
-  int receive(Buffer<Data> *buf, struct sockaddr_ll &sender_addr,
-              socklen_t &sender_addr_len) {
+  int receive(Buffer *buf) {
     full.acquire();
     buffer_sem.acquire();
 
-    int buflen = recvfrom(_self->_socket_raw, buf->data(), buf->maxSize(), 0,
-                          (struct sockaddr *)&sender_addr,
-                          (socklen_t *)&sender_addr_len);
+    auto cur_buf = eth_buf.front();
+    eth_buf.pop();
 
-    if (buflen < 0) {
-      buf->setSize(0); // Nenhum dado recebido agora
-      buffer_sem.release();
-      empty.release();
-
-      // Erro real ou apenas indicação de não bloqueio?
-      if (errno == EWOULDBLOCK || errno == EAGAIN) {
-        return 0; // Não é um erro fatal em modo não bloqueante
-      } else {
-        perror("SharedEngine::receive recvfrom error");
-        return -1; // Erro real
-      }
-    } else {
-      // Dados recebidos com sucesso, ajusta o tamanho real do buffer.
-      buf->setSize(buflen);
-    }
+    std::copy(cur_buf, cur_buf + cur_buf->size(), buf);
 
     buffer_sem.release();
     empty.release();
-    return buflen;
+
+    return buf->size();
   }
 
   // Configura o handler de sinal (SIGIO).
@@ -152,6 +125,9 @@ private:
   std::binary_semaphore buffer_sem{ 1 };
   std::counting_semaphore<> full{ 0 };
   std::counting_semaphore<> empty;
+
+  std::queue<Buffer *> eth_buf;
+  size_t eth_buf_idx = BUFFER_SIZE - 1;
 
   template <typename T, void (T::*handle_signal)()>
   static void handlerWrapper(void *obj) {

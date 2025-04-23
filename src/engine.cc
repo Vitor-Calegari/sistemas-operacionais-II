@@ -5,11 +5,18 @@
 #include <new>
 #include <unistd.h>
 
-Engine *Engine::_self = nullptr;
-void *Engine::obj = nullptr;
-void (*Engine::handler)(void *) = nullptr;
+template <typename Buffer>
+Engine<Buffer> *Engine<Buffer>::_self = nullptr;
 
-Engine::Engine(const char *interface_name) : _interface_name(interface_name), _thread_running(true) {
+template <typename Buffer>
+void *Engine<Buffer>::obj = nullptr;
+
+template <typename Buffer>
+void (*Engine<Buffer>::handler)(void *) = nullptr;
+
+template <typename Buffer>
+Engine<Buffer>::Engine(const char *interface_name)
+    : _interface_name(interface_name), _thread_running(true) {
   _self = this;
   // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
   // SOCK_RAW para criar um raw socket
@@ -65,7 +72,8 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name), _t
   sll_receive.sll_family = AF_PACKET;
   sll_receive.sll_protocol = htons(ETH_P_ALL);
   sll_receive.sll_ifindex = if_nametoindex(_interface_name);
-  if (::bind(_socket_raw, (struct sockaddr*)&sll_receive, sizeof(sll_receive)) < 0) {
+  if (::bind(_socket_raw, (struct sockaddr *)&sll_receive,
+             sizeof(sll_receive)) < 0) {
     perror("bind (receive socket)");
     exit(EXIT_FAILURE);
   }
@@ -74,8 +82,6 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name), _t
     perror("sem_init");
     exit(EXIT_FAILURE);
   }
-
-  
 
 #ifdef DEBUG
   // Print Debug -------------------------------------------------------
@@ -89,27 +95,35 @@ Engine::Engine(const char *interface_name) : _interface_name(interface_name), _t
 #endif
 }
 
-void Engine::turnRecvOn() {
+template <typename Buffer>
+void Engine<Buffer>::turnRecvOn() {
   recvThread = std::thread([this]() {
-      while (1) {
-        sem_wait(&_engineSemaphore);
-        pthread_mutex_lock(&_threadStopMutex);
-        if (!_thread_running) { break; }
-        pthread_mutex_unlock(&_threadStopMutex);
-        _self->handler(_self->obj);
+    while (1) {
+      sem_wait(&_engineSemaphore);
+      pthread_mutex_lock(&_threadStopMutex);
+      if (!_thread_running) {
+        break;
       }
+      pthread_mutex_unlock(&_threadStopMutex);
+      _self->handler(_self->obj);
+    }
   });
 }
 
-Engine::~Engine() {
+template <typename Buffer>
+Engine<Buffer>::~Engine() {
   if (sem_destroy(&_engineSemaphore) != 0) {
     perror("sem_destroy");
     exit(EXIT_FAILURE);
   }
 
-  if (recvThread.joinable()) { recvThread.join(); } 
+  if (recvThread.joinable()) {
+    recvThread.join();
+  }
 
-  if (_socket_raw != -1) { close(_socket_raw); }
+  if (_socket_raw != -1) {
+    close(_socket_raw);
+  }
 
 #ifdef DEBUG
   std::cout << "Engine for interface " << _interface_name << " destroyed."
@@ -118,10 +132,11 @@ Engine::~Engine() {
 }
 
 // Aloca memória para um frame. Placeholder com 'new'.
-Buffer<Ethernet::Frame> *Engine::allocate_frame_memory() {
-  try {
+template <typename Buffer>
+Buffer *Engine<Buffer>::allocate_frame_memory() {
+  /*try {
     // Aloca e retorna ponteiro para um Ethernet::Frame.
-    Buffer<Ethernet::Frame> *frame_ptr =
+    Buffer *frame_ptr =
         new Buffer<Ethernet::Frame>(Ethernet::MAX_FRAME_SIZE_NO_FCS);
     frame_ptr->data()->clear();
     return frame_ptr;
@@ -129,16 +144,19 @@ Buffer<Ethernet::Frame> *Engine::allocate_frame_memory() {
     std::cerr << "Engine Error: Failed to allocate frame memory - " << e.what()
               << std::endl;
     throw;
-  }
+  }*/
+  return nullptr;
 }
 
 // Libera memória do frame. Placeholder com 'delete'.
-void Engine::free_frame_memory(Buffer<Ethernet::Frame> *frame_ptr) {
+template <typename Buffer>
+void Engine<Buffer>::free_frame_memory(Buffer *frame_ptr) {
   if (frame_ptr != nullptr)
     delete frame_ptr;
 }
 
-bool Engine::get_interface_info() {
+template <typename Buffer>
+bool Engine<Buffer>::get_interface_info() {
   struct ifreq ifr;
   std::memset(&ifr, 0, sizeof(ifr));
   strncpy(ifr.ifr_name, _interface_name, IFNAMSIZ - 1);
@@ -167,7 +185,8 @@ bool Engine::get_interface_info() {
   return true;
 }
 
-void Engine::setupSignalHandler() {
+template <typename Buffer>
+void Engine<Buffer>::setupSignalHandler() {
   // Armazena a função de callback
   struct sigaction sigAction;
   sigAction.sa_handler = Engine::signalHandler;
@@ -184,7 +203,8 @@ void Engine::setupSignalHandler() {
   }
 }
 
-void Engine::confSignalReception() {
+template <typename Buffer>
+void Engine<Buffer>::confSignalReception() {
   // Configura processo como ´dono´ do socket para poder receber
   // sinais, como o SIGIO
   if (fcntl(Engine::getSocketFd(), F_SETOWN, getpid()) < 0) {
@@ -218,11 +238,13 @@ void Engine::confSignalReception() {
 }
 
 // Função estática para envelopar a função que tratará a interrupção
-void Engine::signalHandler([[maybe_unused]]int sig) {
+template <typename Buffer>
+void Engine<Buffer>::signalHandler([[maybe_unused]] int sig) {
   sem_post(&(_self->_engineSemaphore));
 }
 
-void Engine::stopRecvThread() {
+template <typename Buffer>
+void Engine<Buffer>::stopRecvThread() {
   pthread_mutex_lock(&_threadStopMutex);
   _thread_running = 0;
   pthread_mutex_unlock(&_threadStopMutex);

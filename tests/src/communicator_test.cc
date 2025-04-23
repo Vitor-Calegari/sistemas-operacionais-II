@@ -1,8 +1,8 @@
 #include "communicator.hh"
 #include "engine.hh"
-#include "shared_engine.hh"
 #include "nic.hh"
 #include "protocol.hh"
+#include "shared_engine.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -41,11 +41,12 @@ int main(int argc, char *argv[]) {
     send = atoi(argv[1]);
   }
 
-  using SocketNIC = NIC<Engine>;
-  using SharedMemNIC = NIC<SharedEngine>;
+  using Buffer = Buffer<Ethernet::Frame>;
+  using SocketNIC = NIC<Engine<Buffer>>;
+  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC>;
   using Message = Message<Protocol::Address>;
-  using Communicator = Communicator<Protocol, Message>; 
+  using Communicator = Communicator<Protocol, Message>;
 
   SocketNIC rsnic = SocketNIC(INTERFACE_NAME);
   SharedMemNIC smnic = SharedMemNIC(INTERFACE_NAME);
@@ -57,7 +58,9 @@ int main(int argc, char *argv[]) {
   if (send) {
     int i = 0;
     while (i < NUM_MSGS) {
-      Message message = Message(comm.addr(), Protocol::Address(rsnic.address(), parentPID, 10), MSG_SIZE);
+      Message message =
+          Message(comm.addr(),
+                  Protocol::Address(rsnic.address(), parentPID, 10), MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));

@@ -190,9 +190,7 @@ public:
       }
 
       // 2. Tentar receber o pacote usando a Engine.
-      struct sockaddr_ll sender_addr;
-      socklen_t sender_addr_len = sizeof(sender_addr);
-      bytes_received = Engine::receive(buf, sender_addr, sender_addr_len);
+      bytes_received = Engine::receive(buf);
 #ifdef DEBUG
       if (bytes_received > 0) {
         printEth(buf);

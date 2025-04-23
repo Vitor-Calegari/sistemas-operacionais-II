@@ -11,16 +11,17 @@
 #include <net/if.h>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
+#include <semaphore.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <thread>
-#include <semaphore.h>
 
 #include <fcntl.h>
 
 #include "buffer.hh"
 #include "ethernet.hh"
 
+template <typename Buffer>
 class Engine {
 
 public:
@@ -37,8 +38,7 @@ public:
   //   (sockaddr_ll).
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
-  template <typename Data>
-  int send(Buffer<Data> *buf) {
+  int send(Buffer *buf) {
     if (!buf)
       return -1; // Validação básica
 
@@ -65,12 +65,12 @@ public:
   // Retorna: Ponteiro para a memória alocada (do tipo Ethernet::Frame*).
   // Lança exceção em caso de falha.
   // (Implementação atual usa 'new', futuras podem usar memória compartilhada)
-  Buffer<Ethernet::Frame> *allocate_frame_memory();
+  Buffer *allocate_frame_memory();
 
   // Libera a memória previamente alocada por allocate_frame_memory.
   // Args:
   //   frame_ptr: Ponteiro para a memória a ser liberada.
-  void free_frame_memory(Buffer<Ethernet::Frame> *frame_ptr);
+  void free_frame_memory(Buffer *frame_ptr);
 
   // Obtém informações da interface (MAC, índice) usando ioctl.
   bool get_interface_info();
@@ -85,9 +85,10 @@ public:
   // Returns:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
-  template <typename Data>
-  int receive(Buffer<Data> *buf, struct sockaddr_ll &sender_addr,
-              socklen_t &sender_addr_len) {
+  int receive(Buffer *buf) {
+    struct sockaddr_ll sender_addr;
+    socklen_t sender_addr_len = sizeof(sender_addr);
+
     int buflen = recvfrom(_self->_socket_raw, buf->data(), buf->maxSize(), 0,
                           (struct sockaddr *)&sender_addr,
                           (socklen_t *)&sender_addr_len);
