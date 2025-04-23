@@ -41,13 +41,7 @@ public:
 
 #ifdef DEBUG
     // Print Debug -------------------------------------------------------
-
-    std::cout << "SharedEngine initialized for interface " << _interface_name
-              << " with MAC ";
-    // Imprime o MAC Address (formatação manual)
-    for (int i = 0; i < 6; ++i)
-      std::cout << std::hex << (int)_address.mac[i] << (i < 5 ? ":" : "");
-    std::cout << std::dec << " and index " << _interface_index << std::endl;
+    std::cout << "SharedEngine initialized for interface " << _interface_name << std::endl;
 #endif
   }
 
@@ -62,10 +56,6 @@ public:
       recvThread.join();
     }
 
-    // if (_socket_raw != -1) {
-    //   close(_socket_raw);
-    // }
-
 #ifdef DEBUG
     std::cout << "SharedEngine for interface " << _interface_name
               << " destroyed." << std::endl;
@@ -75,8 +65,6 @@ public:
   // Envia dados usando um buffer pré-preenchido.
   // Args:
   //   buf: Ponteiro para o Buffer contendo os dados a serem enviados.
-  //   sadr_ll: Ponteiro para a estrutura de endereço do destinatário
-  //   (sockaddr_ll).
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
   int send(Buffer *buf) {
@@ -92,38 +80,9 @@ public:
     buffer_sem.release();
     full.release();
 
+    sem_post(&(_self->_engineSemaphore));
     return eth_buf.front()->size();
   }
-
-  // Aloca memória bruta para um frame Ethernet.
-  // Retorna: Ponteiro para a memória alocada (do tipo Ethernet::Frame*).
-  // Lança exceção em caso de falha.
-  // (Implementação atual usa 'new', futuras podem usar memória compartilhada)
-  Buffer *allocate_frame_memory() {
-    /*try {
-      // Aloca e retorna ponteiro para um Ethernet::Frame.
-      Buffer<Ethernet::Frame> *frame_ptr =
-          new Buffer<Ethernet::Frame>(Ethernet::MAX_FRAME_SIZE_NO_FCS);
-      frame_ptr->data()->clear();
-      return frame_ptr;
-    } catch (const std::bad_alloc &e) {
-      std::cerr << "SharedEngine Error: Failed to allocate frame memory - "
-                << e.what() << std::endl;
-      throw;
-    }*/
-    return nullptr;
-  }
-
-  // Libera a memória previamente alocada por allocate_frame_memory.
-  // Args:
-  //   frame_ptr: Ponteiro para a memória a ser liberada.
-  void free_frame_memory(Buffer *frame_ptr) {
-    if (frame_ptr != nullptr)
-      delete frame_ptr;
-  }
-
-  // Obtém informações da interface (MAC, índice) usando ioctl.
-  bool get_interface_info();
 
   // Recebe dados do socket raw.
   // Args:
@@ -148,17 +107,6 @@ public:
     empty.release();
 
     return buf->size();
-  }
-
-  // Configura o handler de sinal (SIGIO).
-  // Args:
-  //   func: Função que tratará o sinal.
-  void setupSignalHandler();
-
-  // Retorna o descritor do socket raw.
-  // Necessário para operações como ioctl na classe NIC.
-  int getSocketFd() const {
-    return _socket_raw;
   }
 
 public:
@@ -207,19 +155,10 @@ private:
     (typedObj->*handle_signal)();
   }
 
-  // Configura a recepção de sinais SIGIO para o socket.
-  void confSignalReception();
-
   // Socket é um inteiro pois seu valor representa um file descriptor
-  int _socket_raw;
   int _interface_index;
   const char *_interface_name;
   Ethernet::Address _address;
-
-  // Função estática para envelopar a função que tratará a interrupção
-  static void signalHandler([[maybe_unused]] int sig) {
-    sem_post(&(_self->_engineSemaphore));
-  }
 
   static void *obj;
   static void (*handler)(void *);

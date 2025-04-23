@@ -50,18 +50,13 @@ public:
 
     // Inicializa pool de buffers ----------------------------------------
 
-    try {
-      for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
-        // Cria buffers com a capacidade máxima definida
-        _send_buffer_pool[i] = Engine::allocate_frame_memory();
-      }
-      for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
-        // Cria buffers com a capacidade máxima definida
-        _recv_buffer_pool[i] = Engine::allocate_frame_memory();
-      }
-    } catch (const std::bad_alloc &e) {
-      perror("NIC Error: buffer pool alloc");
-      exit(EXIT_FAILURE);
+    for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
+      // Cria buffers com a capacidade máxima definida
+      _send_buffer_pool[i] = BufferNIC(Ethernet::MAX_FRAME_SIZE_NO_FCS);
+    }
+    for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
+      // Cria buffers com a capacidade máxima definida
+      _recv_buffer_pool[i] = BufferNIC(Ethernet::MAX_FRAME_SIZE_NO_FCS);
     }
 
     Engine::turnRecvOn();
@@ -71,12 +66,6 @@ public:
   ~NIC() {
     handle_sem.acquire();
     Engine::stopRecvThread();
-    for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
-      Engine::free_frame_memory(_send_buffer_pool[i]);
-    }
-    for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
-      Engine::free_frame_memory(_recv_buffer_pool[i]);
-    }
   }
 
   // Proibe cópia e atribuição para evitar problemas com ponteiros e estado.
@@ -92,23 +81,23 @@ public:
     unsigned int last_used_buffer =
         send ? last_used_send_buffer : last_used_recv_buffer;
     unsigned int buffer_size_l = send ? SEND_BUFFERS : RECEIVE_BUFFERS;
-    BufferNIC **buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
+    BufferNIC *buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
 
     for (unsigned int j = 0; j < buffer_size_l; ++j) {
       int i = (last_used_buffer + j) % buffer_size_l;
-      if (!buffer_pool[i]->is_in_use()) {
+      if (!buffer_pool[i].is_in_use()) {
         last_used_buffer = i;
-        buffer_pool[i]->mark_in_use();
+        buffer_pool[i].mark_in_use();
         // Mínimo de 60 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
         // Tamanho minimo do quadro ethernet e 64 bytes, porem nao incluimos fcs
         // assim resultando em apenas 60 bytes
-        buffer_pool[i]->setMaxSize(
+        buffer_pool[i].setMaxSize(
             maxSize < Ethernet::MIN_FRAME_SIZE
                 ? Ethernet::MIN_FRAME_SIZE
                 : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
                        ? Ethernet::MAX_FRAME_SIZE_NO_FCS
                        : maxSize));
-        return buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
+        return &buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
       }
     }
 // Se nenhum buffer livre foi encontrado
@@ -232,8 +221,8 @@ public:
   Statistics _statistics; // Estatísticas de rede
 
   // Pool de Buffers
-  BufferNIC *_send_buffer_pool[SEND_BUFFERS];
-  BufferNIC *_recv_buffer_pool[RECEIVE_BUFFERS];
+  BufferNIC _send_buffer_pool[SEND_BUFFERS];
+  BufferNIC _recv_buffer_pool[RECEIVE_BUFFERS];
   unsigned int last_used_send_buffer;
   unsigned int last_used_recv_buffer;
   std::binary_semaphore handle_sem{ 1 };

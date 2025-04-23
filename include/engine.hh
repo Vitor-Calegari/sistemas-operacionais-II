@@ -159,34 +159,6 @@ public:
     return send_len;
   }
 
-  // Aloca memória bruta para um frame Ethernet.
-  // Retorna: Ponteiro para a memória alocada (do tipo Ethernet::Frame*).
-  // Lança exceção em caso de falha.
-  // (Implementação atual usa 'new', futuras podem usar memória compartilhada)
-  Buffer *allocate_frame_memory() {
-    /*try {
-      // Aloca e retorna ponteiro para um Ethernet::Frame.
-      Buffer *frame_ptr =
-          new Buffer<Ethernet::Frame>(Ethernet::MAX_FRAME_SIZE_NO_FCS);
-      frame_ptr->data()->clear();
-      return frame_ptr;
-    } catch (const std::bad_alloc &e) {
-      std::cerr << "Engine Error: Failed to allocate frame memory - " <<
-    e.what()
-                << std::endl;
-      throw;
-    }*/
-    return nullptr;
-  }
-
-  // Libera a memória previamente alocada por allocate_frame_memory.
-  // Args:
-  //   frame_ptr: Ponteiro para a memória a ser liberada.
-  void free_frame_memory(Buffer *frame_ptr) {
-    if (frame_ptr != nullptr)
-      delete frame_ptr;
-  }
-
   // Obtém informações da interface (MAC, índice) usando ioctl.
   bool get_interface_info() {
     struct ifreq ifr;
