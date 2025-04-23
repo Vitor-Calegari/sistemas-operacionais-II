@@ -26,7 +26,7 @@ class SharedEngine {
 
 public:
   // Construtor: Cria e configura o socket raw.
-  SharedEngine(const char *interface_name, int buffer_size);
+  SharedEngine(const char *interface_name);
 
   // Destrutor: Fecha o socket.
   ~SharedEngine();
