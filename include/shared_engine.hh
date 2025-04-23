@@ -87,10 +87,7 @@ public:
   // Recebe dados do socket raw.
   // Args:
   //   buf: Referência a um Buffer onde os dados recebidos serão armazenados. O
-  //   buffer deve ser pré-alocado com capacidade suficiente. sender_addr:
-  //   Referência a uma estrutura sockaddr_ll onde o endereço do remetente será
-  //   armazenado. sender_addr_len: Referência ao tamanho da estrutura de
-  //   endereço do remetente (entrada/saída).
+  //   buffer deve ser pré-alocado com capacidade suficiente.
   // Returns:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
@@ -162,7 +159,6 @@ private:
 
   static void *obj;
   static void (*handler)(void *);
-
   static SharedEngine *_self;
 
   // ---- Controle da thread de recepcao ----
