@@ -40,7 +40,7 @@ public:
   typedef Buffer<Ethernet::Frame> BufferNIC;
 
   // Args:
-  //   interface_name: Nome da interface de rede (ex: "eth0", "lo").
+  //   interface_name: Nome da interface de rede (ex: "eth0").
   NIC(const char *interface_name)
       : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1),
         last_used_recv_buffer(RECEIVE_BUFFERS - 1) {
