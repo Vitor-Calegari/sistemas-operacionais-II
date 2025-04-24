@@ -69,20 +69,20 @@ public:
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
   int send(Buffer *buf) {
-    if (buf == nullptr) {
-      return -1; // Validação básica
+    bool acquired = empty.try_acquire();
+    if (acquired) {
+      buffer_sem.acquire();
+
+      eth_buf.push(*buf);
+  
+      buffer_sem.release();
+      full.release();
+  
+      sem_post(&(_self->_engineSemaphore));
+      return eth_buf.front().size();
+    } else {
+      return -1;
     }
-
-    empty.acquire();
-    buffer_sem.acquire();
-
-    eth_buf.push(*buf);
-
-    buffer_sem.release();
-    full.release();
-
-    sem_post(&(_self->_engineSemaphore));
-    return eth_buf.front().size();
   }
 
   // Recebe dados do socket raw.
@@ -93,18 +93,21 @@ public:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
   int receive(Buffer *buf) {
-    full.acquire();
-    buffer_sem.acquire();
+    bool acquired = full.try_acquire();
+    if (acquired) {
+      buffer_sem.acquire();
 
-    auto &cur_buf = eth_buf.front();
-    std::memcpy(buf->data(), cur_buf.data(), cur_buf.size());
-    buf->setSize(cur_buf.size());
-    eth_buf.pop();
-
-    buffer_sem.release();
-    empty.release();
-
-    return buf->size();
+      auto &cur_buf = eth_buf.front();
+      std::memcpy(buf->data(), cur_buf.data(), cur_buf.size());
+      buf->setSize(cur_buf.size());
+      eth_buf.pop();
+  
+      buffer_sem.release();
+      empty.release();
+      return buf->size();
+    } else {
+      return -1;
+    }
   }
 
 public:
