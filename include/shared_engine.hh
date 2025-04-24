@@ -97,7 +97,7 @@ public:
     buffer_sem.acquire();
 
     auto &cur_buf = eth_buf.front();
-    std::copy(cur_buf.data(), cur_buf.data() + cur_buf.size(), buf->data());
+    std::memcpy(buf->data(), cur_buf.data(), cur_buf.size());
     buf->setSize(cur_buf.size());
     eth_buf.pop();
 
