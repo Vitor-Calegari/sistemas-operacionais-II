@@ -65,7 +65,7 @@ public:
   // Destrutor
   ~NIC() {
     handle_sem.acquire();
-    Engine::stopRecvThread();
+    Engine::stopRecv();
   }
 
   // Proibe cópia e atribuição para evitar problemas com ponteiros e estado.

@@ -248,7 +248,7 @@ public:
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
 
-  void stopRecvThread() {
+  void stopRecv() {
     pthread_mutex_lock(&_threadStopMutex);
     _thread_running = 0;
     pthread_mutex_unlock(&_threadStopMutex);

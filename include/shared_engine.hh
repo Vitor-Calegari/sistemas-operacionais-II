@@ -31,13 +31,8 @@ public:
 
   // Construtor: Cria e configura o socket raw.
   SharedEngine(const char *interface_name)
-      : empty(1024), _interface_name(interface_name), _thread_running(true) {
+      : empty(1024), _interface_name(interface_name) {
     _self = this;
-
-    if (sem_init(&_engineSemaphore, 0, 0) != 0) {
-      perror("sem_init");
-      exit(EXIT_FAILURE);
-    }
 
 #ifdef DEBUG
     // Print Debug -------------------------------------------------------
@@ -48,15 +43,6 @@ public:
 
   // Destrutor: Fecha o socket.
   ~SharedEngine() {
-    if (sem_destroy(&_engineSemaphore) != 0) {
-      perror("sem_destroy");
-      exit(EXIT_FAILURE);
-    }
-
-    if (recvThread.joinable()) {
-      recvThread.join();
-    }
-
 #ifdef DEBUG
     std::cout << "SharedEngine for interface " << _interface_name
               << " destroyed." << std::endl;
@@ -72,13 +58,16 @@ public:
     bool acquired = empty.try_acquire();
     if (acquired) {
       buffer_sem.acquire();
-
       eth_buf.push(*buf);
-  
       buffer_sem.release();
       full.release();
-  
-      sem_post(&(_self->_engineSemaphore));
+
+      if (obj == nullptr) {
+        perror("Handler not binded");
+        exit(EXIT_FAILURE);
+      }
+
+      _self->handler(_self->obj);
       return eth_buf.front().size();
     } else {
       return -1;
@@ -121,25 +110,12 @@ public:
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
 
-  void stopRecvThread() {
-    pthread_mutex_lock(&_threadStopMutex);
-    _thread_running = 0;
-    pthread_mutex_unlock(&_threadStopMutex);
-    sem_post(&_engineSemaphore);
+  void stopRecv() {
+    return;
   }
 
   void turnRecvOn() {
-    recvThread = std::thread([this]() {
-      while (1) {
-        sem_wait(&_engineSemaphore);
-        pthread_mutex_lock(&_threadStopMutex);
-        if (!_thread_running) {
-          break;
-        }
-        pthread_mutex_unlock(&_threadStopMutex);
-        _self->handler(_self->obj);
-      }
-    });
+    return;
   }
 
 private:
@@ -164,12 +140,6 @@ private:
   static void *obj;
   static void (*handler)(void *);
   static SharedEngine *_self;
-
-  // ---- Controle da thread de recepcao ----
-  std::thread recvThread;
-  bool _thread_running;
-  sem_t _engineSemaphore;
-  pthread_mutex_t _threadStopMutex = PTHREAD_MUTEX_INITIALIZER;
 };
 
 template <typename Buffer>
