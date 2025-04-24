@@ -2,6 +2,7 @@
 #define ENGINE_HH
 
 #include <cerrno>
+#include <condition_variable>
 #include <csignal>
 #include <cstdio>
 #include <cstring>
@@ -10,6 +11,7 @@
 #include <iostream>
 #include <linux/filter.h>
 #include <linux/if_packet.h>
+#include <mutex>
 #include <net/if.h>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
@@ -29,7 +31,8 @@ class Engine {
 public:
   // Construtor: Cria e configura o socket raw.
   Engine(const char *interface_name)
-      : _interface_name(interface_name), _thread_running(true) {
+      : _interface_name(interface_name), _thread_running(true),
+        engine_lock(engine_lock_mutex) {
     _self = this;
     // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
     // SOCK_RAW para criar um raw socket
@@ -91,11 +94,6 @@ public:
       exit(EXIT_FAILURE);
     }
 
-    if (sem_init(&_engineSemaphore, 0, 0) != 0) {
-      perror("sem_init");
-      exit(EXIT_FAILURE);
-    }
-
 #ifdef DEBUG
     // Print Debug -------------------------------------------------------
 
@@ -110,11 +108,6 @@ public:
 
   // Destrutor: Fecha o socket.
   ~Engine() {
-    if (sem_destroy(&_engineSemaphore) != 0) {
-      perror("sem_destroy");
-      exit(EXIT_FAILURE);
-    }
-
     if (recvThread.joinable()) {
       recvThread.join();
     }
@@ -259,13 +252,17 @@ public:
     pthread_mutex_lock(&_threadStopMutex);
     _thread_running = 0;
     pthread_mutex_unlock(&_threadStopMutex);
-    sem_post(&_engineSemaphore);
+
+    if (engine_lock.owns_lock()) {
+      engine_lock.unlock();
+    }
+    engine_cond.notify_one();
   }
 
   void turnRecvOn() {
     recvThread = std::thread([this]() {
-      while (1) {
-        sem_wait(&_engineSemaphore);
+      while (true) {
+        engine_cond.wait(engine_lock);
         pthread_mutex_lock(&_threadStopMutex);
         if (!_thread_running) {
           break;
@@ -326,7 +323,10 @@ private:
 
   // Função estática para envelopar a função que tratará a interrupção
   static void signalHandler([[maybe_unused]] int sig) {
-    sem_post(&(_self->_engineSemaphore));
+    if (_self->engine_lock.owns_lock()) {
+      _self->engine_lock.unlock();
+    }
+    _self->engine_cond.notify_one();
   }
 
   static void *obj;
@@ -337,7 +337,9 @@ private:
   // ---- Controle da thread de recepcao ----
   std::thread recvThread;
   bool _thread_running;
-  sem_t _engineSemaphore;
+  std::condition_variable engine_cond;
+  std::mutex engine_lock_mutex;
+  std::unique_lock<std::mutex> engine_lock;
   pthread_mutex_t _threadStopMutex = PTHREAD_MUTEX_INITIALIZER;
 };
 
