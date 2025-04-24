@@ -41,7 +41,8 @@ public:
 
 #ifdef DEBUG
     // Print Debug -------------------------------------------------------
-    std::cout << "SharedEngine initialized for interface " << _interface_name << std::endl;
+    std::cout << "SharedEngine initialized for interface " << _interface_name
+              << std::endl;
 #endif
   }
 
@@ -75,13 +76,13 @@ public:
     empty.acquire();
     buffer_sem.acquire();
 
-    eth_buf.push(buf);
+    eth_buf.push(*buf);
 
     buffer_sem.release();
     full.release();
 
     sem_post(&(_self->_engineSemaphore));
-    return eth_buf.front()->size();
+    return eth_buf.front().size();
   }
 
   // Recebe dados do socket raw.
@@ -95,10 +96,10 @@ public:
     full.acquire();
     buffer_sem.acquire();
 
-    auto cur_buf = eth_buf.front();
+    auto &cur_buf = eth_buf.front();
+    std::copy(cur_buf.data(), cur_buf.data() + cur_buf.size(), buf->data());
+    buf->setSize(cur_buf.size());
     eth_buf.pop();
-
-    std::copy(cur_buf, cur_buf + cur_buf->size(), buf);
 
     buffer_sem.release();
     empty.release();
@@ -143,7 +144,7 @@ private:
   std::counting_semaphore<> full{ 0 };
   std::counting_semaphore<> empty;
 
-  std::queue<Buffer *> eth_buf;
+  std::queue<Buffer> eth_buf;
   size_t eth_buf_idx = BUFFER_SIZE - 1;
 
   template <typename T, void (T::*handle_signal)()>
