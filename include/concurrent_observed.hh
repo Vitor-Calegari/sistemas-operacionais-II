@@ -19,14 +19,17 @@ public:
   ~Concurrent_Observed() = default;
 
   void attach(Concurrent_Observer<D, C> *o, C c) {
+    std::lock_guard<std::mutex> lock(_mutex);
     _observers.insert(o, c);
   }
 
   void detach(Concurrent_Observer<D, C> *o, C c) {
+    std::lock_guard<std::mutex> lock(_mutex);
     _observers.remove(o, c);
   }
 
   bool notify(C c, D *d) {
+    std::lock_guard<std::mutex> lock(_mutex);
     bool notified = false;
 
     for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
@@ -41,6 +44,7 @@ public:
 
 private:
   Observers _observers;
+  std::mutex _mutex{};
 };
 
 #endif

@@ -16,15 +16,18 @@ public:
 
 public:
   virtual void attach(Observer *o, Condition c) {
+    std::lock_guard<std::mutex> lock(_mutex);
     _observers.insert(o, c);
   }
 
   virtual void detach(Observer *o, Condition c) {
+    std::lock_guard<std::mutex> lock(_mutex);
     _observers.remove(o, c);
   }
 
   virtual bool notify(Condition c, Observed_Data *d) {
     bool notified = false;
+    std::lock_guard<std::mutex> lock(_mutex);
 
     for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
       if (obs->rank() == c) {
@@ -35,8 +38,9 @@ public:
 
     return notified;
   }
-
-private:
+  
+  private:
+  std::mutex _mutex{};
   Observers _observers;
 };
 
@@ -48,28 +52,32 @@ public:
   using Observer = Conditional_Data_Observer<T, void>;
   using Observed_Data = T;
 
-public:
+  // Default constructor initializes _mutex automatically.
+  Conditionally_Data_Observed() = default;
+
   virtual void attach(Observer *o) {
+    std::lock_guard<std::mutex> lock(_mutex);
     _observers.push_front(o);
   }
 
   virtual void detach(Observer *o) {
+    std::lock_guard<std::mutex> lock(_mutex);
     _observers.remove(o);
   }
 
   virtual bool notify(Observed_Data *d) {
     bool notified = false;
-
+    std::lock_guard<std::mutex> lock(_mutex);
     for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
-      obs->value()->update(this, d);
+      (*obs)->update(this, d);
       notified = true;
     }
-
     return notified;
   }
 
 private:
-  std::forward_list<Observer> _observers;
-};
+  std::forward_list<Observer*> _observers;
+  std::mutex _mutex{};
+};;
 
 #endif
