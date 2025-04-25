@@ -94,6 +94,7 @@ public:
       exit(EXIT_FAILURE);
     }
 
+    turnRecvOn();
 #ifdef DEBUG
     // Print Debug -------------------------------------------------------
 
@@ -108,6 +109,7 @@ public:
 
   // Destrutor: Fecha o socket.
   ~Engine() {
+    stopRecv();
     if (recvThread.joinable()) {
       recvThread.join();
     }
@@ -247,7 +249,7 @@ public:
     _self->obj = obj;
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
-
+private:
   void stopRecv() {
     pthread_mutex_lock(&_threadStopMutex);
     _thread_running = 0;
@@ -262,7 +264,10 @@ public:
   void turnRecvOn() {
     recvThread = std::thread([this]() {
       while (true) {
-        engine_cond.wait(engine_lock);
+        engine_cond.wait(engine_lock, [this]() {
+          // Só desbloqueia se o bind já aconteceu
+          return obj != nullptr;
+        });
         pthread_mutex_lock(&_threadStopMutex);
         if (!_thread_running) {
           break;
@@ -273,7 +278,6 @@ public:
     });
   }
 
-private:
   template <typename T, void (T::*handle_signal)()>
   static void handlerWrapper(void *obj) {
     T *typedObj = static_cast<T *>(obj);

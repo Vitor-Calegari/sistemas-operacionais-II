@@ -44,29 +44,22 @@ public:
   NIC(const char *interface_name)
       : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1),
         last_used_recv_buffer(RECEIVE_BUFFERS - 1) {
-    // Setup Handler -----------------------------------------------------
-
-    Engine::template bind<NIC<Engine>, &NIC<Engine>::handle_signal>(this);
-
+          
     // Inicializa pool de buffers ----------------------------------------
-
+    // Cria buffers com a capacidade máxima definida
     for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
-      // Cria buffers com a capacidade máxima definida
       _send_buffer_pool[i] = BufferNIC(Ethernet::MAX_FRAME_SIZE_NO_FCS);
     }
     for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
-      // Cria buffers com a capacidade máxima definida
       _recv_buffer_pool[i] = BufferNIC(Ethernet::MAX_FRAME_SIZE_NO_FCS);
     }
 
-    Engine::turnRecvOn();
+    // Setup Handler -----------------------------------------------------
+    Engine::template bind<NIC<Engine>, &NIC<Engine>::handle_signal>(this);
   }
 
   // Destrutor
-  ~NIC() {
-    handle_sem.acquire();
-    Engine::stopRecv();
-  }
+  ~NIC() {}
 
   // Proibe cópia e atribuição para evitar problemas com ponteiros e estado.
   NIC(const NIC &) = delete;
@@ -166,7 +159,6 @@ public:
 
   // Método membro que processa o sinal (chamado pelo handler estático)
   void handle_signal() {
-    handle_sem.acquire();
     int bytes_received = 0;
     do {
       // 1. Alocar um buffer para recepção.
@@ -215,7 +207,6 @@ public:
         free(buf);
       }
     } while (bytes_received > 0);
-    handle_sem.release();
   }
   std::mutex alloc_mtx{};
   // --- Membros ---
@@ -226,7 +217,6 @@ public:
   BufferNIC _recv_buffer_pool[RECEIVE_BUFFERS];
   unsigned int last_used_send_buffer;
   unsigned int last_used_recv_buffer;
-  std::binary_semaphore handle_sem{ 1 };
 };
 
 #endif // NIC_HH
