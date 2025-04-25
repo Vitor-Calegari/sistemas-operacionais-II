@@ -76,6 +76,7 @@ public:
   // Retorna: Ponteiro para um Buffer livre, ou nullptr se o pool estiver
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
   BufferNIC *alloc(unsigned int size, int send) {
+    std::lock_guard<std::mutex> lock(alloc_mtx);
     unsigned int maxSize = Ethernet::HEADER_SIZE + size;
 
     unsigned int last_used_buffer =
@@ -216,7 +217,7 @@ public:
     } while (bytes_received > 0);
     handle_sem.release();
   }
-
+  std::mutex alloc_mtx{};
   // --- Membros ---
   Statistics _statistics; // Estatísticas de rede
 
