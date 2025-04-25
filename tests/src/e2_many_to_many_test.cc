@@ -3,6 +3,7 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include <array>
 #include <cassert>
 #include <csignal>
 #include <cstddef>
@@ -12,7 +13,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// constexpr int NUM_THREADS = 15;
+constexpr int NUM_THREADS = 3;
 constexpr int NUM_MESSAGES_PER_THREAD = 100;
 constexpr int MESSAGE_SIZE = 5;
 
@@ -36,65 +37,70 @@ int main() {
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
-  pid_t parent = fork();
-  if (!parent) {
-    SocketNIC rsnic(INTERFACE_NAME);
-    SharedMemNIC smnic(INTERFACE_NAME);
-    Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  SocketNIC rsnic(INTERFACE_NAME);
+  SharedMemNIC smnic(INTERFACE_NAME);
+  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
 
-    auto send_task = [&](const int thread_id) {
-      Communicator communicator(&prot, 1);
-      for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
-        Message msg = Message(communicator.addr(),
-                              Protocol::Address(rsnic.address(), getpid(), 2),
-                              MESSAGE_SIZE);
-        memset(msg.data(), 0, MESSAGE_SIZE);
+  auto send_task = [&](const int thread_id) {
+    Communicator communicator(&prot, 1);
+    for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
+      Message msg = Message(communicator.addr(),
+                            Protocol::Address(rsnic.address(), getpid(), 2),
+                            MESSAGE_SIZE);
+      memset(msg.data(), 0, MESSAGE_SIZE);
 
-        if (communicator.send(&msg)) {
-          sleep(0);
-          std::cout << "Thread (" << thread_id << "): Sending (" << std::dec
-                    << j << "): ";
-          for (size_t j = 0; j < msg.size(); j++) {
-            msg.data()[j] = std::byte(randint(0, 255));
-            std::cout << std::hex << static_cast<int>(msg.data()[j]) << " ";
-          }
-          std::cout << std::endl;
-          j++;
-        }
+      for (size_t j = 0; j < msg.size(); j++) {
+        msg.data()[j] = std::byte(randint(0, 255));
       }
-    };
 
-    auto receive_task = [&](const int thread_id) {
-      Communicator communicator(&prot, 2);
-      Message msg(MESSAGE_SIZE);
-
-      for (int j = 0; j < NUM_MESSAGES_PER_THREAD; j++) {
-        memset(msg.data(), 0, MESSAGE_SIZE);
-        if (!communicator.receive(&msg)) {
-          std::cerr << "Erro ao receber mensagem no processo " << getpid()
-                    << std::endl;
-          exit(1);
-        } else {
-          std::cout << "Thread (" << thread_id << "): Received (" << std::dec
-                    << j << "): ";
-          for (size_t i = 0; i < msg.size(); i++) {
-            std::cout << std::hex << static_cast<int>(msg.data()[i]) << " ";
-          }
-          std::cout << std::endl;
+      if (communicator.send(&msg)) {
+        std::cout << "Thread (" << thread_id << "): Sending (" << std::dec << j
+                  << "): ";
+        std::cout.flush();
+        for (size_t j = 0; j < msg.size(); ++j) {
+          std::cout << std::hex << static_cast<int>(msg.data()[j]) << " ";
+          std::cout.flush();
         }
+        std::cout << std::endl;
+        sleep(0);
+        j++;
       }
-    };
+    }
+  };
 
-    std::thread sender_thread(send_task, 0);
-    std::thread receiver_thread(receive_task, 1);
+  auto receive_task = [&](const int thread_id) {
+    Communicator communicator(&prot, 2);
+    Message msg(MESSAGE_SIZE);
 
-    sender_thread.join();
-    receiver_thread.join();
-    exit(0);
+    for (int j = 0; j < NUM_MESSAGES_PER_THREAD; j++) {
+      memset(msg.data(), 0, MESSAGE_SIZE);
+      if (!communicator.receive(&msg)) {
+        std::cerr << "Erro ao receber mensagem na thread " << thread_id
+                  << std::endl;
+        exit(1);
+      } else {
+        std::cout << "Thread (" << thread_id << "): Received (" << std::dec << j
+                  << "): ";
+        for (size_t i = 0; i < msg.size(); i++) {
+          std::cout << std::hex << static_cast<int>(msg.data()[i]) << " ";
+        }
+        std::cout << std::endl;
+      }
+    }
+  };
+
+  std::array<std::thread, NUM_THREADS> send_threads;
+  std::array<std::thread, NUM_THREADS> receive_threads;
+  for (int i = 0; i < NUM_THREADS; ++i) {
+    send_threads[i] = std::thread(send_task, i);
+    receive_threads[i] = std::thread(receive_task, i + NUM_THREADS);
+    sleep(2);
   }
 
-  int status;
-  wait(&status);
+  for (int i = 0; i < NUM_THREADS; ++i) {
+    send_threads[i].join();
+    receive_threads[i].join();
+  }
 
   return 0;
 }
