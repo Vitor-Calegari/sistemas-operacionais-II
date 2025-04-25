@@ -44,9 +44,10 @@ int main() {
   auto send_task = [&](const int thread_id) {
     Communicator communicator(&prot, thread_id);
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
-      Message msg = Message(communicator.addr(),
-                            Protocol::Address(rsnic.address(), getpid(), 2),
-                            MESSAGE_SIZE);
+      Message msg = Message(
+          communicator.addr(),
+          Protocol::Address(rsnic.address(), getpid(), thread_id + NUM_THREADS),
+          MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
 
       for (size_t j = 0; j < msg.size(); j++) {
