@@ -1,26 +1,13 @@
 #ifndef SHARED_ENGINE_HH
 #define SHARED_ENGINE_HH
 
-#include <algorithm>
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 
-#include <arpa/inet.h>
-#include <linux/filter.h>
-#include <linux/if_packet.h>
-#include <net/if.h>
-#include <netinet/if_ether.h>
-#include <netinet/in.h>
 #include <queue>
-#include <semaphore.h>
 #include <semaphore>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <thread>
-
-#include <fcntl.h>
 
 #include "ethernet.hh"
 
