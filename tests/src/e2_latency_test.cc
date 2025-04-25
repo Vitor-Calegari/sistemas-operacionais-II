@@ -22,7 +22,7 @@ const size_t MESSAGE_SIZE = 256;
 const int timeout_sec = 10;
 
 #ifndef INTERFACE_NAME
-#define INTERFACE_NAME "enxf8e43bf0c430"
+#define INTERFACE_NAME "lo"
 #endif
 
 int main() {

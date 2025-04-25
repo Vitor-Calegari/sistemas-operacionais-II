@@ -9,15 +9,15 @@ int main(int argc, char *argv[]) {
   }
   const int send = atoi(argv[1]);
 
-  NIC<Engine> nic = NIC<Engine>("lo");
+  NIC<Engine<Buffer<Ethernet::Frame>>> nic = NIC<Engine<Buffer<Ethernet::Frame>>>("lo");
 
   if (send) {
     for (int i = 0; i < 10; i++) {
       Ethernet::Address dest = Ethernet::Address(Ethernet::BROADCAST_ADDRESS);
       unsigned char data[5] = { 0xAA, 0xBB, 0xCC, 0xDD, 0xFF };
 
-      Buffer<Ethernet::Frame> *buf = nic.alloc(dest, htons(ETH_P_802_EX1), 64);
-      memcpy(buf->data()->data, data, 5);
+      Buffer<Ethernet::Frame> *buf = nic.alloc(64, 1);
+      memcpy(buf->data()->template data<unsigned char>(), data, 5);
       buf->setSize(buf->size() + 5);
 
       nic.send(buf);

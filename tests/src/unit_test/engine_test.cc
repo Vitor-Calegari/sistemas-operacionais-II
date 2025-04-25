@@ -12,13 +12,13 @@
 
 const auto INTERFACE_NAME = "enxf8e43bf0c430";
 
-Engine engine = Engine(INTERFACE_NAME);
+Engine<Buffer<Ethernet::Frame>> engine = Engine<Buffer<Ethernet::Frame>>(INTERFACE_NAME);
 
 typedef Buffer<Ethernet::Frame> EthFrame;
 
 class Handler {
 public:
-  Engine * engine;
+  Engine<Buffer<Ethernet::Frame>> * engine;
 
   void handle_signal() {
     int recv_len = 0;
@@ -28,10 +28,7 @@ public:
     
       EthFrame *buf = new EthFrame(1522);
     
-      struct sockaddr_ll saddr;
-      socklen_t saddrlen;
-    
-      recv_len = engine->receive(buf, saddr, saddrlen);
+      recv_len = engine->receive(buf);
       
       if (recv_len > 0) {
         printEth(buf);
@@ -77,11 +74,11 @@ void get_mac(EthFrame *buf, ifreq ifreq_c, int sock_raw) {
 }
 
 void get_data(EthFrame *buf) {
-  buf->data()->data[0] = 0xAA;
-  buf->data()->data[0 + 1] = 0xBB;
-  buf->data()->data[0 + 2] = 0xCC;
-  buf->data()->data[0 + 3] = 0xDD;
-  buf->data()->data[0 + 4] = 0xEE;
+  buf->data()->template data<unsigned char>()[0] = 0xAA;
+  buf->data()->template data<unsigned char>()[0 + 1] = 0xBB;
+  buf->data()->template data<unsigned char>()[0 + 2] = 0xCC;
+  buf->data()->template data<unsigned char>()[0 + 3] = 0xDD;
+  buf->data()->template data<unsigned char>()[0 + 4] = 0xEE;
   buf->setSize(buf->size() + 5);
 }
 

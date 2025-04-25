@@ -31,13 +31,13 @@ int main() {
   const char *payload = "Teste de frame Ethernet";
   size_t payloadSize =
       std::min((size_t)Ethernet::MTU, std::strlen(payload) + 1);
-  std::memcpy(frame.data, payload, payloadSize);
+  std::memcpy(frame.template data<unsigned char>(), payload, payloadSize);
 
   outfile << "Frame criado:\n";
   outfile << "  Origem: addr1\n";
   outfile << "  Destino: addrDefault\n";
   outfile << "  Protocolo: 0x" << std::hex << frame.prot << std::dec << "\n";
-  outfile << "  Payload: " << frame.data << "\n";
+  outfile << "  Payload: " << frame.template data<unsigned char>() << "\n";
 
   outfile.close();
   return 0;

@@ -31,7 +31,7 @@ class Engine {
 public:
   // Construtor: Cria e configura o socket raw.
   Engine(const char *interface_name)
-      : _interface_name(interface_name), _thread_running(true),
+      : _interface_name(interface_name), newMessage(false), _thread_running(true),
         engine_lock(engine_lock_mutex) {
     _self = this;
     // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
@@ -251,14 +251,15 @@ public:
   }
 private:
   void stopRecv() {
+    if (engine_lock.owns_lock()) {
+      engine_lock.unlock();
+    }
+    newMessage = true;
+    engine_cond.notify_one();
     pthread_mutex_lock(&_threadStopMutex);
     _thread_running = 0;
     pthread_mutex_unlock(&_threadStopMutex);
 
-    if (engine_lock.owns_lock()) {
-      engine_lock.unlock();
-    }
-    engine_cond.notify_one();
   }
 
   void turnRecvOn() {
@@ -266,7 +267,7 @@ private:
       while (true) {
         engine_cond.wait(engine_lock, [this]() {
           // Só desbloqueia se o bind já aconteceu
-          return obj != nullptr;
+          return obj != nullptr && newMessage;
         });
         pthread_mutex_lock(&_threadStopMutex);
         if (!_thread_running) {
@@ -274,6 +275,7 @@ private:
         }
         pthread_mutex_unlock(&_threadStopMutex);
         _self->handler(_self->obj);
+        newMessage = false;
       }
     });
   }
@@ -327,6 +329,7 @@ private:
 
   // Função estática para envelopar a função que tratará a interrupção
   static void signalHandler([[maybe_unused]] int sig) {
+    _self->newMessage = true;
     if (_self->engine_lock.owns_lock()) {
       _self->engine_lock.unlock();
     }
@@ -339,6 +342,7 @@ private:
   static Engine *_self;
 
   // ---- Controle da thread de recepcao ----
+  bool newMessage;
   std::thread recvThread;
   bool _thread_running;
   std::condition_variable engine_cond;

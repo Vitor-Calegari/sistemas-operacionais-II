@@ -1,4 +1,5 @@
 #include "engine.hh"
+#include "shared_engine.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include <iostream>
@@ -10,19 +11,25 @@ int main(int argc, char *argv[]) {
   }
   const int send = atoi(argv[1]);
 
-  NIC<Engine> nic = NIC<Engine>("lo");
+  using Buffer = Buffer<Ethernet::Frame>;
+  using SocketNIC = NIC<Engine<Buffer>>;
+  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
 
-  Protocol<NIC<Engine>> *prot = Protocol<NIC<Engine>>::getInstance(&nic);
+  SocketNIC rsnic = SocketNIC("lo");
+  SharedMemNIC smnic = SharedMemNIC("lo");
+
+  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
 
   if (send) {
     for (int i = 0; i < 10; i++) {
-      Protocol<NIC<Engine>>::Address dest =
-          Protocol<NIC<Engine>>::Address(Ethernet::BROADCAST_ADDRESS, 10);
+      Protocol::Address dest =
+          Protocol::Address(Ethernet::BROADCAST_ADDRESS, getpid(), 10);
       unsigned char data[5] = { 0xAA, 0xBB, 0xCC, 0xDD, 0xFF };
 
-      Protocol<NIC<Engine>>::Address from =
-          Protocol<NIC<Engine>>::Address(Ethernet::Address(), 10);
-      prot->send(from, dest, data, 5);
+      Protocol::Address from =
+          Protocol::Address(Ethernet::Address(), getpid(), 10);
+      prot.send(from, dest, data, 5);
     }
   } else {
     while (1) {
