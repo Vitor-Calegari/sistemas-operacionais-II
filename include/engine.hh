@@ -251,23 +251,22 @@ public:
   }
 private:
   void stopRecv() {
-    if (engine_lock.owns_lock()) {
-      engine_lock.unlock();
-    }
-    newMessage = true;
-    engine_cond.notify_one();
     pthread_mutex_lock(&_threadStopMutex);
     _thread_running = 0;
     pthread_mutex_unlock(&_threadStopMutex);
-
+    if (engine_lock.owns_lock()) {
+      engine_lock.unlock();
+    }
+    engine_cond.notify_one();
   }
 
   void turnRecvOn() {
     recvThread = std::thread([this]() {
       while (true) {
         engine_cond.wait(engine_lock, [this]() {
-          // Só desbloqueia se o bind já aconteceu
-          return obj != nullptr && newMessage;
+          // Só desbloqueia se o bind já aconteceu e chegou uma nova mensagem
+          // Ou se a thread deve parar de executar
+          return (obj != nullptr && newMessage) || !_thread_running;
         });
         pthread_mutex_lock(&_threadStopMutex);
         if (!_thread_running) {
@@ -330,9 +329,6 @@ private:
   // Função estática para envelopar a função que tratará a interrupção
   static void signalHandler([[maybe_unused]] int sig) {
     _self->newMessage = true;
-    if (_self->engine_lock.owns_lock()) {
-      _self->engine_lock.unlock();
-    }
     _self->engine_cond.notify_one();
   }
 

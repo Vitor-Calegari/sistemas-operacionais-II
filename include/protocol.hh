@@ -25,7 +25,9 @@ public:
   typedef unsigned short Port;
 
   typedef Conditional_Data_Observer<Buffer, Port> Observer;
-  typedef Conditionally_Data_Observed<Buffer, Port> Observed;
+  typedef Concurrent_Observed<Buffer, Port> Observed;
+
+  static const Port BROADCAST;
 
   // Endereço do protocolo: combinação de endereço físico e porta
   class Address {
@@ -61,7 +63,6 @@ public:
     Port _port;
   } __attribute__((packed));
 
-  static const Address BROADCAST;
 
   // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo,
   // etc.)
@@ -140,7 +141,7 @@ public:
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
     buf->data()->src = from.getPAddr();
-    buf->data()->dst = BROADCAST.getPAddr();  // Sempre broadcast
+    buf->data()->dst = SocketNIC::BROADCAST_ADDRESS;  // Sempre broadcast
     buf->data()->prot = PROTO;
     // Payload do Ethernet::Frame é o Protocol::Packet
     Packet *pkt = buf->data()->template data<Packet>();
@@ -203,7 +204,6 @@ public:
     } else {
       return _rsnic->send(buf);
     }
-
   }
 
   // Recebe uma mensagem:
@@ -238,18 +238,39 @@ private:
     Port port = pkt->header()->dest.getPort();
     if (pkt->header()->dest.getSysID() != _sysID) {
       _rsnic->free(buf);
-    } else if (!this->notify(port, buf)) {
-      if (pkt->header()->origin.getSysID() == _sysID) {
+      return;
+    }
+
+    if (pkt->header()->origin.getSysID() == _sysID) {  // SharedMemNIC
+      if (pkt->header()->dest.getPort() == BROADCAST) {  // Broadcast
+        std::vector<Port> allComPorts = Observed::getObservsCond();
+        Buffer * broadcastBuf;
+        for (auto port : allComPorts) {
+          broadcastBuf = _smnic->alloc(buf->size(), 0);
+          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+          broadcastBuf->setSize(buf->size());
+          if (!this->notify(port, broadcastBuf)) {
+            _smnic->free(broadcastBuf);
+          }
+        }
+      } else if (!this->notify(port, buf)) {  // Unicast
         _smnic->free(buf);
-      } else {
+      }
+    } else {  // SocketNIC
+      if (pkt->header()->dest.getPort() == BROADCAST) {  // Broadcast
+        std::vector<Port> allComPorts = Observed::getObservsCond();
+        Buffer * broadcastBuf;
+        for (auto port : allComPorts) {
+          broadcastBuf = _rsnic->alloc(buf->size(), 0);
+          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+          broadcastBuf->setSize(buf->size());
+          if (!this->notify(port, broadcastBuf)) {
+            _rsnic->free(broadcastBuf);
+          }
+        }
+      } else if (!this->notify(port, buf)) {  // Unicast
         _rsnic->free(buf);
       }
-#ifdef DEBUG
-      std::cerr << "Protocol::update: Communicator não notificado" << std::endl;
-    }
-    else {
-      std::cerr << "Protocol::update: Communicator notificado" << std::endl;
-#endif
     }
   }
 
@@ -259,6 +280,5 @@ private:
 };
 
 template <typename SocketNIC, typename SharedMemNIC>
-const typename Protocol<SocketNIC, SharedMemNIC>::Address Protocol<SocketNIC, SharedMemNIC>::BROADCAST =
-    typename Protocol<SocketNIC, SharedMemNIC>::Address(SocketNIC::BROADCAST_ADDRESS, 0, 10);
+const typename Protocol<SocketNIC, SharedMemNIC>::Port Protocol<SocketNIC, SharedMemNIC>::BROADCAST = 0xFFFF;
 #endif // PROTOCOL_HH

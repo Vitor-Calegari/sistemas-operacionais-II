@@ -42,6 +42,14 @@ public:
     return notified;
   }
 
+  std::vector<C> getObservsCond() {
+    std::vector<C> ret;
+    for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
+      ret.push_back(obs->rank());
+    }
+    return ret;
+  }
+
 private:
   Observers _observers;
   std::mutex _mutex{};
