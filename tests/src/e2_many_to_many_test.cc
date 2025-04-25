@@ -42,7 +42,7 @@ int main() {
   Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
 
   auto send_task = [&](const int thread_id) {
-    Communicator communicator(&prot, 1);
+    Communicator communicator(&prot, thread_id);
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
       Message msg = Message(communicator.addr(),
                             Protocol::Address(rsnic.address(), getpid(), 2),
@@ -69,7 +69,7 @@ int main() {
   };
 
   auto receive_task = [&](const int thread_id) {
-    Communicator communicator(&prot, 2);
+    Communicator communicator(&prot, thread_id);
     Message msg(MESSAGE_SIZE);
 
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD; j++) {
@@ -94,7 +94,7 @@ int main() {
   for (int i = 0; i < NUM_THREADS; ++i) {
     send_threads[i] = std::thread(send_task, i);
     receive_threads[i] = std::thread(receive_task, i + NUM_THREADS);
-    sleep(2);
+    // sleep(2);
   }
 
   for (int i = 0; i < NUM_THREADS; ++i) {
