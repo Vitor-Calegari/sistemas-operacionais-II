@@ -55,7 +55,7 @@ public:
       }
 
       _self->handler(_self->obj);
-      return eth_buf.front().size();
+      return buf->size();
     } else {
       return -1;
     }
