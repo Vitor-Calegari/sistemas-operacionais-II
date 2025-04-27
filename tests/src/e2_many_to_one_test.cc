@@ -12,8 +12,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-constexpr int NUM_THREADS = 5;
-constexpr int NUM_MESSAGES_PER_THREAD = 10;
+constexpr int NUM_THREADS = 7;
+constexpr int NUM_MESSAGES_PER_THREAD = 35;
 constexpr int MESSAGE_SIZE = 5;
 
 #ifndef INTERFACE_NAME
@@ -40,20 +40,32 @@ int main() {
   SharedMemNIC smnic(INTERFACE_NAME);
   Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
 
+  std::mutex stdout_mtx;
+
+  std::mutex cv_mtx;
+  std::condition_variable cv;
+
+  bool receiver_ready = false;
+
   auto send_task = [&](const int thread_id) {
     Communicator communicator(&prot, thread_id);
-    for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
+    std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
+    stdout_lock.unlock();
+
+    std::unique_lock<std::mutex> cv_lock(cv_mtx);
+    cv.wait(cv_lock, [&receiver_ready]() { return receiver_ready; });
+
+    for (int j = 1; j <= NUM_MESSAGES_PER_THREAD;) {
       Message msg =
           Message(communicator.addr(),
                   Protocol::Address(rsnic.address(), getpid(), NUM_THREADS),
                   MESSAGE_SIZE);
-      memset(msg.data(), 0, MESSAGE_SIZE);
-
       for (size_t j = 0; j < msg.size(); j++) {
         msg.data()[j] = std::byte(randint(0, 255));
       }
 
       if (communicator.send(&msg)) {
+        stdout_lock.lock();
         std::cout << std::dec << "Thread (" << thread_id << "): Sending (" << j
                   << "): ";
         std::cout.flush();
@@ -62,7 +74,7 @@ int main() {
           std::cout.flush();
         }
         std::cout << std::endl;
-        sleep(0);
+        stdout_lock.unlock();
         j++;
       }
     }
@@ -70,27 +82,35 @@ int main() {
 
   auto receive_task = [&](const int thread_id) {
     Communicator communicator(&prot, thread_id);
+    std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
+    stdout_lock.unlock();
+
+    receiver_ready = true;
+    cv.notify_all();
+
     Message msg(MESSAGE_SIZE);
 
-    for (int j = 0; j < NUM_THREADS * NUM_MESSAGES_PER_THREAD; j++) {
+    for (int j = 1; j <= NUM_THREADS * NUM_MESSAGES_PER_THREAD; j++) {
       memset(msg.data(), 0, MESSAGE_SIZE);
       if (!communicator.receive(&msg)) {
         std::cerr << "Erro ao receber mensagem na thread " << thread_id
                   << std::endl;
         exit(1);
       } else {
+        stdout_lock.lock();
         std::cout << std::dec << "Thread (" << thread_id << "): Received (" << j
                   << "): ";
         for (size_t i = 0; i < msg.size(); i++) {
           std::cout << std::hex << static_cast<int>(msg.data()[i]) << " ";
         }
         std::cout << std::endl;
+        stdout_lock.unlock();
       }
     }
   };
 
-  std::thread receive_thread(receive_task, NUM_THREADS);
   std::array<std::thread, NUM_THREADS> send_threads;
+  std::thread receive_thread(receive_task, NUM_THREADS);
   for (int i = 0; i < NUM_THREADS; ++i) {
     send_threads[i] = std::thread(send_task, i);
   }
