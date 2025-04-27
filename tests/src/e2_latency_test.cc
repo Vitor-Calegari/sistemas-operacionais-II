@@ -20,6 +20,7 @@ using namespace std::chrono;
 const int num_messages_per_comm = 1000;
 const size_t MESSAGE_SIZE = 256;
 const int timeout_sec = 10;
+constexpr int NUM_RECV_THREADS = 1;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -47,6 +48,11 @@ int main() {
   pid_t parent = fork();
 
   if (!parent) {
+    std::mutex mtx;
+    std::condition_variable cv;
+
+    int comm_waiting = 0;
+
     SocketNIC rsnic(INTERFACE_NAME);
     SharedMemNIC smnic(INTERFACE_NAME);
     Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
@@ -55,6 +61,10 @@ int main() {
   
     std::thread sender_thread([&]() {
       Communicator communicator(&prot, 1);
+      std::unique_lock<std::mutex> lock(mtx);
+      cv.wait(lock, [&comm_waiting]() {
+          return comm_waiting == NUM_RECV_THREADS;
+      });
       for (int j = 0; j < num_messages_per_comm;) {
         Message msg = Message(communicator.addr(), Protocol::Address(rsnic.address(), getpid(), 2), MESSAGE_SIZE);
         memset(msg.data(), 0, MESSAGE_SIZE);
@@ -77,7 +87,11 @@ int main() {
       long long total_latency_us = 0;
       int msg_count = 0;
       Message msg(MESSAGE_SIZE);
-      
+      {
+        std::lock_guard<std::mutex> lock(mtx);
+        comm_waiting++;
+      }
+      cv.notify_all();
       for (int j = 0; j < num_messages_per_comm; j++) {
           memset(msg.data(), 0, MESSAGE_SIZE);
           if (!communicator.receive(&msg)) {
