@@ -6,8 +6,12 @@
 #include <cstdio>
 #include <cstring>
 
+#ifdef UNM_ENGINE
+#include <unordered_map>
+#else
 #include <queue>
 #include <semaphore>
+#endif
 
 #include "ethernet.hh"
 
@@ -18,7 +22,11 @@ public:
 
   // Construtor: Cria e configura o socket raw.
   SharedEngine(const char *interface_name)
-      : empty(1024), _interface_name(interface_name) {
+      : 
+#ifndef UNM_ENGINE
+      empty(1024),
+#endif 
+      _interface_name(interface_name) {
     _self = this;
 
 #ifdef DEBUG
@@ -42,6 +50,20 @@ public:
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
   int send(Buffer *buf) {
+#ifdef UNM_ENGINE
+    int ret = -1;
+    try {
+      std::thread::id thread_id = std::this_thread::get_id();
+      buffer_sem.acquire();
+      unm_buf[thread_id] = *buf;
+      buffer_sem.release();
+      _self->handler(_self->obj);
+      ret = buf->size();
+    } catch (const std::exception& e) {
+      ret = -1;
+    }
+    return ret;
+#else
     bool acquired = empty.try_acquire();
     if (acquired) {
       buffer_sem.acquire();
@@ -59,6 +81,7 @@ public:
     } else {
       return -1;
     }
+#endif
   }
 
   // Recebe dados do socket raw.
@@ -69,6 +92,27 @@ public:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
   int receive(Buffer *buf) {
+#ifdef UNM_ENGINE
+    int ret = -1;
+    Buffer * buf_temp = nullptr;
+    try {
+      std::thread::id thread_id = std::this_thread::get_id();
+      buffer_sem.acquire();
+      if (unm_buf.find(thread_id) != unm_buf.end()) {
+        buf_temp = &unm_buf[thread_id];
+        std::memcpy(buf->data(), buf_temp->data(), buf_temp->size());
+        buf->setSize(buf_temp->size());
+        ret = buf->size();
+        unm_buf.erase(thread_id);
+      } else {
+        ret = -1;
+      }
+      buffer_sem.release();
+    } catch (const std::exception& e) {
+      ret = -1;
+    }
+    return ret;
+#else
     bool acquired = full.try_acquire();
     if (acquired) {
       buffer_sem.acquire();
@@ -84,6 +128,7 @@ public:
     } else {
       return -1;
     }
+#endif
   }
 
 public:
@@ -107,11 +152,15 @@ public:
 
 private:
   std::binary_semaphore buffer_sem{ 1 };
+#ifdef UNM_ENGINE
+  std::unordered_map<std::thread::id, Buffer> unm_buf;
+#else
   std::counting_semaphore<> full{ 0 };
   std::counting_semaphore<> empty;
 
   std::queue<Buffer> eth_buf;
   size_t eth_buf_idx = BUFFER_SIZE - 1;
+#endif
 
   template <typename T, void (T::*handle_signal)()>
   static void handlerWrapper(void *obj) {
