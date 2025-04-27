@@ -21,7 +21,7 @@ public:
   typedef typename SocketNIC::Header NICHeader;
   typedef typename SocketNIC::BufferNIC Buffer;
   typedef typename SocketNIC::Address Physical_Address;
-  typedef unsigned short SysID;
+  typedef int SysID;
   typedef unsigned short Port;
 
   typedef Conditional_Data_Observer<Buffer, Port> Observer;
