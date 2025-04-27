@@ -21,7 +21,7 @@ public:
   typedef typename SocketNIC::Header NICHeader;
   typedef typename SocketNIC::BufferNIC Buffer;
   typedef typename SocketNIC::Address Physical_Address;
-  typedef int SysID;
+  typedef pid_t SysID;
   typedef unsigned short Port;
 
   typedef Conditional_Data_Observer<Buffer, Port> Observer;
@@ -50,7 +50,7 @@ public:
     Physical_Address getPAddr() const {
       return _paddr;
     }
-    Port getSysID() const {
+    SysID getSysID() const {
       return _sysID;
     }
     Port getPort() const {
