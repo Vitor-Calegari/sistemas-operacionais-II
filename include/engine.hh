@@ -65,6 +65,12 @@ public:
       exit(1);
     }
 
+    int tam = 8388608;
+
+    if (setsockopt(Engine::getSocketFd(), SOL_SOCKET, SO_RCVBUFFORCE, &tam, sizeof(tam)) < 0) {
+      perror("setsockopt SO_RCVBUF");
+    }
+
     int broadcastEnable = 1;
     if (setsockopt(Engine::getSocketFd(), SOL_SOCKET, SO_BROADCAST,
                    &broadcastEnable, sizeof(broadcastEnable)) < 0) {
