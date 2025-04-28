@@ -27,7 +27,8 @@ public:
   typedef Conditional_Data_Observer<Buffer, Port> Observer;
   typedef Concurrent_Observed<Buffer, Port> Observed;
 
-  static const Port BROADCAST;
+  static const Port BROADCAST = 0xFFFF;
+  static const SysID BROADCAST_SID = 0;
 
   // Endereço do protocolo: combinação de endereço físico e porta
   class Address {
@@ -130,14 +131,109 @@ public:
   int send(Address &from, Address &to, void *data,
            unsigned int size) {
     Buffer *buf;
+
+    // Caso seja broadcast, envia pelas duas NICS
+    if (to.getSysID() == BROADCAST_SID) {
+      int ret_smnic = -1;
+      int ret_rsnic = -1;
+      buf = _smnic->alloc(sizeof(Header) + size, 1);
+      Buffer * buf_rsnic = _rsnic->alloc(sizeof(Header) + size, 1);
+      if (buf == nullptr && buf_rsnic == nullptr)
+        return -1;  // Só retorna erro se nenhum dos buffers pode ser alocado
+      if (buf != nullptr) {
+        fillBuffer(buf, from, to, data, size);
+        ret_smnic = _smnic->send(buf);
+      }
+      if (buf_rsnic != nullptr) {
+        fillBuffer(buf_rsnic, from, to, data, size);
+        ret_rsnic = _rsnic->send(buf_rsnic);
+      }
+      // Se conseguiu mandar por qualquer uma das nics, retorna o valor enviado
+      return ret_smnic >= ret_rsnic ? ret_smnic : ret_rsnic;
+    }
+
+    // Caso não seja broadcast, escolhe a NIC correta
     if (to.getSysID() == _sysID) {
       buf = _smnic->alloc(sizeof(Header) + size, 1);
+      if (buf == nullptr)
+        return -1;
+      fillBuffer(buf, from, to, data, size);
+      return _smnic->send(buf);
     } else {
       buf = _rsnic->alloc(sizeof(Header) + size, 1);
+      if (buf == nullptr)
+        return -1;
+      fillBuffer(buf, from, to, data, size);
+      return _rsnic->send(buf);
     }
-    
-    if (buf == nullptr)
-      return -1;
+  }
+
+  // Recebe uma mensagem:
+  // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
+  int receive(Buffer *buf, Address *from, Address *to, void *data, unsigned int size) {
+    Packet pkt = Packet();
+    int actual_received_bytes;
+    if (pkt.header()->origin.getSysID() == _sysID) {
+      _smnic->receive(buf, &pkt, MTU + sizeof(Header));
+      actual_received_bytes = fillRecv(pkt, from, to, data, size);
+      _smnic->free(buf);
+    } else {
+      _rsnic->receive(buf, &pkt, MTU + sizeof(Header));
+      actual_received_bytes = fillRecv(pkt, from, to, data, size);
+      _rsnic->free(buf);
+    }
+    return actual_received_bytes;
+  }
+
+private:
+  // Método update: chamado pela NIC quando um frame é recebido.
+  // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
+  void update([[maybe_unused]] typename SocketNIC::Observed *obs,
+              [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
+              Buffer *buf) {
+    Packet *pkt = buf->data()->template data<Packet>();
+    SysID sysID = pkt->header()->dest.getSysID();
+    if (sysID != _sysID &&
+        sysID != BROADCAST_SID) {
+      _rsnic->free(buf);
+      return;
+    }
+    Port port = pkt->header()->dest.getPort();
+
+    if (pkt->header()->origin.getSysID() == _sysID) {  // SharedMemNIC
+      if (pkt->header()->dest.getPort() == BROADCAST) {  // Broadcast
+        std::vector<Port> allComPorts = Observed::getObservsCond();
+        Buffer * broadcastBuf;
+        for (auto port : allComPorts) {
+          broadcastBuf = _smnic->alloc(buf->size(), 0);
+          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+          broadcastBuf->setSize(buf->size());
+          if (!this->notify(port, broadcastBuf)) {
+            _smnic->free(broadcastBuf);
+          }
+        }
+      } else if (!this->notify(port, buf)) {  // Unicast
+        _smnic->free(buf);
+      }
+    } else {  // SocketNIC
+      if (pkt->header()->dest.getPort() == BROADCAST) {  // Broadcast
+        std::vector<Port> allComPorts = Observed::getObservsCond();
+        Buffer * broadcastBuf;
+        for (auto port : allComPorts) {
+          broadcastBuf = _rsnic->alloc(buf->size(), 0);
+          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+          broadcastBuf->setSize(buf->size());
+          if (!this->notify(port, broadcastBuf)) {
+            _rsnic->free(broadcastBuf);
+          }
+        }
+      } else if (!this->notify(port, buf)) {  // Unicast
+        _rsnic->free(buf);
+      }
+    }
+  }
+
+  void fillBuffer(Buffer * buf, Address &from, Address &to, void *data, unsigned int size) {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
     buf->data()->src = from.getPAddr();
@@ -199,79 +295,15 @@ public:
     }
     std::cout << std::endl;
 #endif
-    if (to.getSysID() == _sysID) {
-      return _smnic->send(buf);
-    } else {
-      return _rsnic->send(buf);
-    }
   }
 
-  // Recebe uma mensagem:
-  // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
-  int receive(Buffer *buf, Address *from, Address *to, void *data, unsigned int size) {
-    Packet pkt = Packet();
-    if (pkt.header()->origin.getSysID() == _sysID) {
-      _smnic->receive(buf, &pkt, MTU + sizeof(Header));
-    } else {
-      _rsnic->receive(buf, &pkt, MTU + sizeof(Header));
-    }
+  int fillRecv(Packet &pkt, Address *from, Address *to, void *data, unsigned int size) {
     *from = pkt.header()->origin;
     *to = pkt.header()->dest;
     unsigned int message_data_size = pkt.header()->payloadSize;
     unsigned int actual_received_bytes = size > message_data_size ? message_data_size : size;
     std::memcpy(data, pkt.template data<char>(), actual_received_bytes);
-    if (pkt.header()->origin.getSysID() == _sysID) {
-      _smnic->free(buf);
-    } else {
-      _rsnic->free(buf);
-    }
     return actual_received_bytes;
-  }
-
-private:
-  // Método update: chamado pela NIC quando um frame é recebido.
-  // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
-  void update([[maybe_unused]] typename SocketNIC::Observed *obs,
-              [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-              Buffer *buf) {
-    Packet *pkt = buf->data()->template data<Packet>();
-    Port port = pkt->header()->dest.getPort();
-    if (pkt->header()->dest.getSysID() != _sysID) {
-      _rsnic->free(buf);
-      return;
-    }
-
-    if (pkt->header()->origin.getSysID() == _sysID) {  // SharedMemNIC
-      if (pkt->header()->dest.getPort() == BROADCAST) {  // Broadcast
-        std::vector<Port> allComPorts = Observed::getObservsCond();
-        Buffer * broadcastBuf;
-        for (auto port : allComPorts) {
-          broadcastBuf = _smnic->alloc(buf->size(), 0);
-          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
-          broadcastBuf->setSize(buf->size());
-          if (!this->notify(port, broadcastBuf)) {
-            _smnic->free(broadcastBuf);
-          }
-        }
-      } else if (!this->notify(port, buf)) {  // Unicast
-        _smnic->free(buf);
-      }
-    } else {  // SocketNIC
-      if (pkt->header()->dest.getPort() == BROADCAST) {  // Broadcast
-        std::vector<Port> allComPorts = Observed::getObservsCond();
-        Buffer * broadcastBuf;
-        for (auto port : allComPorts) {
-          broadcastBuf = _rsnic->alloc(buf->size(), 0);
-          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
-          broadcastBuf->setSize(buf->size());
-          if (!this->notify(port, broadcastBuf)) {
-            _rsnic->free(broadcastBuf);
-          }
-        }
-      } else if (!this->notify(port, buf)) {  // Unicast
-        _rsnic->free(buf);
-      }
-    }
   }
 
   SocketNIC *_rsnic;
@@ -279,6 +311,4 @@ private:
   SysID _sysID;
 };
 
-template <typename SocketNIC, typename SharedMemNIC>
-const typename Protocol<SocketNIC, SharedMemNIC>::Port Protocol<SocketNIC, SharedMemNIC>::BROADCAST = 0xFFFF;
 #endif // PROTOCOL_HH
