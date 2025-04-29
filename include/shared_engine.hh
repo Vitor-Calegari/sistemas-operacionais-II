@@ -22,11 +22,11 @@ public:
 
   // Construtor: Cria e configura o socket raw.
   SharedEngine(const char *interface_name)
-      : 
+      :
 #ifndef UNM_ENGINE
-      empty(1024),
-#endif 
-      _interface_name(interface_name) {
+        empty(BUFFER_SIZE),
+#endif
+        _interface_name(interface_name) {
     _self = this;
 
 #ifdef DEBUG
@@ -59,7 +59,7 @@ public:
       buffer_sem.release();
       _self->handler(_self->obj);
       ret = buf->size();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
       ret = -1;
     }
     return ret;
@@ -94,7 +94,7 @@ public:
   int receive(Buffer *buf) {
 #ifdef UNM_ENGINE
     int ret = -1;
-    Buffer * buf_temp = nullptr;
+    Buffer *buf_temp = nullptr;
     try {
       std::thread::id thread_id = std::this_thread::get_id();
       buffer_sem.acquire();
@@ -108,7 +108,7 @@ public:
         ret = -1;
       }
       buffer_sem.release();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
       ret = -1;
     }
     return ret;
@@ -121,7 +121,7 @@ public:
       std::memcpy(buf->data(), cur_buf.data(), cur_buf.size());
       buf->setSize(cur_buf.size());
       eth_buf.pop();
-  
+
       buffer_sem.release();
       empty.release();
       return buf->size();
