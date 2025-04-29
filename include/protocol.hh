@@ -212,6 +212,7 @@ private:
             _smnic->free(broadcastBuf);
           }
         }
+        _smnic->free(buf);
       } else if (!this->notify(port, buf)) {  // Unicast
         _smnic->free(buf);
       }
@@ -227,6 +228,7 @@ private:
             _rsnic->free(broadcastBuf);
           }
         }
+        _rsnic->free(buf);
       } else if (!this->notify(port, buf)) {  // Unicast
         _rsnic->free(buf);
       }
