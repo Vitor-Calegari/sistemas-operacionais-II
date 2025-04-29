@@ -5,6 +5,7 @@
 #include "shared_engine.hh"
 #include <array>
 #include <cassert>
+#include <condition_variable>
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -12,7 +13,6 @@
 #include <random>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <condition_variable>
 
 constexpr int NUM_SEND_THREADS = 1;
 constexpr int NUM_RECV_THREADS = 10;
@@ -39,8 +39,6 @@ int main() {
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
-
-
   std::mutex mtx;
   std::condition_variable cv;
 
@@ -50,12 +48,16 @@ int main() {
   SharedMemNIC smnic(INTERFACE_NAME);
   Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
 
+  std::mutex stdout_mtx;
+
   auto send_task = [&](const int thread_id) {
     Communicator communicator(&prot, thread_id);
+    std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
+    stdout_lock.unlock();
+
     std::unique_lock<std::mutex> lock(mtx);
-    cv.wait(lock, [&comm_waiting]() {
-        return comm_waiting == NUM_RECV_THREADS;
-    });
+    cv.wait(lock,
+            [&comm_waiting]() { return comm_waiting == NUM_RECV_THREADS; });
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
       Message msg = Message(
           communicator.addr(),
@@ -68,7 +70,8 @@ int main() {
       }
 
       if (communicator.send(&msg)) {
-        std::cout << "Thread (" << thread_id << "): Sending (" << std::dec << j
+        stdout_lock.lock();
+        std::cout << std::dec << "Thread (" << thread_id << "): Sending (" << j
                   << "): ";
         std::cout.flush();
         for (size_t j = 0; j < msg.size(); ++j) {
@@ -76,7 +79,7 @@ int main() {
           std::cout.flush();
         }
         std::cout << std::endl << std::flush;
-        sleep(0);
+        stdout_lock.unlock();
         j++;
       }
     }
@@ -84,11 +87,14 @@ int main() {
 
   auto receive_task = [&](const int thread_id) {
     Communicator communicator(&prot, thread_id);
+    std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
+    stdout_lock.unlock();
+
     Message msg(MESSAGE_SIZE);
 
     {
-        std::lock_guard<std::mutex> lock(mtx);
-        comm_waiting++;
+      std::lock_guard<std::mutex> lock(mtx);
+      comm_waiting++;
     }
     cv.notify_all();
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD; j++) {
@@ -98,7 +104,8 @@ int main() {
                   << std::endl;
         exit(1);
       } else {
-        std::cout << "Thread (" << thread_id << "): Received (" << std::dec << j
+        stdout_lock.lock();
+        std::cout << std::dec << "Thread (" << thread_id << "): Received (" << j
                   << "): ";
         std::cout.flush();
 
@@ -107,14 +114,14 @@ int main() {
         }
         std::cout << std::endl << std::flush;
         std::cout.flush();
-
-    }
+        stdout_lock.unlock();
+      }
     }
   };
 
   std::array<std::thread, NUM_SEND_THREADS> send_threads;
   for (int i = 0; i < NUM_SEND_THREADS; ++i) {
-      send_threads[i] = std::thread(send_task, i);
+    send_threads[i] = std::thread(send_task, i);
   }
 
   std::array<std::thread, NUM_RECV_THREADS> receive_threads;
@@ -127,7 +134,7 @@ int main() {
   }
   for (int i = 0; i < NUM_RECV_THREADS; ++i) {
     receive_threads[i].join();
-  } 
+  }
 
   std::cout << "Broadcast test finished!" << std::endl;
 
