@@ -206,6 +206,9 @@ private:
         Buffer * broadcastBuf;
         for (auto port : allComPorts) {
           broadcastBuf = _smnic->alloc(buf->size(), 0);
+          if (broadcastBuf == nullptr) {
+            continue;
+          }
           std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {
@@ -222,6 +225,9 @@ private:
         Buffer * broadcastBuf;
         for (auto port : allComPorts) {
           broadcastBuf = _rsnic->alloc(buf->size(), 0);
+          if (broadcastBuf == nullptr) {
+            continue;
+          }
           std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {

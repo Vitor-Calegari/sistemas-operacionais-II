@@ -43,6 +43,7 @@ public:
   }
 
   std::vector<C> getObservsCond() {
+    std::lock_guard<std::mutex> lock(_mutex);
     std::vector<C> ret;
     for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
       ret.push_back(obs->rank());
