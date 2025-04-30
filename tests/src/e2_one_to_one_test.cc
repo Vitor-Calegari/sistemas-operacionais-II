@@ -47,9 +47,6 @@ int main(int argc, char *argv[]) {
 
     send = ret == 0;
 
-    if (ret == 0) {
-      sleep(1);
-    }
   } else {
     send = atoi(argv[1]);
   }

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <iostream>
 #include <random>
+#include <sys/mman.h>
 #include <sys/wait.h>
 
 #define NUM_MSGS 1000
@@ -25,6 +26,10 @@ int randint(int p, int r) {
 }
 
 int main(int argc, char *argv[]) {
+  sem_t *semaphore =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  sem_init(semaphore, 1, 0); // Inicialmente bloqueado
   int send;
   int parentPID = 0;
   if (argc < 2) {
@@ -34,11 +39,9 @@ int main(int argc, char *argv[]) {
 
     send = ret == 0;
 
-    if (ret == 0) {
-      sleep(1);
-    }
   } else {
     send = atoi(argv[1]);
+    sem_post(semaphore);
   }
 
   using Buffer = Buffer<Ethernet::Frame>;
@@ -56,6 +59,7 @@ int main(int argc, char *argv[]) {
   Communicator comm = Communicator(&prot, 10);
 
   if (send) {
+    sem_wait(semaphore);
     int i = 0;
     while (i < NUM_MSGS) {
       Message message =
@@ -72,6 +76,7 @@ int main(int argc, char *argv[]) {
       }
     }
   } else {
+    sem_post(semaphore);
     for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
       Message message = Message(MSG_SIZE);
       comm.receive(&message);
