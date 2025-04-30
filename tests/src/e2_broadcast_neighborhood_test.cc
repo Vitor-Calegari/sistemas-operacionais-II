@@ -1,0 +1,146 @@
+#include "communicator.hh"
+#include "engine.hh"
+#include "nic.hh"
+#include "protocol.hh"
+#include "shared_engine.hh"
+#include <array>
+#include <cassert>
+#include <condition_variable>
+#include <csignal>
+#include <cstddef>
+#include <iostream>
+#include <mutex>
+#include <random>
+#include <semaphore>
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+constexpr int NUM_SEND_THREADS = 5;
+constexpr int NUM_RECV_THREADS = 5;
+constexpr int NUM_MESSAGES_PER_THREAD = 5;
+constexpr int MESSAGE_SIZE = 5;
+
+#ifndef INTERFACE_NAME
+#define INTERFACE_NAME "lo"
+#endif
+
+int randint(int p, int r) {
+  std::random_device rd;
+  std::mt19937 rng(rd());
+  std::uniform_int_distribution<int> uni(p, r);
+
+  return uni(rng);
+}
+
+int main() {
+  using Buffer = Buffer<Ethernet::Frame>;
+  using SocketNIC = NIC<Engine<Buffer>>;
+  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Message = Message<Protocol::Address>;
+  using Communicator = Communicator<Protocol, Message>;
+
+  std::counting_semaphore<NUM_RECV_THREADS> *sem_receivers =
+      static_cast<std::counting_semaphore<NUM_RECV_THREADS> *>(
+          mmap(NULL, sizeof(std::counting_semaphore<NUM_RECV_THREADS>),
+               PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+
+  std::binary_semaphore *stdout_mtx = static_cast<std::binary_semaphore *>(
+      mmap(NULL, sizeof(std::mutex), PROT_READ | PROT_WRITE,
+           MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  stdout_mtx->release();
+
+  for (int i = 0; i < NUM_RECV_THREADS; ++i) {
+    pid_t pid = fork();
+    if (pid < 0) {
+      std::cerr << "Erro ao criar processo" << std::endl;
+      exit(1);
+    }
+    if (pid == 0) {
+      // Código do processo-filho
+      SocketNIC rsnic2(INTERFACE_NAME);
+      SharedMemNIC smnic2(INTERFACE_NAME);
+      auto &prot2 = Protocol::getInstance(&rsnic2, &smnic2, getpid());
+      Communicator communicator(&prot2, i);
+
+      sem_receivers->release();
+
+      for (int j = 0; j < NUM_SEND_THREADS * NUM_MESSAGES_PER_THREAD; j++) {
+        Message msg(MESSAGE_SIZE);
+        memset(msg.data(), 0, MESSAGE_SIZE);
+        if (!communicator.receive(&msg)) {
+          std::cerr << "Erro ao receber mensagem no processo " << getpid()
+                    << std::endl;
+          exit(1);
+        } else {
+          stdout_mtx->acquire();
+          std::cout << std::dec << "Processo (" << getpid() << "): Received ("
+                    << j << "): ";
+          for (size_t i = 0; i < msg.size(); i++) {
+            std::cout << std::hex << static_cast<int>(msg.data()[i]) << " ";
+          }
+          std::cout << std::endl << std::flush;
+          stdout_mtx->release();
+        }
+      }
+      exit(0); // Conclui com sucesso no processo-filho
+    }
+  }
+
+  SocketNIC rsnic(INTERFACE_NAME);
+  SharedMemNIC smnic(INTERFACE_NAME);
+  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  auto send_task = [&](const int thread_id) {
+    Communicator communicator(&prot, thread_id);
+
+    for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
+      Message msg =
+          Message(communicator.addr(),
+                  Protocol::Address(rsnic.address(), Protocol::BROADCAST_SID,
+                                    Protocol::BROADCAST),
+                  MESSAGE_SIZE);
+      memset(msg.data(), 0, MESSAGE_SIZE);
+
+      for (size_t j = 0; j < msg.size(); j++) {
+        msg.data()[j] = std::byte(randint(0, 255));
+      }
+
+      if (communicator.send(&msg)) {
+        stdout_mtx->acquire();
+        std::cout << std::dec << "Thread (" << thread_id << "): Sending (" << j
+                  << "): ";
+        for (size_t j = 0; j < msg.size(); ++j) {
+          std::cout << std::hex << static_cast<int>(msg.data()[j]) << " ";
+        }
+        std::cout << std::endl << std::flush;
+        stdout_mtx->release();
+        j++;
+      }
+    }
+  };
+
+  for (int i = 0; i < NUM_RECV_THREADS; ++i) {
+    sem_receivers->acquire();
+  }
+
+  std::array<std::thread, NUM_SEND_THREADS> send_threads;
+  for (int i = 0; i < NUM_SEND_THREADS; ++i) {
+    send_threads[i] = std::thread(send_task, i);
+  }
+
+  int status;
+  while (wait(&status) > 0)
+    ;
+
+  for (int i = 0; i < NUM_SEND_THREADS; ++i) {
+    send_threads[i].join();
+  }
+
+  munmap(sem_receivers, sizeof *sem_receivers);
+  munmap(stdout_mtx, sizeof *stdout_mtx);
+
+  std::cout << "Broadcast test finished!" << std::endl;
+
+  _exit(0);
+}
