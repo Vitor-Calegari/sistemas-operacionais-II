@@ -6,6 +6,7 @@
 #include <csignal>
 #include <cstddef>
 #include <iostream>
+#include <sys/mman.h>
 #include <random>
 #include <sys/wait.h>
 
@@ -31,6 +32,11 @@ int main(int argc, char *argv[]) {
   using Protocol = Protocol<SocketNIC, SharedMemNIC>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
+  
+  sem_t *semaphore =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  sem_init(semaphore, 1, 0); // Inicialmente bloqueado
 
   int send;
   int parentPID = 0;
@@ -56,6 +62,7 @@ int main(int argc, char *argv[]) {
   if (send) {
     std::thread inter_process_sender_thread([&]() {
       Communicator comm = Communicator(&prot, 10);
+      sem_wait(semaphore);
       int i = 0;
       while (i < NUM_MSGS) {
         Message message = Message(
@@ -72,8 +79,14 @@ int main(int argc, char *argv[]) {
         }
       }
     });
+    std::mutex cv_mtx;
+    std::condition_variable cv;
+
+    bool receiver_ready = false;
     std::thread inner_process_sender_thread([&]() {
       Communicator comm = Communicator(&prot, 1);
+      std::unique_lock<std::mutex> cv_lock(cv_mtx);
+      cv.wait(cv_lock, [&receiver_ready]() { return receiver_ready; });
       int i = 0;
       while (i < NUM_MSGS) {
         Message message =
@@ -92,6 +105,8 @@ int main(int argc, char *argv[]) {
     });
     std::thread inner_process_receiver_thread([&]() {
       Communicator comm = Communicator(&prot, 2);
+      receiver_ready = true;
+      cv.notify_all();
       for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
         Message message = Message(MSG_SIZE);
         comm.receive(&message);
@@ -108,6 +123,7 @@ int main(int argc, char *argv[]) {
   } else {
     std::thread inter_receiver_thread([&]() {
       Communicator comm = Communicator(&prot, 10);
+      sem_post(semaphore);
       for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
         Message message = Message(MSG_SIZE);
         comm.receive(&message);
@@ -125,6 +141,8 @@ int main(int argc, char *argv[]) {
     int status;
     wait(&status);
   }
+
+  sem_destroy(semaphore);
 
   return 0;
 }
