@@ -28,7 +28,7 @@ private:
   static constexpr int N_OFFSET = 29;
   static constexpr int M_OFFSET = 27;
 
-  static constexpr int BASE_UNIT_VALUE = 4;
+  static constexpr int BASE_UNIT_VALUE = 5;
 
 public:
   enum T : bool { DIGITAL = 0, SI = 1 };
@@ -102,10 +102,10 @@ public:
   friend SmartUnit operator*(int, SIUnit) = delete;
 
 #define MULT_INV_UNIT(unit)                                                    \
-  inv_unit._unit.unit = (BASE_UNIT_VALUE + 2) - inv_unit._unit.unit
+  inv_unit._unit.unit = 2 * (BASE_UNIT_VALUE - 1) - inv_unit._unit.unit
 
   // Implementa inverso multiplicativo da unidade.
-  // TODO: Caso a unidade esteja na quarta potência não há inverso
+  // TODO: Caso a unidade esteja na quarta potência negativa não há inverso
   // multiplicativo.
   friend SmartUnit mult_inv(const SmartUnit &unit) {
     SmartUnit inv_unit = unit;
