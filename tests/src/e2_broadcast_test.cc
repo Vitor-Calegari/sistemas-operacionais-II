@@ -4,6 +4,7 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "utils.hh"
 #include <array>
 #include <cassert>
 #include <condition_variable>
@@ -11,7 +12,6 @@
 #include <cstddef>
 #include <iostream>
 #include <mutex>
-#include <random>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -23,14 +23,6 @@ constexpr int MESSAGE_SIZE = 5;
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
 #endif
-
-int randint(int p, int r) {
-  std::random_device rd;
-  std::mt19937 rng(rd());
-  std::uniform_int_distribution<int> uni(p, r);
-
-  return uni(rng);
-}
 
 int main() {
   using Buffer = Buffer<Ethernet::Frame>;

@@ -1,7 +1,8 @@
 #include "utils.hh"
 #include <iostream>
+#include <random>
 
-std::string ethernet_header(struct Ethernet::Frame *buffer) {
+std::string ethernet_header(Ethernet::Frame *buffer) {
   // Construir a string diretamente
   std::string header = "\nEthernet Header\n";
   header += "\t|-Source Address      : ";
@@ -39,7 +40,8 @@ std::string payload(Ethernet::Frame *buffer, int buflen) {
     if (i != 0 && i % 16 == 0) {
       result += "\n";
     }
-    snprintf(temp, sizeof(temp), " %.2X ", buffer->template data<unsigned char>()[i]);
+    snprintf(temp, sizeof(temp), " %.2X ",
+             buffer->template data<unsigned char>()[i]);
     result += temp;
   }
 
@@ -72,4 +74,12 @@ void printEth(Buffer<Ethernet::Frame> *buffer) {
   std::cout << pBuflen(buffer->size()).c_str();
   std::cout << "***************************************************************"
                "**\n\n\n";
+}
+
+int randint(int p, int r) {
+  std::random_device rd;
+  std::mt19937 rng(rd());
+  std::uniform_int_distribution<int> uni(p, r);
+
+  return uni(rng);
 }

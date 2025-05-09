@@ -4,10 +4,10 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "utils.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
-#include <random>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
@@ -17,14 +17,6 @@
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
 #endif
-
-int randint(int p, int r) {
-  std::random_device rd;
-  std::mt19937 rng(rd());
-  std::uniform_int_distribution<int> uni(p, r);
-
-  return uni(rng);
-}
 
 int main(int argc, char *argv[]) {
   sem_t *semaphore =
