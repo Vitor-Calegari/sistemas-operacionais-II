@@ -1,5 +1,6 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"

@@ -1,13 +1,14 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
-#include <sys/mman.h>
 #include <random>
+#include <sys/mman.h>
 #include <sys/wait.h>
 
 #define NUM_MSGS 1000
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]) {
   using Protocol = Protocol<SocketNIC, SharedMemNIC>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
-  
+
   sem_t *semaphore =
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));

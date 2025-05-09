@@ -1,11 +1,11 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include <array>
 #include <cassert>
-#include <condition_variable>
 #include <csignal>
 #include <cstddef>
 #include <iostream>

@@ -2,7 +2,6 @@
 #define COMMUNICATOR_HH
 
 #include "concurrent_observer.hh"
-#include "message.hh"
 
 template <typename Channel, typename Message>
 class Communicator : public Concurrent_Observer<
