@@ -218,7 +218,7 @@ public:
     return SmartUnit(lhs) ^ rhs;
   }
 
-  constexpr uint32_t get_unit() const {
+  constexpr uint32_t get_int_unit() const {
     return unit_struct_to_int(_unit);
   }
 
