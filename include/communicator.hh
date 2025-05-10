@@ -2,7 +2,9 @@
 #define COMMUNICATOR_HH
 
 #include "concurrent_observer.hh"
+#include "smart_unit.hh"
 #include <vector>
+#include <chrono>
 #include <thread>
 #include <numeric>
 #include <cstring>
@@ -39,26 +41,46 @@ public:
 
   bool send(Message *message) {
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
+                          *message->getIsPub(), *message->getUnit().get_unit_int(),
                           message->data(), message->size()) > 0;
+  }
+
+  bool receive(Message *message) {
+    // Block until a notification is triggered.
+    Buffer *buf = Observer::updated();
+
+    uint32_t unit = 0;
+
+    int size = _channel->receive(buf, message->sourceAddr(),
+                                 message->destAddr(), message->getIsPub(),
+                                 &unit, message->data(), message->size());
+    message->setUnit(SmartUnit(unit));
+    message->setSize(size);
+
+    return size > 0;
   }
 
   void initPeriocT() {
     _thread_running = true;
     pThread = std::thread([this]() {
+      auto initPTTime = std::chrono::high_resolution_clock::now();
       while (_thread_running) {
         auto next_wakeup_t = std::chrono::steady_clock::now() + std::chrono::milliseconds(period);
         // TODO A thread poderia acordar a cada intervalo porém só envia quem ta no tempo correto
         Message msg = Message(addr(),
                               Address(),
-                              _transd->getUnit(),
+                              _transd->getUnit().get_n(),
                               true);
         std::memcpy(msg->data(), _transd->get_data(), _transd->getUnit().get_n());
         pthread_mutex_lock(&_subscribersMutex);
         std::vector<Subscriber> subs = subscribers;
         pthread_mutex_unlock(&_subscribersMutex);
         for (auto subscriber : subs) {
-          *(msg->destAddr()) = subscriber.origin;
-          send(msg);
+          std::chrono::microseconds initT = initPTTime.time_since_epoch();
+          if (initT.count() % subscriber.period == 0) {
+            *(msg->destAddr()) = subscriber.origin;
+            send(msg);
+          }
         }
         std::this_thread::sleep_until(next_wakeup_t);
         }
@@ -141,18 +163,22 @@ public:
   Address addr() { return _address; }
 
   bool send(Message *message) {
+    uint32_t unit = message->getUnit()->get_int_unit();
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
-                          *message->getIsPub(), message->data(),
-                          message->size()) > 0;
+                          *message->getIsPub(), unit,
+                          message->data(), message->size()) > 0;
   }
 
   bool receive(Message *message) {
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
 
+    uint32_t unit = 0;
+
     int size = _channel->receive(buf, message->sourceAddr(),
                                  message->destAddr(), message->getIsPub(),
-                                 message->data(), message->size());
+                                 &unit, message->data(), message->size());
+    message->setUnit(SmartUnit(unit));
     message->setSize(size);
 
     return size > 0;

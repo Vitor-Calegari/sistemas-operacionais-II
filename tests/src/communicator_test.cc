@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, SmartUnit>;
   using Communicator = Communicator<Protocol, Message>;
 
   SocketNIC rsnic = SocketNIC(INTERFACE_NAME);
@@ -55,11 +55,9 @@ int main(int argc, char *argv[]) {
     sem_wait(semaphore);
     int i = 0;
     while (i < NUM_MSGS) {
-      Message message =
-          Message(comm.addr(),
-                  Protocol::Address(rsnic.address(), parentPID, 10),
-                  MSG_SIZE,
-                  true);
+      Message message = Message(
+          comm.addr(), Protocol::Address(rsnic.address(), parentPID, 10),
+          MSG_SIZE, true, SmartUnit(SmartUnit::SIUnit::K));
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));
@@ -73,7 +71,8 @@ int main(int argc, char *argv[]) {
   } else {
     sem_post(semaphore);
     for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
-      Message message = Message(MSG_SIZE, true);
+      Message message =
+          Message(MSG_SIZE, true, SmartUnit(SmartUnit::SIUnit::K));
       comm.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {
