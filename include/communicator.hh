@@ -25,8 +25,8 @@ public:
 public:
   Communicator(Channel *channel, Port port, Transducer *transd)
       : _thread_running(0), _channel(channel),
-        _address(Address(channel->getNICPAddr(), channel->getSysID(), port),
-        _transd(transd)) {
+        _address(Address(channel->getNICPAddr(), channel->getSysID(), port)),
+        _transd(transd) {
     _channel->attach(this, _address.getPort());
   }
 
@@ -40,8 +40,9 @@ public:
   Address addr() { return _address; }
 
   bool send(Message *message) {
+    uint32_t unit = message->getUnit()->get_int_unit();
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
-                          *message->getIsPub(), *message->getUnit().get_unit_int(),
+                          *message->getIsPub(), unit,
                           message->data(), message->size()) > 0;
   }
 
@@ -69,17 +70,19 @@ public:
         // TODO A thread poderia acordar a cada intervalo porém só envia quem ta no tempo correto
         Message msg = Message(addr(),
                               Address(),
-                              _transd->getUnit().get_n(),
-                              true);
-        std::memcpy(msg->data(), _transd->get_data(), _transd->getUnit().get_n());
+                              _transd->get_unit().get_n(),
+                              true,
+                              _transd->get_unit());
+        int data = _transd->get_data();
+        std::memcpy(msg.data(), &data, sizeof(data));
         pthread_mutex_lock(&_subscribersMutex);
         std::vector<Subscriber> subs = subscribers;
         pthread_mutex_unlock(&_subscribersMutex);
         for (auto subscriber : subs) {
-          std::chrono::microseconds initT = initPTTime.time_since_epoch();
+          std::chrono::microseconds initT = std::chrono::duration_cast<std::chrono::microseconds>(initPTTime.time_since_epoch());
           if (initT.count() % subscriber.period == 0) {
-            *(msg->destAddr()) = subscriber.origin;
-            send(msg);
+            *(msg.destAddr()) = subscriber.origin;
+            send(&msg);
           }
         }
         std::this_thread::sleep_until(next_wakeup_t);
