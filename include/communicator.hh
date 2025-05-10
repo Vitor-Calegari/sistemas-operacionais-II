@@ -187,9 +187,14 @@ public:
 private:
   void update([[maybe_unused]] typename Channel::Observed *obs,
               typename Channel::Observer::Observing_Condition c, Buffer *buf) {
-    // Assumimos que aqui só chegam mensagens de publish
-    // pois subscribes são filtrados durante a pilha
-    Observer::update(c, buf);
+    bool isPub = _channel->peekIsPub(buf);
+    if (isPub) {
+      // Releases the thread waiting for data.
+      Observer::update(c, buf);
+    } else {
+      // Libera buffer
+      _channel->free(buf);
+    }
   }
 
 private:
