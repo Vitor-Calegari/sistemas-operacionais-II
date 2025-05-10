@@ -72,6 +72,7 @@ public:
     Header() : origin(Address()), dest(Address()), payloadSize(0) {}
     Address origin;
     Address dest;
+    bool isPub;
     unsigned short payloadSize;
   } __attribute__((packed));
 
@@ -125,10 +126,34 @@ public:
   Physical_Address getNICPAddr() { return _rsnic->address(); }
   SysID getSysID() { return _sysID; }
 
+  bool peekIsPub(Buffer * buf) {
+    Packet * pkt = buf->data()->template data<Packet>();
+    return pkt->header()->isPub();
+  }
+
+  unsigned int peekPeriod(Buffer * buf) {
+    Packet * pkt = buf->data()->template data<Packet>();
+    return *(pkt->template data<unsigned int>());
+  }
+
+  bool peekOriginSysID(Buffer * buf) {
+    Packet * pkt = buf->data()->template data<Packet>();
+    return pkt->header()->origin.getSysID();
+  }
+
+  void free(Buffer * buf) {
+    SysID originSysID = peekOriginSysID(buf);
+    if (originSysID == _sysID) {
+      _smnic->free(buf);
+    } else {
+      _rsnic->free(buf);
+    }
+  }
+
   // Envia uma mensagem:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
-  int send(Address &from, Address &to, void *data,
+  int send(Address &from, Address &to, bool & isPub, void *data,
            unsigned int size) {
     Buffer *buf;
 
@@ -141,11 +166,11 @@ public:
       if (buf == nullptr && buf_rsnic == nullptr)
         return -1;  // Só retorna erro se nenhum dos buffers pode ser alocado
       if (buf != nullptr) {
-        fillBuffer(buf, from, to, data, size);
+        fillBuffer(buf, from, to, isPub, data, size);
         ret_smnic = _smnic->send(buf);
       }
       if (buf_rsnic != nullptr) {
-        fillBuffer(buf_rsnic, from, to, data, size);
+        fillBuffer(buf_rsnic, from, to, isPub, data, size);
         ret_rsnic = _rsnic->send(buf_rsnic);
       }
       // Se conseguiu mandar por qualquer uma das nics, retorna o valor enviado
@@ -157,29 +182,30 @@ public:
       buf = _smnic->alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
         return -1;
-      fillBuffer(buf, from, to, data, size);
+      fillBuffer(buf, from, to, isPub, data, size);
       return _smnic->send(buf);
     } else {
       buf = _rsnic->alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
         return -1;
-      fillBuffer(buf, from, to, data, size);
+      fillBuffer(buf, from, to, isPub, data, size);
       return _rsnic->send(buf);
     }
   }
 
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
-  int receive(Buffer *buf, Address *from, Address *to, void *data, unsigned int size) {
+  int receive(Buffer *buf, Address *from, Address *to, bool *isPub, void *data, unsigned int size) {
     Packet pkt = Packet();
+    SysID originSysID = peekOriginSysID(buf);
     int actual_received_bytes;
-    if (pkt.header()->origin.getSysID() == _sysID) {
+    if (originSysID == _sysID) {
       _smnic->receive(buf, &pkt, MTU + sizeof(Header));
-      actual_received_bytes = fillRecv(pkt, from, to, data, size);
+      actual_received_bytes = fillRecv(pkt, from, to, isPub, data, size);
       _smnic->free(buf);
     } else {
       _rsnic->receive(buf, &pkt, MTU + sizeof(Header));
-      actual_received_bytes = fillRecv(pkt, from, to, data, size);
+      actual_received_bytes = fillRecv(pkt, from, to, isPub, data, size);
       _rsnic->free(buf);
     }
     return actual_received_bytes;
@@ -241,7 +267,7 @@ private:
     }
   }
 
-  void fillBuffer(Buffer * buf, Address &from, Address &to, void *data, unsigned int size) {
+  void fillBuffer(Buffer * buf, Address &from, Address &to, bool & isPub, void *data, unsigned int size) {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
     buf->data()->src = from.getPAddr();
@@ -251,6 +277,7 @@ private:
     Packet *pkt = buf->data()->template data<Packet>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
+    pkt->header()->isPub = isPub;
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
     std::memcpy(pkt->template data<char>(), data, size);
@@ -305,9 +332,10 @@ private:
 #endif
   }
 
-  int fillRecv(Packet &pkt, Address *from, Address *to, void *data, unsigned int size) {
+  int fillRecv(Packet &pkt, Address *from, Address *to, bool *isPub, void *data, unsigned int size) {
     *from = pkt.header()->origin;
     *to = pkt.header()->dest;
+    *isPub = pkt.header()->isPub;
     unsigned int message_data_size = pkt.header()->payloadSize;
     unsigned int actual_received_bytes = size > message_data_size ? message_data_size : size;
     std::memcpy(data, pkt.template data<char>(), actual_received_bytes);

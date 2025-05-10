@@ -57,7 +57,9 @@ int main(int argc, char *argv[]) {
     while (i < NUM_MSGS) {
       Message message =
           Message(comm.addr(),
-                  Protocol::Address(rsnic.address(), parentPID, 10), MSG_SIZE);
+                  Protocol::Address(rsnic.address(), parentPID, 10),
+                  MSG_SIZE,
+                  true);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));
@@ -71,7 +73,7 @@ int main(int argc, char *argv[]) {
   } else {
     sem_post(semaphore);
     for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
-      Message message = Message(MSG_SIZE);
+      Message message = Message(MSG_SIZE, true);
       comm.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {
