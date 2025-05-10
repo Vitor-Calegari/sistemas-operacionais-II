@@ -1,3 +1,6 @@
+#ifndef TRANSDUCER_HH
+#define TRANSDUCER_HH
+
 #include "smart_unit.hh"
 #include <random>
 
@@ -24,3 +27,5 @@ private:
   std::mt19937 _rng;
   Distribution _dist;
 };
+
+#endif
