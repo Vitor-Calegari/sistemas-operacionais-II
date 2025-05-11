@@ -3,11 +3,13 @@
 
 #include "concurrent_observer.hh"
 #include "smart_unit.hh"
-#include <vector>
 #include <chrono>
-#include <thread>
-#include <numeric>
+#include <condition_variable>
 #include <cstring>
+#include <numeric>
+#include <semaphore>
+#include <thread>
+#include <vector>
 // Publisher.
 template <typename Channel, typename Message, typename Transducer = void>
 class Communicator : public Concurrent_Observer<
@@ -37,13 +39,15 @@ public:
     _channel->detach(this, _address.getPort());
   }
 
-  Address addr() { return _address; }
+  Address addr() {
+    return _address;
+  }
 
   bool send(Message *message) {
     uint32_t unit = message->getUnit()->get_int_unit();
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
-                          *message->getIsPub(), unit,
-                          message->data(), message->size()) > 0;
+                          *message->getIsPub(), unit, message->data(),
+                          message->size()) > 0;
   }
 
   bool receive(Message *message) {
@@ -64,35 +68,41 @@ public:
   void initPeriocT() {
     _thread_running = true;
     pThread = std::thread([this]() {
+      if (period == 0) {
+        has_first_subscriber_sem.acquire();
+      }
+
       auto initPTTime = std::chrono::high_resolution_clock::now();
       while (_thread_running) {
-        auto next_wakeup_t = std::chrono::steady_clock::now() + std::chrono::milliseconds(period);
-        // TODO A thread poderia acordar a cada intervalo porém só envia quem ta no tempo correto
-        Message msg = Message(addr(),
-                              Address(),
-                              _transd->get_unit().get_n(),
-                              true,
-                              _transd->get_unit());
+        auto next_wakeup_t = std::chrono::steady_clock::now() +
+                             std::chrono::milliseconds(period);
+
+        // TODO A thread poderia acordar a cada intervalo porém só envia quem ta
+        // no tempo correto
+        Message msg = Message(addr(), Address(), _transd->get_unit().get_n(),
+                              true, _transd->get_unit());
         int data = _transd->get_data();
+        // std::cout << "Data: " << data << '\n';
         std::memcpy(msg.data(), &data, sizeof(data));
         pthread_mutex_lock(&_subscribersMutex);
         std::vector<Subscriber> subs = subscribers;
         pthread_mutex_unlock(&_subscribersMutex);
         for (auto subscriber : subs) {
-          std::chrono::microseconds initT = std::chrono::duration_cast<std::chrono::microseconds>(initPTTime.time_since_epoch());
+          std::chrono::microseconds initT =
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                  initPTTime.time_since_epoch());
           if (initT.count() % subscriber.period == 0) {
             *(msg.destAddr()) = subscriber.origin;
             send(&msg);
           }
         }
         std::this_thread::sleep_until(next_wakeup_t);
-        }
+      }
     });
   }
 
-private:
-  void update([[maybe_unused]] typename Channel::Observed *obs,
-              typename Channel::Observer::Observing_Condition c, Buffer *buf) {
+  void update(typename Channel::Observer::Observing_Condition c,
+              typename Channel::Observer::Observed_Data *buf) {
     bool isPub = _channel->peekIsPub(buf);
     if (isPub) {
       // Releases the thread waiting for data.
@@ -100,17 +110,24 @@ private:
     } else {
       // Novo periodo
       unsigned int new_period = _channel->peekPeriod(buf);
-      period = std::gcd(period, new_period);
+      if (period == 0) {
+        period = new_period;
+        has_first_subscriber_sem.release();
+      } else {
+        period = std::gcd(period, new_period);
+      }
+      // std::cout << "Period = " << period << std::endl;
       Address origin = _channel->peekOrigin(buf);
       // Adiciona novo subscriber
       pthread_mutex_lock(&_subscribersMutex);
-      subscribers.emplace(origin, period);
+      subscribers.push_back(Subscriber{ origin, period });
       pthread_mutex_unlock(&_subscribersMutex);
       // Libera buffer
       _channel->free(buf);
     }
   }
 
+private:
   void stopPThread() {
     _thread_running = 0;
     if (pThread.joinable()) {
@@ -123,6 +140,8 @@ private:
   bool _thread_running;
   unsigned int period = 0;
   std::thread pThread;
+
+  std::binary_semaphore has_first_subscriber_sem{ 0 };
   // -------------------------
   Channel *_channel;
   Address _address;
@@ -163,13 +182,15 @@ public:
     _channel->detach(this, _address.getPort());
   }
 
-  Address addr() { return _address; }
+  Address addr() {
+    return _address;
+  }
 
   bool send(Message *message) {
     uint32_t unit = message->getUnit()->get_int_unit();
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
-                          *message->getIsPub(), unit,
-                          message->data(), message->size()) > 0;
+                          *message->getIsPub(), unit, message->data(),
+                          message->size()) > 0;
   }
 
   bool receive(Message *message) {
@@ -187,9 +208,8 @@ public:
     return size > 0;
   }
 
-private:
-  void update([[maybe_unused]] typename Channel::Observed *obs,
-              typename Channel::Observer::Observing_Condition c, Buffer *buf) {
+  void update(typename Channel::Observer::Observing_Condition c,
+              typename Channel::Observer::Observed_Data *buf) {
     bool isPub = _channel->peekIsPub(buf);
     if (isPub) {
       // Releases the thread waiting for data.
@@ -200,6 +220,7 @@ private:
     }
   }
 
+private:
 private:
   Channel *_channel;
   Address _address;

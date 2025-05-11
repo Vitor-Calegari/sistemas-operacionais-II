@@ -21,7 +21,7 @@ public:
 
   ~Concurrent_Observer() = default;
 
-  void update([[maybe_unused]] C c, D *d) {
+  virtual void update([[maybe_unused]] C c, D *d) {
     _data.push(d);
     _semaphore.release();
   }
