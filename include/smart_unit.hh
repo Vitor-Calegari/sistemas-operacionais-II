@@ -234,6 +234,14 @@ public:
     return _unit.m;
   }
 
+  constexpr uint32_t get_value_size_bytes() const {
+    if (_unit.n == N::INT32 || _unit.n == N::FLOAT32) {
+      return 4;
+    }
+
+    return 8;
+  }
+
   void set_t(uint32_t t) {
     _unit.t = t;
   }

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
+#include <iostream>
 #include <numeric>
 #include <semaphore>
 #include <thread>
@@ -72,31 +73,34 @@ public:
         has_first_subscriber_sem.acquire();
       }
 
-      auto initPTTime = std::chrono::high_resolution_clock::now();
-      while (_thread_running) {
+      for (int num_micro_steps = 0; _thread_running;) {
+        period_sem.acquire();
         auto next_wakeup_t = std::chrono::steady_clock::now() +
-                             std::chrono::milliseconds(period);
+                             std::chrono::microseconds(period);
+        auto cur_period = period;
+        std::cout << "Cur time: " << num_micro_steps << std::endl;
+        period_sem.release();
 
-        // TODO A thread poderia acordar a cada intervalo porém só envia quem ta
-        // no tempo correto
-        Message msg = Message(addr(), Address(), _transd->get_unit().get_n(),
-                              true, _transd->get_unit());
         int data = _transd->get_data();
-        // std::cout << "Data: " << data << '\n';
-        std::memcpy(msg.data(), &data, sizeof(data));
+        std::cout << "Data: " << data << std::endl;
+
         pthread_mutex_lock(&_subscribersMutex);
         std::vector<Subscriber> subs = subscribers;
         pthread_mutex_unlock(&_subscribersMutex);
+
         for (auto subscriber : subs) {
-          std::chrono::microseconds initT =
-              std::chrono::duration_cast<std::chrono::microseconds>(
-                  initPTTime.time_since_epoch());
-          if (initT.count() % subscriber.period == 0) {
-            *(msg.destAddr()) = subscriber.origin;
+          if (num_micro_steps % subscriber.period == 0) {
+            Message msg(addr(), subscriber.origin,
+                        _transd->get_unit().get_value_size_bytes(), true,
+                        _transd->get_unit());
+            std::memcpy(msg.data(), &data, sizeof(data));
             send(&msg);
+            std::cout << "Enviou ao " << subscriber.origin << std::endl;
           }
         }
+
         std::this_thread::sleep_until(next_wakeup_t);
+        num_micro_steps += cur_period;
       }
     });
   }
@@ -108,20 +112,26 @@ public:
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
-      // Novo periodo
+      Address origin = _channel->peekOrigin(buf);
       unsigned int new_period = _channel->peekPeriod(buf);
+
+      // Adiciona novo subscriber
+      pthread_mutex_lock(&_subscribersMutex);
+      subscribers.push_back(Subscriber{ origin, new_period });
+      std::cout << "Subscriber " << origin << ' ' << new_period << " added"
+                << std::endl;
+      pthread_mutex_unlock(&_subscribersMutex);
+
+      period_sem.acquire();
       if (period == 0) {
         period = new_period;
         has_first_subscriber_sem.release();
       } else {
         period = std::gcd(period, new_period);
       }
-      // std::cout << "Period = " << period << std::endl;
-      Address origin = _channel->peekOrigin(buf);
-      // Adiciona novo subscriber
-      pthread_mutex_lock(&_subscribersMutex);
-      subscribers.push_back(Subscriber{ origin, period });
-      pthread_mutex_unlock(&_subscribersMutex);
+      std::cout << "Period: " << period << std::endl;
+      period_sem.release();
+
       // Libera buffer
       _channel->free(buf);
     }
@@ -142,6 +152,7 @@ private:
   std::thread pThread;
 
   std::binary_semaphore has_first_subscriber_sem{ 0 };
+  std::binary_semaphore period_sem{ 1 };
   // -------------------------
   Channel *_channel;
   Address _address;
