@@ -144,6 +144,11 @@ public:
     return pkt->header()->isPub;
   }
 
+  uint32_t peekUnit(Buffer *buf) {
+    Packet *pkt = buf->data()->template data<Packet>();
+    return pkt->header()->unit;
+  }
+
   unsigned int peekPeriod(Buffer *buf) {
     Packet *pkt = buf->data()->template data<Packet>();
     return *(pkt->template data<unsigned int>());

@@ -112,25 +112,31 @@ public:
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
-      Address origin = _channel->peekOrigin(buf);
-      unsigned int new_period = _channel->peekPeriod(buf);
+      // Filtra mensagens de subscribe que não são do tipo
+      // produzido pelo transdutor do Communicator
+      uint32_t unit = _channel->peekUnit(buf);
 
-      // Adiciona novo subscriber
-      pthread_mutex_lock(&_subscribersMutex);
-      subscribers.push_back(Subscriber{ origin, new_period });
-      std::cout << "Subscriber " << origin << ' ' << new_period << " added"
-                << std::endl;
-      pthread_mutex_unlock(&_subscribersMutex);
-
-      period_sem.acquire();
-      if (period == 0) {
-        period = new_period;
-        has_first_subscriber_sem.release();
-      } else {
-        period = std::gcd(period, new_period);
+      if (unit == _transd->get_unit().get_int_unit()) {
+        Address origin = _channel->peekOrigin(buf);
+        unsigned int new_period = _channel->peekPeriod(buf);
+  
+        // Adiciona novo subscriber
+        pthread_mutex_lock(&_subscribersMutex);
+        subscribers.push_back(Subscriber{ origin, new_period });
+        std::cout << "Subscriber " << origin << ' ' << new_period << " added"
+                  << std::endl;
+        pthread_mutex_unlock(&_subscribersMutex);
+  
+        period_sem.acquire();
+        if (period == 0) {
+          period = new_period;
+          has_first_subscriber_sem.release();
+        } else {
+          period = std::gcd(period, new_period);
+        }
+        std::cout << "Period: " << period << std::endl;
+        period_sem.release();
       }
-      std::cout << "Period: " << period << std::endl;
-      period_sem.release();
 
       // Libera buffer
       _channel->free(buf);
