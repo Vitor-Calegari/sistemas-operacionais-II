@@ -11,6 +11,7 @@
 #include <semaphore>
 #include <thread>
 #include <vector>
+#include <atomic>
 // Publisher.
 template <typename Channel, typename Message, typename Transducer = void>
 class Communicator : public Concurrent_Observer<
@@ -45,25 +46,59 @@ public:
   }
 
   bool send(Message *message) {
+    std::size_t size = sizeof(Message) - 2 * sizeof(Address);
+    std::vector<unsigned char> data(size);
+
+    // Get message data
     uint32_t unit = message->getUnit()->get_int_unit();
+    std::size_t payload_size = message->size();
+
+    // Fill data array with message values
+    int offset = 0;
+    std::memcpy(data.data() + offset, message->getIsPub(), sizeof(bool));
+    offset += sizeof(bool);
+    std::memcpy(data.data() + offset, &unit, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+    std::memcpy(data.data() + offset, &payload_size, sizeof(std::size_t));
+    offset += sizeof(std::size_t);
+    std::memcpy(data.data() + offset, message->data(), payload_size);
+
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
-                          *message->getIsPub(), unit, message->data(),
-                          message->size()) > 0;
+                          data.data(), size) > 0;
   }
 
   bool receive(Message *message) {
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
 
+    std::size_t data_size = sizeof(Message) - 2 * sizeof(Address);
+    std::vector<unsigned char> data(data_size, 0);
+
+    int recv_size = _channel->receive(buf, message->sourceAddr(),
+                                      message->destAddr(), data.data(), data_size);
+
+    // Copy IsPub
+    int offset = 0;
+    std::memcpy(message->getIsPub(), data.data() + offset, sizeof(bool));
+    offset += sizeof(bool);
+    // Copy Unit
     uint32_t unit = 0;
-
-    int size = _channel->receive(buf, message->sourceAddr(),
-                                 message->destAddr(), message->getIsPub(),
-                                 &unit, message->data(), message->size());
-    message->setUnit(SmartUnit(unit));
+    std::memcpy(&unit, data.data() + offset, sizeof(uint32_t));
+    *message->getUnit() = SmartUnit(unit);
+    offset += sizeof(uint32_t);
+    // Copy size
+    std::size_t size = 0;
+    std::memcpy(&size, data.data() + offset, sizeof(std::size_t));
     message->setSize(size);
+    offset += sizeof(std::size_t);
+    // Copy data
+    std::size_t msg_recv_data_size = recv_size - offset;
+    std::size_t payload_size = message->size() <= msg_recv_data_size ? message->size() : msg_recv_data_size;
+    std::memcpy(message->data(), data.data() + offset, payload_size);
 
-    return size > 0;
+    message->setSize(payload_size);
+
+    return recv_size > 0;
   }
 
   void initPeriocT() {
@@ -82,7 +117,11 @@ public:
         period_sem.release();
 
         int data = _transd->get_data();
-        std::cout << "Data: " << data << std::endl;
+        std::cout << "Data: ";
+        for (int i = 0; i < sizeof(data); i++) {
+            std::cout << (int)((unsigned char*)&data)[i] << " ";
+        }
+        std::cout << std::endl;
 
         pthread_mutex_lock(&_subscribersMutex);
         std::vector<Subscriber> subs = subscribers;
@@ -107,22 +146,36 @@ public:
 
   void update(typename Channel::Observer::Observing_Condition c,
               typename Channel::Observer::Observed_Data *buf) {
-    bool isPub = _channel->peekIsPub(buf);
+    
+    unsigned char * data = _channel->peekData(buf);
+    bool isPub;
+    std::size_t offset = 0;
+    std::memcpy(&isPub, &data[offset], sizeof(bool));
+    offset += sizeof(bool);
     if (isPub) {
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
       // Filtra mensagens de subscribe que não são do tipo
       // produzido pelo transdutor do Communicator
-      uint32_t unit = _channel->peekUnit(buf);
+      uint32_t unit;
+      std::memcpy(&unit, &data[offset], sizeof(uint32_t));
+      offset += sizeof(uint32_t);
 
       if (unit == _transd->get_unit().get_int_unit()) {
+        // Obtem origem
         Address origin = _channel->peekOrigin(buf);
-        unsigned int new_period = _channel->peekPeriod(buf);
+        // Obtem periodo
+        std::size_t period_size;
+        std::memcpy(&period_size, &data[offset], sizeof(std::size_t));
+        offset += sizeof(std::size_t);
+        unsigned int new_period;
+        std::memcpy(&new_period, &data[offset], period_size);
   
         // Adiciona novo subscriber
         pthread_mutex_lock(&_subscribersMutex);
         subscribers.push_back(Subscriber{ origin, new_period });
+        // TODO Remover cout
         std::cout << "Subscriber " << origin << ' ' << new_period << " added"
                   << std::endl;
         pthread_mutex_unlock(&_subscribersMutex);
@@ -134,6 +187,7 @@ public:
         } else {
           period = std::gcd(period, new_period);
         }
+        // TODO Remover cout
         std::cout << "Period: " << period << std::endl;
         period_sem.release();
       }
@@ -153,7 +207,7 @@ private:
 
 private:
   // Thread -------------------
-  bool _thread_running;
+  std::atomic<bool> _thread_running;
   unsigned int period = 0;
   std::thread pThread;
 
@@ -204,30 +258,68 @@ public:
   }
 
   bool send(Message *message) {
+    std::size_t size = sizeof(Message) - 2 * sizeof(Address);
+    std::vector<unsigned char> data(size);
+
+    // Get message data
+    bool *isPub = message->getIsPub();
     uint32_t unit = message->getUnit()->get_int_unit();
+    std::size_t payload_size = message->size();
+
+    // Fill data array with message values
+    int offset = 0;
+    std::memcpy(data.data() + offset, isPub, sizeof(bool));
+    offset += sizeof(bool);
+    std::memcpy(data.data() + offset, &unit, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+    std::memcpy(data.data() + offset, &payload_size, sizeof(std::size_t));
+    offset += sizeof(std::size_t);
+    std::memcpy(data.data() + offset, message->data(), payload_size);
+
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
-                          *message->getIsPub(), unit, message->data(),
-                          message->size()) > 0;
+                          data.data(), size) > 0;
   }
 
   bool receive(Message *message) {
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
 
+    std::size_t data_size = sizeof(Message) - 2 * sizeof(Address);
+    std::vector<unsigned char> data(data_size, 0);
+
+    int recv_size = _channel->receive(buf, message->sourceAddr(),
+                                      message->destAddr(), data.data(), data_size);
+
+    // Copy IsPub
+    int offset = 0;
+    std::memcpy(message->getIsPub(), data.data() + offset, sizeof(bool));
+    offset += sizeof(bool);
+    // Copy Unit
     uint32_t unit = 0;
-
-    int size = _channel->receive(buf, message->sourceAddr(),
-                                 message->destAddr(), message->getIsPub(),
-                                 &unit, message->data(), message->size());
-    message->setUnit(SmartUnit(unit));
+    std::memcpy(&unit, data.data() + offset, sizeof(uint32_t));
+    *message->getUnit() = SmartUnit(unit);
+    offset += sizeof(uint32_t);
+    // Copy size
+    std::size_t size = 0;
+    std::memcpy(&size, data.data() + offset, sizeof(std::size_t));
     message->setSize(size);
+    offset += sizeof(std::size_t);
+    // Copy data
+    std::size_t msg_recv_data_size = recv_size - offset;
+    std::size_t payload_size = message->size() <= msg_recv_data_size ? message->size() : msg_recv_data_size;
+    std::memcpy(message->data(), data.data() + offset, payload_size);
 
-    return size > 0;
+    message->setSize(payload_size);
+
+    return recv_size > 0;
   }
 
   void update(typename Channel::Observer::Observing_Condition c,
               typename Channel::Observer::Observed_Data *buf) {
-    bool isPub = _channel->peekIsPub(buf);
+    unsigned char * data = _channel->peekData(buf);
+    bool isPub;
+    std::size_t offset = 0;
+    std::memcpy(&isPub, &data[offset], sizeof(bool));
     if (isPub) {
       // Releases the thread waiting for data.
       Observer::update(c, buf);
@@ -237,7 +329,6 @@ public:
     }
   }
 
-private:
 private:
   Channel *_channel;
   Address _address;
