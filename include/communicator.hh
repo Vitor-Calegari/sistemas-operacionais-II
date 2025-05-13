@@ -1,8 +1,10 @@
 #ifndef COMMUNICATOR_HH
 #define COMMUNICATOR_HH
 
+#include "concurrent_observed.hh"
 #include "concurrent_observer.hh"
 #include "smart_unit.hh"
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
@@ -11,17 +13,22 @@
 #include <semaphore>
 #include <thread>
 #include <vector>
-#include <atomic>
 // Publisher.
 template <typename Channel, typename Message, typename Transducer = void>
 class Communicator : public Concurrent_Observer<
                          typename Channel::Observer::Observed_Data,
-                         typename Channel::Observer::Observing_Condition> {
+                         typename Channel::Observer::Observing_Condition>,
+                     public Concurrent_Observed<
+                         typename Channel::Observer::Observed_Data,
+                         uint32_t> {
+public:
   typedef Concurrent_Observer<typename Channel::Observer::Observed_Data,
                               typename Channel::Observer::Observing_Condition>
       Observer;
+  typedef Concurrent_Observed<typename Channel::Observer::Observed_Data,
+                              uint32_t>
+      CommObserver;
 
-public:
   typedef typename Channel::Buffer Buffer;
   typedef typename Channel::Address Address;
   typedef typename Channel::Port Port;
@@ -74,8 +81,9 @@ public:
     std::size_t data_size = sizeof(Message) - 2 * sizeof(Address);
     std::vector<unsigned char> data(data_size, 0);
 
-    int recv_size = _channel->receive(buf, message->sourceAddr(),
-                                      message->destAddr(), data.data(), data_size);
+    int recv_size =
+        _channel->receive(buf, message->sourceAddr(), message->destAddr(),
+                          data.data(), data_size);
 
     // Copy IsPub
     int offset = 0;
@@ -93,7 +101,9 @@ public:
     offset += sizeof(std::size_t);
     // Copy data
     std::size_t msg_recv_data_size = recv_size - offset;
-    std::size_t payload_size = message->size() <= msg_recv_data_size ? message->size() : msg_recv_data_size;
+    std::size_t payload_size = message->size() <= msg_recv_data_size
+                                   ? message->size()
+                                   : msg_recv_data_size;
     std::memcpy(message->data(), data.data() + offset, payload_size);
 
     message->setSize(payload_size);
@@ -119,7 +129,7 @@ public:
         int data = _transd->get_data();
         std::cout << "Data: ";
         for (int i = 0; i < sizeof(data); i++) {
-            std::cout << (int)((unsigned char*)&data)[i] << " ";
+          std::cout << (int)((unsigned char *)&data)[i] << " ";
         }
         std::cout << std::endl;
 
@@ -146,8 +156,8 @@ public:
 
   void update(typename Channel::Observer::Observing_Condition c,
               typename Channel::Observer::Observed_Data *buf) {
-    
-    unsigned char * data = _channel->peekData(buf);
+
+    unsigned char *data = _channel->peekData(buf);
     bool isPub;
     std::size_t offset = 0;
     std::memcpy(&isPub, &data[offset], sizeof(bool));
@@ -171,7 +181,7 @@ public:
         offset += sizeof(std::size_t);
         unsigned int new_period;
         std::memcpy(&new_period, &data[offset], period_size);
-  
+
         // Adiciona novo subscriber
         pthread_mutex_lock(&_subscribersMutex);
         subscribers.push_back(Subscriber{ origin, new_period });
@@ -179,7 +189,7 @@ public:
         std::cout << "Subscriber " << origin << ' ' << new_period << " added"
                   << std::endl;
         pthread_mutex_unlock(&_subscribersMutex);
-  
+
         period_sem.acquire();
         if (period == 0) {
           period = new_period;
@@ -287,8 +297,9 @@ public:
     std::size_t data_size = sizeof(Message) - 2 * sizeof(Address);
     std::vector<unsigned char> data(data_size, 0);
 
-    int recv_size = _channel->receive(buf, message->sourceAddr(),
-                                      message->destAddr(), data.data(), data_size);
+    int recv_size =
+        _channel->receive(buf, message->sourceAddr(), message->destAddr(),
+                          data.data(), data_size);
 
     // Copy IsPub
     int offset = 0;
@@ -306,7 +317,9 @@ public:
     offset += sizeof(std::size_t);
     // Copy data
     std::size_t msg_recv_data_size = recv_size - offset;
-    std::size_t payload_size = message->size() <= msg_recv_data_size ? message->size() : msg_recv_data_size;
+    std::size_t payload_size = message->size() <= msg_recv_data_size
+                                   ? message->size()
+                                   : msg_recv_data_size;
     std::memcpy(message->data(), data.data() + offset, payload_size);
 
     message->setSize(payload_size);
@@ -316,7 +329,7 @@ public:
 
   void update(typename Channel::Observer::Observing_Condition c,
               typename Channel::Observer::Observed_Data *buf) {
-    unsigned char * data = _channel->peekData(buf);
+    unsigned char *data = _channel->peekData(buf);
     bool isPub;
     std::size_t offset = 0;
     std::memcpy(&isPub, &data[offset], sizeof(bool));
