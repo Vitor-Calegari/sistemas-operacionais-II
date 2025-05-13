@@ -236,10 +236,10 @@ public:
 
   constexpr uint32_t get_value_size_bytes() const {
     if (_unit.n == N::INT32 || _unit.n == N::FLOAT32) {
-      return 4;
+      return sizeof(int32_t);
     }
 
-    return 8;
+    return sizeof(int64_t);
   }
 
   void set_t(uint32_t t) {

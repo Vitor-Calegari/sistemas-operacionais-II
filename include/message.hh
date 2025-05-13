@@ -3,27 +3,24 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 
 template <typename Addr>
 class Message {
 public:
-
-// TODO Era melhor usar um tipo menor, talvez Char
-enum class Type : short {
-  COMMOM,
-  PUBLISH,
-  SUBSCRIBE
-};
+  enum class Type : uint8_t { COMMOM, PUBLISH, SUBSCRIBE };
 
 public:
   Message(Addr src, Addr dst, Type type, std::size_t payload_size)
-      : _source_addr(src), _dest_addr(dst), _msg_type(type), _payload_size(payload_size) {
+      : _source_addr(src), _dest_addr(dst), _msg_type(type),
+        _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
   Message(std::size_t payload_size, Type type)
-      : _source_addr(Addr()), _dest_addr(Addr()), _msg_type(type), _payload_size(payload_size) {
+      : _source_addr(Addr()), _dest_addr(Addr()), _msg_type(type),
+        _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
@@ -32,20 +29,30 @@ public:
     delete[] _data;
   }
 
-  Addr * sourceAddr() { return &_source_addr; }
+  Addr *sourceAddr() {
+    return &_source_addr;
+  }
 
-  Addr * destAddr() { return &_dest_addr; }
+  Addr *destAddr() {
+    return &_dest_addr;
+  }
 
-  void setType(Type new_type) { _msg_type = new_type; }
+  void setType(Type new_type) {
+    _msg_type = new_type;
+  }
 
-  Type * getType() { return &_msg_type; }
+  Type *getType() {
+    return &_msg_type;
+  }
 
-  void setSize(std::size_t new_size) { _payload_size = new_size; }
+  void setSize(std::size_t new_size) {
+    _payload_size = new_size;
+  }
 
   std::size_t size() {
     return _payload_size;
   }
-  
+
   std::byte *data() const {
     return _data;
   }
