@@ -4,17 +4,26 @@
 #include <algorithm>
 #include <cstddef>
 
-template <typename Addr, typename Unit>
+template <typename Addr>
 class Message {
 public:
-  Message(Addr src, Addr dst, std::size_t payload_size, bool isPub, Unit unit)
-      : _source_addr(src), _dest_addr(dst), _isPub(isPub), _unit(unit), _payload_size(payload_size) {
+
+// TODO Era melhor usar um tipo menor, talvez Char
+enum class Type : short {
+  COMMOM,
+  PUBLISH,
+  SUBSCRIBE
+};
+
+public:
+  Message(Addr src, Addr dst, Type type, std::size_t payload_size)
+      : _source_addr(src), _dest_addr(dst), _msg_type(type), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
-  Message(std::size_t payload_size, bool isPub, Unit unit)
-      : _source_addr(Addr()), _dest_addr(Addr()), _isPub(isPub), _unit(unit), _payload_size(payload_size) {
+  Message(std::size_t payload_size, Type type)
+      : _source_addr(Addr()), _dest_addr(Addr()), _msg_type(type), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
@@ -27,11 +36,9 @@ public:
 
   Addr * destAddr() { return &_dest_addr; }
 
-  bool * getIsPub() { return &_isPub; }
+  void setType(Type new_type) { _msg_type = new_type; }
 
-  Unit * getUnit() { return &_unit; }
-  
-  void setUnit(Unit unit) { _unit = unit; }
+  Type * getType() { return &_msg_type; }
 
   void setSize(std::size_t new_size) { _payload_size = new_size; }
 
@@ -46,8 +53,7 @@ public:
 private:
   Addr _source_addr;
   Addr _dest_addr;
-  bool _isPub;
-  Unit _unit;
+  Type _msg_type;
   std::size_t _payload_size;
   std::byte *_data;
 };

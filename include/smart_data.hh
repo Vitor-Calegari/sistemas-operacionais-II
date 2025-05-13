@@ -34,12 +34,20 @@ public:
   // TODO Ou implementar outra forma de tipar o campo de dados
   inline static const unsigned int MTU = Communicator::MTU - sizeof(Message::Header);
   typedef unsigned char Data[MTU];
-  class Packet {
+
+  class Header {
   public:
-    Packet() {
-    }
+    Header() : unit(0), period(0) {}
     uint32_t unit;
     unsigned int period;
+  } __attribute__((packed));
+
+  class PubPacket : public Header {
+  public:
+    PubPacket() {
+      std::memset(_data, 0, sizeof(_data));
+    }
+    Header *header() { return this; }
     template <typename T>
     T *data() {
       return reinterpret_cast<T *>(&_data);
@@ -49,18 +57,50 @@ public:
     Data _data;
   } __attribute__((packed));
 
+  class SubPacket : public Header {
+  public:
+    SubPacket() {}
+  } __attribute__((packed));
+
 public:
   SmartData(Communicator *communicator, Transducer *transd)
-      : _communicator(communicator), _transd(transd) {
+      :
+      _thread_running(0),
+      period(0),
+      _sub_thread_running(0),
+      _sub_period(0),
+      _communicator(communicator),
+      _transd(transd) {
     _communicator->attatch(this, _transd->get_unit().get_int_unit());
   }
 
   ~SmartData() {
+    if (_sub_thread_running) {
+      stopSubT();
+    }
+    if (_sub_thread_running) {
+      stopPubT();
+    }
     _communicator->detach(this, _transd->get_unit().get_int_unit());
   }
 
-  void subscribe() {
-    // TODO Mandar mensagem de subscribe pelo Communicator
+  void subscribe(unsigned int period) {
+    _sub_msg = Message(
+      comm.addr(),
+      Address(
+        comm.addr().getPAddr(), // Nao precisa disso aqui
+        Communicator::Channel::BROADCAST_SID,
+        Communicator::Channel::BROADCAST
+      ),
+      Message::Type::SUBSCRIBE,
+      sizeof(SubPacket)
+    );
+
+    SubPacket * pkt = (SubPacket *)_sub_msg->data();
+    pkt->unit = _transd->get_data()->get_int_unit();
+    pkt->period = period;
+
+    initPSubT();
     return;
   }
 
@@ -73,50 +113,6 @@ public:
     int recv_size = 0;
 
     return recv_size > 0;
-  }
-
-  void initPeriocT() {
-    // TODO É necessário implementar o novo sistema de publisher subscribe
-    _thread_running = true;
-    pThread = std::thread([this]() {
-      if (period == 0) {
-        has_first_subscriber_sem.acquire();
-      }
-
-      for (int num_micro_steps = 0; _thread_running;) {
-        period_sem.acquire();
-        auto next_wakeup_t = std::chrono::steady_clock::now() +
-                             std::chrono::microseconds(period);
-        auto cur_period = period;
-        std::cout << "Cur time: " << num_micro_steps << std::endl;
-        period_sem.release();
-
-        int data = _transd->get_data();
-        std::cout << "Data: ";
-        for (int i = 0; i < sizeof(data); i++) {
-          std::cout << (int)((unsigned char *)&data)[i] << " ";
-        }
-        std::cout << std::endl;
-
-        pthread_mutex_lock(&_subscribersMutex);
-        std::vector<Subscriber> subs = subscribers;
-        pthread_mutex_unlock(&_subscribersMutex);
-
-        for (auto subscriber : subs) {
-          if (num_micro_steps % subscriber.period == 0) {
-            Message msg(addr(), subscriber.origin,
-                        _transd->get_unit().get_value_size_bytes(), true,
-                        _transd->get_unit());
-            std::memcpy(msg.data(), &data, sizeof(data));
-            send(&msg);
-            std::cout << "Enviou ao " << subscriber.origin << std::endl;
-          }
-        }
-
-        std::this_thread::sleep_until(next_wakeup_t);
-        num_micro_steps += cur_period;
-      }
-    });
   }
 
   void update(typename Communicator::Observer::Observing_Condition c,
@@ -173,20 +169,91 @@ public:
   }
 
 private:
-  void stopPThread() {
+
+  void initPeriocT() {
+    // TODO É necessário implementar o novo sistema de publisher subscribe
+    _thread_running = true;
+    pThread = std::thread([this]() {
+      if (period == 0) {
+        has_first_subscriber_sem.acquire();
+      }
+
+      for (int num_micro_steps = 0; _thread_running;) {
+        period_sem.acquire();
+        auto next_wakeup_t = std::chrono::steady_clock::now() +
+                            std::chrono::microseconds(period);
+        auto cur_period = period;
+        std::cout << "Cur time: " << num_micro_steps << std::endl;
+        period_sem.release();
+
+        int data = _transd->get_data();
+        std::cout << "Data: ";
+        for (int i = 0; i < sizeof(data); i++) {
+          std::cout << (int)((unsigned char *)&data)[i] << " ";
+        }
+        std::cout << std::endl;
+
+        pthread_mutex_lock(&_subscribersMutex);
+        std::vector<Subscriber> subs = subscribers;
+        pthread_mutex_unlock(&_subscribersMutex);
+
+        for (auto subscriber : subs) {
+          if (num_micro_steps % subscriber.period == 0) {
+            Message msg(addr(), subscriber.origin,
+                        _transd->get_unit().get_value_size_bytes(), true,
+                        _transd->get_unit());
+            std::memcpy(msg.data(), &data, sizeof(data));
+            send(&msg);
+            std::cout << "Enviou ao " << subscriber.origin << std::endl;
+          }
+        }
+
+        std::this_thread::sleep_until(next_wakeup_t);
+        num_micro_steps += cur_period;
+      }
+    });
+  }
+
+  void stopPubT() {
     _thread_running = 0;
     if (pThread.joinable()) {
       pThread.join();
     }
   }
 
+  void initPSubT() {
+    _sub_thread_running = true;
+    _sub_pThread = std::thread([this]() {
+    while (_sub_thread_running) {
+      auto next_wakeup_t = std::chrono::steady_clock::now() +
+                            std::chrono::microseconds(_sub_period);
+      _communicator->send(&_sub_msg);
+      std::this_thread::sleep_until(next_wakeup_t);
+    }
+    });
+  }
+
+  void stopPSubT() {
+    _sub_thread_running = 0;
+    if (_sub_pThread.joinable()) {
+      _sub_pThread.join();
+    }
+  }
+
 private:
-  // Thread -------------------
+  // Pub Thread ---------------
   std::atomic<bool> _thread_running;
   unsigned int period = 0;
   std::thread pThread;
   std::binary_semaphore has_first_subscriber_sem{ 0 };
   std::binary_semaphore period_sem{ 1 };
+  // --------------------------
+
+  // Sub Thread ---------------
+  std::atomic<bool> _sub_thread_running;
+  unsigned int _sub_period = 5e6;
+  std::thread _sub_pThread;
+  Message _sub_msg;
   // --------------------------
 
   // Subscriber ---------------
