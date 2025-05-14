@@ -8,7 +8,7 @@
 template <typename Addr>
 class Message {
 public:
-  enum class Type : uint8_t { COMMOM, PUBLISH, SUBSCRIBE };
+  enum Type : uint8_t { COMMOM, PUBLISH, SUBSCRIBE };
 
 public:
   Message(Addr src, Addr dst, Type type, std::size_t payload_size)
@@ -37,8 +37,8 @@ public:
     return &_dest_addr;
   }
 
-  void setType(Type new_type) {
-    _msg_type = new_type;
+  void setType(uint8_t new_type) {
+    _msg_type = static_cast<Type>(new_type);
   }
 
   Type *getType() {

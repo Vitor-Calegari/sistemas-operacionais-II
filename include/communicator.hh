@@ -2,11 +2,17 @@
 #define COMMUNICATOR_HH
 
 #include "concurrent_observer.hh"
+#include "concurrent_observed.hh"
+#include "cond.hh"
+#include <iostream>
 
 template <typename Channel, typename Message>
-class Communicator : public Concurrent_Observer<
-                         typename Channel::Observer::Observed_Data,
-                         typename Channel::Observer::Observing_Condition> {
+class Communicator
+    : public Concurrent_Observer<
+          typename Channel::Observer::Observed_Data,
+          typename Channel::Observer::Observing_Condition>,
+      public Concurrent_Observed<typename Channel::Observer::Observed_Data,
+      Condition> {
   typedef Concurrent_Observer<typename Channel::Observer::Observed_Data,
                               typename Channel::Observer::Observing_Condition>
       Observer;
@@ -32,27 +38,39 @@ public:
   }
 
   bool send(Message *message) {
+    uint8_t type = *message->getType();
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
+    type,
                           message->data(), message->size()) > 0;
   }
 
   bool receive(Message *message) {
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
-
+    uint8_t type;
     int size =
         _channel->receive(buf, message->sourceAddr(), message->destAddr(),
-                          message->data(), message->size());
+        &type,
+    message->data(), message->size());
+    message->setType(type);
     message->setSize(size);
-
     return size > 0;
   }
 
 private:
-  void update([[maybe_unused]] typename Channel::Observed *obs,
-              typename Channel::Observer::Observing_Condition c, Buffer *buf) {
-    // Releases the thread waiting for data.
-    Observer::update(c, buf);
+  void update(typename Channel::Observer::Observing_Condition c, Buffer *buf) {
+    Message msg = Message(Channel::MTU, Message::Type::COMMOM);
+    _channel->unmarshal(&msg, buf);
+    if (*msg.getType() == Message::Type::COMMOM) {
+      std::cout << "A" << std::endl;
+      // Releases the thread waiting for data.
+      Observer::update(c, buf);
+    } else {
+      Condition *cond = (Condition *)(msg.data());
+      if (!this->notify(*cond, buf)) {
+        _channel->free(buf);
+      }
+    }
   }
 
 private:
