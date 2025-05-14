@@ -219,8 +219,8 @@ public:
     return actual_received_bytes;
   }
 
-  void unmarshal(void * data, Buffer *buf) {
-    std::memcpy(data, buf->data()->template data<Packet>(), MTU + sizeof(Header));
+  void * unmarshal(Buffer *buf) {
+    return buf->data()->template data<Packet>();
   }
 
 private:

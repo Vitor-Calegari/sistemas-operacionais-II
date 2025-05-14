@@ -59,14 +59,12 @@ public:
 
 private:
   void update(typename Channel::Observer::Observing_Condition c, Buffer *buf) {
-    Message msg = Message(Channel::MTU, Message::Type::COMMOM);
-    _channel->unmarshal(&msg, buf);
-    if (*msg.getType() == Message::Type::COMMOM) {
-      std::cout << "A" << std::endl;
+    Message *msg = (Message *)_channel->unmarshal(buf);
+    if (*msg->getType() == Message::Type::COMMOM) {
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
-      Condition *cond = (Condition *)(msg.data());
+      Condition *cond = (Condition *)(msg->data());
       if (!this->notify(*cond, buf)) {
         _channel->free(buf);
       }
