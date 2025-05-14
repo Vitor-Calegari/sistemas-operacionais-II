@@ -157,7 +157,7 @@ public:
         } else {
           period = std::gcd(period, new_period);
         }
-        highest_period = std::min(highest_period, new_period);
+        highest_period = std::max(highest_period, new_period);
         // TODO Remover cout
         std::cout << "Pub period: " << period << std::endl;
         period_sem.release();
@@ -197,7 +197,7 @@ private:
       }
 
       for (int cur_period = 0; _pub_thread_running;
-           cur_period = cur_period = (cur_period + 1) % highest_period) {
+           cur_period = (cur_period + 1) % highest_period) {
         period_sem.acquire();
         auto next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(period);
