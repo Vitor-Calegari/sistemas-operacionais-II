@@ -57,6 +57,11 @@ public:
     return _data;
   }
 
+  template <typename T>
+  T *data() {
+    return reinterpret_cast<T *>(&_data);
+  }
+
 private:
   Addr _source_addr;
   Addr _dest_addr;

@@ -64,7 +64,7 @@ private:
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
-      Condition *cond = (Condition *)(msg->data());
+      Condition *cond = msg->template data<Condition>();
       if (!this->notify(*cond, buf)) {
         _channel->free(buf);
       }
