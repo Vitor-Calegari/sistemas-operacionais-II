@@ -32,13 +32,6 @@ public:
   typedef typename Communicator::CommChannel Channel;
 
 public:
-  // MTU disponível para data
-  // TODO Implementar MTU no communicator e Header da Message para facilitar
-  // calculo de tamanho máximo
-  // TODO Ou implementar outra forma de tipar o campo de dados
-  inline static const unsigned int MTU =
-      Ethernet::MTU - sizeof(Ethernet::Header);
-  typedef unsigned char Data[MTU];
 
   static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
 
@@ -49,6 +42,10 @@ public:
     uint32_t unit;
     uint32_t period;
   } __attribute__((packed));
+
+  // MTU disponível para data
+  inline static const unsigned int MTU = Communicator::MTU - sizeof(Header);
+  typedef unsigned char Data[MTU];
 
   class PubPacket : public Header {
   public:
@@ -89,7 +86,7 @@ public:
     if (_sub_thread_running) {
       stopSubThread();
     }
-    if (_sub_thread_running) {
+    if (_pub_thread_running) {
       stopPubThread();
     }
     // TODO! Arrumar.
