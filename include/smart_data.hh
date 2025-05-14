@@ -103,14 +103,13 @@ public:
     return;
   }
 
-  bool receive([[maybe_unused]] Message *message) {
+  bool receive(void * data) {
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
-
-    // TODO Mandar pro communicator para fazer unmarshal da mensagem
-
-    int recv_size = 0;
-
+    Message * msg = (Message *)_communicator->unmarshal(buf);
+    unsigned char * pubPkt = msg->template data<PubPacket>()->template data<unsigned char>();
+    std::size_t recv_size = msg->size() - sizeof(Header);
+    std::memcpy(data, pubPkt, recv_size);
     return recv_size > 0;
   }
 
@@ -190,12 +189,13 @@ private:
         period_sem.release();
 
         int data = _transd->get_data();
+#ifdef DEBUG_SMD
         std::cout << "Produced data: ";
         for (size_t i = 0; i < sizeof(data); i++) {
           std::cout << (int)((unsigned char *)&data)[i] << " ";
         }
         std::cout << std::endl;
-
+#endif
         auto msg = create_pub_message(data, cur_period);
         _communicator->send(&msg);
 
