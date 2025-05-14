@@ -16,6 +16,8 @@ class Communicator
   typedef Concurrent_Observer<typename Channel::Observer::Observed_Data,
                               typename Channel::Observer::Observing_Condition>
       Observer;
+  typedef Concurrent_Observed<typename Channel::Observer::Observed_Data,
+  Condition> CommObserver;
 
 public:
   typedef typename Channel::Buffer Buffer;
