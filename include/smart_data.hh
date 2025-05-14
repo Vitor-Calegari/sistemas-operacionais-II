@@ -114,54 +114,40 @@ public:
     return recv_size > 0;
   }
 
-  void update(typename Communicator::Observer::Observing_Condition c,
-              typename Communicator::Observer::Observed_Data *buf) {
-    // TODO Implementar peek no communicator que repasse para o peek do protocol
-    unsigned char *data = _communicator->peekData(buf);
-    bool isPub;
-    std::size_t offset = 0;
-    std::memcpy(&isPub, &data[offset], sizeof(bool));
-    offset += sizeof(bool);
-    if (isPub) {
+  void update(typename Communicator::CommObserver::Observing_Condition c,
+              typename Communicator::CommObserver::Observed_Data *buf) {
+    Message * msg = (Message *)_communicator->unmarshal(buf);
+    if (*msg->getType() == Message::Type::PUBLISH) {
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
-      // Filtra mensagens de subscribe que não são do tipo
-      // produzido pelo transdutor do Communicator
-      uint32_t unit;
-      std::memcpy(&unit, &data[offset], sizeof(uint32_t));
-      offset += sizeof(uint32_t);
+      // Obtem origem
+      Address origin = *msg->sourceAddr();
+      // Obtem periodo
+      SubPacket *sub_pkt = msg->template data<SubPacket>();
+      uint32_t new_period = sub_pkt->period;
 
-      if (unit == _transd->get_unit().get_int_unit()) {
-        // Obtem origem
-        Address origin = _communicator->peekOrigin(buf);
-        // Obtem periodo
-        std::size_t period_size;
-        std::memcpy(&period_size, &data[offset], sizeof(std::size_t));
-        offset += sizeof(std::size_t);
-        uint32_t new_period;
-        std::memcpy(&new_period, &data[offset], period_size);
+      // Adiciona novo subscriber
+      pthread_mutex_lock(&_subscribersMutex);
+      subscribers.push_back(Subscriber{ origin, new_period });
+#ifdef DEBUG_SMD
+      std::cout << "Subscriber " << origin << ' ' << new_period << " added"
+                << std::endl;
+#endif
+      pthread_mutex_unlock(&_subscribersMutex);
 
-        // Adiciona novo subscriber
-        pthread_mutex_lock(&_subscribersMutex);
-        subscribers.push_back(Subscriber{ origin, new_period });
-        // TODO Remover cout
-        std::cout << "Subscriber " << origin << ' ' << new_period << " added"
-                  << std::endl;
-        pthread_mutex_unlock(&_subscribersMutex);
-
-        period_sem.acquire();
-        if (period == 0) {
-          period = new_period;
-          has_first_subscriber_sem.release();
-        } else {
-          period = std::gcd(period, new_period);
-        }
-        highest_period = std::min(highest_period, new_period);
-        // TODO Remover cout
-        std::cout << "Pub period: " << period << std::endl;
-        period_sem.release();
+      period_sem.acquire();
+      if (period == 0) {
+        period = new_period;
+        has_first_subscriber_sem.release();
+      } else {
+        period = std::gcd(period, new_period);
       }
+      highest_period = std::max(highest_period, new_period);
+#ifdef DEBUG_SMD
+      std::cout << "Pub period: " << period << std::endl;
+#endif
+      period_sem.release();
 
       // Libera buffer
       _communicator->free(buf);
@@ -197,7 +183,7 @@ private:
       }
 
       for (int cur_period = 0; _pub_thread_running;
-           cur_period = cur_period = (cur_period + 1) % highest_period) {
+           cur_period = (cur_period + 1) % highest_period) {
         period_sem.acquire();
         auto next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(period);

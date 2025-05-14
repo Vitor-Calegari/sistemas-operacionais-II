@@ -59,6 +59,14 @@ public:
     return size > 0;
   }
 
+  void * unmarshal(Buffer *buf) {
+    return _channel->unmarshal(buf);
+  }
+
+  void free(Buffer *buf) {
+    _channel->free(buf);
+  }
+
 private:
   void update(typename Channel::Observer::Observing_Condition c, Buffer *buf) {
     Message *msg = (Message *)_channel->unmarshal(buf);
