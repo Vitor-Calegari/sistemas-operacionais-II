@@ -1,8 +1,8 @@
 #ifndef COMMUNICATOR_HH
 #define COMMUNICATOR_HH
 
-#include "concurrent_observer.hh"
 #include "concurrent_observed.hh"
+#include "concurrent_observer.hh"
 #include "cond.hh"
 #include <iostream>
 
@@ -12,17 +12,21 @@ class Communicator
           typename Channel::Observer::Observed_Data,
           typename Channel::Observer::Observing_Condition>,
       public Concurrent_Observed<typename Channel::Observer::Observed_Data,
-      Condition> {
+                                 Condition> {
+
   typedef Concurrent_Observer<typename Channel::Observer::Observed_Data,
                               typename Channel::Observer::Observing_Condition>
       Observer;
-  typedef Concurrent_Observed<typename Channel::Observer::Observed_Data,
-  Condition> CommObserver;
 
 public:
+  typedef Concurrent_Observed<typename Channel::Observer::Observed_Data,
+                              Condition>
+      CommObserver;
   typedef typename Channel::Buffer Buffer;
   typedef typename Channel::Address Address;
   typedef typename Channel::Port Port;
+  typedef Message CommMessage;
+  typedef Channel CommChannel;
 
 public:
   Communicator(Channel *channel, Port port)
@@ -41,8 +45,7 @@ public:
 
   bool send(Message *message) {
     uint8_t type = *message->getType();
-    return _channel->send(*message->sourceAddr(), *message->destAddr(),
-    type,
+    return _channel->send(*message->sourceAddr(), *message->destAddr(), type,
                           message->data(), message->size()) > 0;
   }
 
@@ -52,14 +55,13 @@ public:
     uint8_t type;
     int size =
         _channel->receive(buf, message->sourceAddr(), message->destAddr(),
-        &type,
-    message->data(), message->size());
+                          &type, message->data(), message->size());
     message->setType(type);
     message->setSize(size);
     return size > 0;
   }
 
-  void * unmarshal(Buffer *buf) {
+  void *unmarshal(Buffer *buf) {
     return _channel->unmarshal(buf);
   }
 

@@ -9,11 +9,11 @@
 #include <csignal>
 #include <cstddef>
 #include <iostream>
+#include <smart_data.hh>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
 constexpr int NUM_MESSAGES = 5;
-constexpr int PERIOD_SIZE_BYTES = 4;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -42,9 +42,8 @@ int main(int argc, char *argv[]) {
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC>;
-  using Message = Message<Protocol::Address, SmartUnit>;
-  using CommunicatorSub = Communicator<Protocol, Message>;
-  using CommunicatorPub = Communicator<Protocol, Message, Transducer<Meter>>;
+  using Message = Message<Protocol::Address>;
+  using Communicator = Communicator<Protocol, Message>;
 
   SocketNIC rsnic = SocketNIC(INTERFACE_NAME);
   SharedMemNIC smnic = SharedMemNIC(INTERFACE_NAME);
@@ -54,8 +53,9 @@ int main(int argc, char *argv[]) {
   if (publisher) {
     Transducer<Meter> transducer(0, 300000);
 
-    CommunicatorPub comm(&prot, 10, &transducer);
-    comm.initPeriocT();
+    Communicator comm(&prot, 10);
+    SmartData<Communicator, Transducer<Meter>> smart_data(&comm, &transducer);
+    smart_data.initPubThread();
 
     sem_post(semaphore);
 
@@ -67,19 +67,13 @@ int main(int argc, char *argv[]) {
   } else {
     sem_wait(semaphore);
 
-    CommunicatorSub comm(&prot, 10);
-    Message message(comm.addr(),
-                    Protocol::Address(rsnic.address(), Protocol::BROADCAST_SID,
-                                      Protocol::BROADCAST),
-                    PERIOD_SIZE_BYTES, false, Meter);
-
+    Communicator comm(&prot, 10);
+    SmartData<Communicator, Transducer<Meter>> smart_data(&comm);
     int period = 2e6;
-    std::memcpy(message.data(), &period, sizeof(period));
-    comm.send(&message);
+    smart_data.subscribe(period);
 
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
-      Message message(PERIOD_SIZE_BYTES, false,
-                      SmartUnit(SmartUnit::SIUnit::M));
+      Message message(0, Message::SUBSCRIBE);
 
       comm.receive(&message);
       std::cout << "Received: ";
