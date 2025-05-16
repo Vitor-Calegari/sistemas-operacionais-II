@@ -16,7 +16,7 @@
 #include <vector>
 
 // Publisher.
-template <typename Communicator, typename Transducer = void>
+template <typename Communicator, typename Transducer = void, typename Condition>
 class SmartData
     : public Concurrent_Observer<
           typename Communicator::CommObserver::Observed_Data,
@@ -71,15 +71,15 @@ public:
   } __attribute__((packed));
 
 public:
-  SmartData(Communicator *communicator, Transducer *transd)
-      : _communicator(communicator), _transd(transd) {
-    // TODO! Arrumar.
-    //_communicator->attach(this, _transd->get_unit().get_int_unit());
+  SmartData(Communicator *communicator, Transducer *transd, Condition cond)
+      : _communicator(communicator), _transd(transd), _cond(cond) {
+    _communicator->attach(this, _cond);
+    initPubThread();
   }
 
-  SmartData(Communicator *communicator) : _communicator(communicator) {
-    // TODO! Arrumar.
-    //_communicator->attach(this, _transd->get_unit().get_int_unit());
+  SmartData(Communicator *communicator, Condition cond) : _communicator(communicator), _cond(cond) {
+    _communicator->attach(this, _cond);
+    subscribe(_cond.period);
   }
 
   ~SmartData() {
@@ -89,23 +89,7 @@ public:
     if (_pub_thread_running) {
       stopPubThread();
     }
-    // TODO! Arrumar.
-    //_communicator->detach(this, _transd->get_unit().get_int_unit());
-  }
-
-  void subscribe(uint32_t period) {
-    _sub_msg = new Message(
-        _communicator->addr(),
-        Address(_communicator->addr().getPAddr(), // Nao precisa disso aqui
-                Channel::BROADCAST_SID, Channel::BROADCAST),
-        Message::Type::SUBSCRIBE, sizeof(SubPacket));
-
-    SubPacket *pkt = (SubPacket *)_sub_msg->data();
-    pkt->unit = _transd->get_unit().get_int_unit();
-    pkt->period = period;
-
-    initSubThread();
-    return;
+    _communicator->detach(this, _cond);
   }
 
   bool receive(void *data) {
@@ -155,34 +139,11 @@ public:
       period_sem.release();
 
       // Libera buffer
-      // TODO! Implementar?
-      //_communicator->free(buf);
+      _communicator->free(buf);
     }
   }
 
 private:
-  Message create_pub_message(int data, uint32_t cur_period) {
-    auto unit = _transd->get_unit();
-
-    size_t msg_size =
-        sizeof(SmartUnit) + PERIOD_SIZE + unit.get_value_size_bytes();
-
-    // TODO! Arrumar endereço físico.
-    Message msg(_communicator->addr(),
-                Address(Ethernet::Address(), Channel::BROADCAST_SID,
-                        Channel::BROADCAST),
-                Message::Type::PUBLISH, msg_size);
-
-    auto int_unit = unit.get_int_unit();
-    std::memcpy(msg.data(), &int_unit, sizeof(SmartUnit));
-    std::memcpy(msg.data() + sizeof(SmartUnit), &cur_period, PERIOD_SIZE);
-    std::memcpy(msg.data() + sizeof(SmartUnit) + PERIOD_SIZE, &data,
-                unit.get_value_size_bytes());
-
-    return msg;
-  }
-
-public:
   void initPubThread() {
     _pub_thread_running = true;
     pub_thread = std::thread([this]() {
@@ -226,12 +187,47 @@ public:
     }
   }
 
+  Message create_pub_message(int data, uint32_t cur_period) {
+    auto unit = _transd->get_unit();
+
+    size_t msg_size =
+        sizeof(SmartUnit) + PERIOD_SIZE + unit.get_value_size_bytes();
+
+    Message msg(_communicator->addr(),  // TODO! Arrumar endereço físico.
+                Address(Ethernet::Address(), Channel::BROADCAST_SID,
+                        Channel::BROADCAST),
+                Message::Type::PUBLISH, msg_size);
+
+    auto int_unit = unit.get_int_unit();
+    std::memcpy(msg.data(), &int_unit, sizeof(SmartUnit));
+    std::memcpy(msg.data() + sizeof(SmartUnit), &cur_period, PERIOD_SIZE);
+    std::memcpy(msg.data() + sizeof(SmartUnit) + PERIOD_SIZE, &data,
+                unit.get_value_size_bytes());
+
+    return msg;
+  }
+
+  void subscribe(uint32_t period) {
+    _sub_msg = new Message(
+        _communicator->addr(),
+        Address(_communicator->addr().getPAddr(), // Nao precisa disso aqui
+                Channel::BROADCAST_SID, Channel::BROADCAST),
+                Message::Type::SUBSCRIBE, sizeof(SubPacket));
+
+    SubPacket *pkt = (SubPacket *)_sub_msg->data();
+    pkt->unit = _transd->get_unit().get_int_unit();
+    pkt->period = period;
+
+    initSubThread();
+    return;
+  }
+
   void initSubThread() {
     _sub_thread_running = true;
     _sub_thread = std::thread([this]() {
       while (_sub_thread_running) {
         auto next_wakeup_t = std::chrono::steady_clock::now() +
-                             std::chrono::microseconds(_sub_period);
+                             std::chrono::microseconds(_resub_period);
         _communicator->send(_sub_msg);
         std::this_thread::sleep_until(next_wakeup_t);
       }
@@ -257,7 +253,7 @@ private:
 
   // Periodic Subscribe Thread ---------------
   std::atomic<bool> _sub_thread_running = false;
-  const uint32_t _sub_period = 1e6;
+  const uint32_t _resub_period = 1e6;
   std::thread _sub_thread;
   Message *_sub_msg = nullptr;
   // -----------------------------------------
@@ -273,6 +269,7 @@ private:
 
   Communicator *_communicator;
   Transducer *_transd = nullptr;
+  Condition _cond;
 };
 
 #endif
