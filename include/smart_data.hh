@@ -16,7 +16,7 @@
 #include <vector>
 
 // Publisher.
-template <typename Communicator, typename Transducer = void, typename Condition>
+template <typename Communicator, typename Condition, typename Transducer = void>
 class SmartData
     : public Concurrent_Observer<
           typename Communicator::CommObserver::Observed_Data,
@@ -32,7 +32,6 @@ public:
   typedef typename Communicator::CommChannel Channel;
 
 public:
-
   static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
 
   class Header {
@@ -77,7 +76,8 @@ public:
     initPubThread();
   }
 
-  SmartData(Communicator *communicator, Condition cond) : _communicator(communicator), _cond(cond) {
+  SmartData(Communicator *communicator, Condition cond)
+      : _communicator(communicator), _cond(cond) {
     _communicator->attach(this, _cond);
     subscribe(_cond.period);
   }
@@ -193,7 +193,7 @@ private:
     size_t msg_size =
         sizeof(SmartUnit) + PERIOD_SIZE + unit.get_value_size_bytes();
 
-    Message msg(_communicator->addr(),  // TODO! Arrumar endereço físico.
+    Message msg(_communicator->addr(), // TODO! Arrumar endereço físico.
                 Address(Ethernet::Address(), Channel::BROADCAST_SID,
                         Channel::BROADCAST),
                 Message::Type::PUBLISH, msg_size);
@@ -212,7 +212,7 @@ private:
         _communicator->addr(),
         Address(_communicator->addr().getPAddr(), // Nao precisa disso aqui
                 Channel::BROADCAST_SID, Channel::BROADCAST),
-                Message::Type::SUBSCRIBE, sizeof(SubPacket));
+        Message::Type::SUBSCRIBE, sizeof(SubPacket));
 
     SubPacket *pkt = (SubPacket *)_sub_msg->data();
     pkt->unit = _transd->get_unit().get_int_unit();

@@ -1,4 +1,5 @@
 #include "communicator.hh"
+#include "cond.hh"
 #include "engine.hh"
 #include "message.hh"
 #include "nic.hh"
@@ -14,6 +15,7 @@
 #include <sys/wait.h>
 
 constexpr int NUM_MESSAGES = 5;
+constexpr int PERIOD_SUBCRIBER = 1e6;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -54,8 +56,8 @@ int main(int argc, char *argv[]) {
     Transducer<Meter> transducer(0, 300000);
 
     Communicator comm(&prot, 10);
-    SmartData<Communicator, Transducer<Meter>> smart_data(&comm, &transducer);
-    smart_data.initPubThread();
+    SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
+        &comm, &transducer, Condition(Meter.get_int_unit(), PERIOD_SUBCRIBER));
 
     sem_post(semaphore);
 
@@ -68,9 +70,8 @@ int main(int argc, char *argv[]) {
     sem_wait(semaphore);
 
     Communicator comm(&prot, 10);
-    SmartData<Communicator, Transducer<Meter>> smart_data(&comm);
-    int period = 2e6;
-    smart_data.subscribe(period);
+    SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
+        &comm, Condition(Meter.get_int_unit(), PERIOD_SUBCRIBER));
 
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
       Message message(0, Message::SUBSCRIBE);
