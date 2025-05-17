@@ -74,7 +74,7 @@ public:
 private:
   void update(typename Channel::Observer::Observing_Condition c, Buffer *buf) {
     Message *msg = (Message *)_channel->unmarshal(buf);
-    if (*msg->getType() == Message::Type::COMMOM) {
+    if (*msg->getType() == Message::Type::COMMON) {
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {

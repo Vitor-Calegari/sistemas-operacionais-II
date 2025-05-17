@@ -8,7 +8,7 @@
 template <typename Addr>
 class Message {
 public:
-  enum Type : uint8_t { COMMOM, PUBLISH, SUBSCRIBE };
+  enum Type : uint8_t { COMMON, PUBLISH, SUBSCRIBE };
 
 public:
   Message(Addr src, Addr dst, Type type, std::size_t payload_size)
@@ -58,7 +58,7 @@ public:
   }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
-  
+
   template <typename T>
   T *data() {
     return reinterpret_cast<T *>(&_data);
