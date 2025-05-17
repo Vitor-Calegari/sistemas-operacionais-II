@@ -27,8 +27,8 @@ public:
   typedef typename Channel::Port Port;
   typedef Message CommMessage;
   typedef Channel CommChannel;
-  
-  static const unsigned int MTU = Channel:MTU;
+
+  static const unsigned int MTU = Channel::MTU;
 
 public:
   Communicator(Channel *channel, Port port)
