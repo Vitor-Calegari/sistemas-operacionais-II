@@ -5,17 +5,17 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
-#include <smart_data.hh>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
 constexpr int NUM_MESSAGES = 5;
-constexpr int PERIOD_SUBCRIBER = 5e6;
+constexpr int PERIOD_SUBCRIBER = 5e3;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"

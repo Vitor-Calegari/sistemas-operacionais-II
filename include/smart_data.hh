@@ -106,26 +106,35 @@ public:
 
     // Adiciona novo subscriber
     pthread_mutex_lock(&_subscribersMutex);
-    subscribers.push_back(Subscriber{ origin, new_period });
-#ifdef DEBUG_SMD
-    std::cout << get_timestamp() << " Publisher " << getpid() << ": Updating" << std::endl;
-    std::cout << "Subscriber " << origin << ' ' << new_period << " added"
-              << std::endl;
-#endif
-    pthread_mutex_unlock(&_subscribersMutex);
-
-    period_sem.acquire();
-    if (period == 0) {
-      period = new_period;
-      has_first_subscriber_sem.release();
-    } else {
-      period = std::gcd(period, new_period);
+    // Check if subscriber already exists
+    bool exists = false;
+    for (const auto& sub : subscribers) {
+      if (sub.origin == origin && sub.period == new_period) {
+        exists = true;
+        break;
+      }
     }
-    highest_period = std::max(highest_period, new_period);
+    if (!exists) {
+      subscribers.push_back(Subscriber{ origin, new_period });
 #ifdef DEBUG_SMD
-    std::cout << "New pub period: " << period << std::endl;
+      std::cout << get_timestamp() << " Publisher " << getpid() << ": Updating" << std::endl;
+      std::cout << "Subscriber " << origin << ' ' << new_period << " added"
+            << std::endl;
 #endif
-    period_sem.release();
+      period_sem.acquire();
+      if (period == 0) {
+        period = new_period;
+        has_first_subscriber_sem.release();
+      } else {
+        period = std::gcd(period, new_period);
+      }
+      highest_period = std::max(highest_period, new_period);
+#ifdef DEBUG_SMD
+        std::cout << "New pub period: " << period << std::endl;
+#endif
+      period_sem.release();
+    }
+    pthread_mutex_unlock(&_subscribersMutex);
 
     // Libera buffer
     Base::_communicator->free(buf);
@@ -293,6 +302,9 @@ private:
       while (_sub_thread_running) {
         auto next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_resub_period);
+#ifdef DEBUG_SMD
+        std::cout << get_timestamp() << "Subscriber " << getpid() << ": Resub" << std::endl;
+#endif
         Base::_communicator->send(_sub_msg);
         std::this_thread::sleep_until(next_wakeup_t);
       }
@@ -309,7 +321,7 @@ private:
 private:
   // Periodic Subscribe Thread ---------------
   std::atomic<bool> _sub_thread_running = false;
-  const uint32_t _resub_period = 5e6;
+  const uint32_t _resub_period = 3e6;
   std::thread _sub_thread;
   Message *_sub_msg = nullptr;
   // -----------------------------------------
