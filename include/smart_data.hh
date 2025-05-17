@@ -15,25 +15,12 @@
 #include <thread>
 #include <vector>
 
-// Publisher.
-template <typename Communicator, typename Condition, typename Transducer = void>
-class SmartData
+template <typename Communicator, typename Condition>
+class SmartDataCommon
     : public Concurrent_Observer<
           typename Communicator::CommObserver::Observed_Data,
           typename Communicator::CommObserver::Observing_Condition> {
 public:
-  typedef Concurrent_Observer<
-      typename Communicator::CommObserver::Observed_Data,
-      typename Communicator::CommObserver::Observing_Condition>
-      Observer;
-  typedef typename Communicator::Buffer Buffer;
-  typedef typename Communicator::CommMessage Message;
-  typedef typename Communicator::Address Address;
-  typedef typename Communicator::CommChannel Channel;
-
-public:
-  static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
-
   class Header {
   public:
     Header() : unit(0), period(0) {
@@ -70,77 +57,79 @@ public:
   } __attribute__((packed));
 
 public:
+  SmartDataCommon(Communicator *communicator) : _communicator(communicator) {
+  }
+
+protected:
+  Communicator *_communicator;
+};
+
+// Publisher.
+template <typename Communicator, typename Condition, typename Transducer = void>
+class SmartData : public SmartDataCommon<Communicator, Condition> {
+public:
+  typedef typename Communicator::CommMessage Message;
+  typedef typename Communicator::Address Address;
+  typedef typename Communicator::CommChannel Channel;
+
+  using Base = SmartDataCommon<Communicator, Condition>;
+
+public:
+  static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
+
+public:
   SmartData(Communicator *communicator, Transducer *transd, Condition cond)
-      : _communicator(communicator), _transd(transd), _cond(cond) {
-    _communicator->attach(this, _cond);
+      : Base(communicator), _transd(transd), _cond(cond) {
+    Base::_communicator->attach(this, _cond);
     initPubThread();
   }
 
-  SmartData(Communicator *communicator, Condition cond)
-      : _communicator(communicator), _cond(cond) {
-    _communicator->attach(this, _cond);
-    subscribe(_cond.period);
-  }
-
   ~SmartData() {
-    if (_sub_thread_running) {
-      stopSubThread();
-    }
     if (_pub_thread_running) {
       stopPubThread();
     }
-    _communicator->detach(this, _cond);
+    Base::_communicator->detach(this, _cond);
   }
 
-  bool receive(void *data) {
-    // Block until a notification is triggered.
-    Buffer *buf = Observer::updated();
-    Message *msg = (Message *)_communicator->unmarshal(buf);
-    unsigned char *pubPkt =
-        msg->template data<PubPacket>()->template data<unsigned char>();
-    std::size_t recv_size = msg->size() - sizeof(Header);
-    std::memcpy(data, pubPkt, recv_size);
-    return recv_size > 0;
-  }
-
-  void update(typename Communicator::CommObserver::Observing_Condition c,
+  void update([[maybe_unused]]
+              typename Communicator::CommObserver::Observing_Condition c,
               typename Communicator::CommObserver::Observed_Data *buf) {
-    Message *msg = (Message *)_communicator->unmarshal(buf);
-    if (*msg->getType() == Message::Type::PUBLISH) {
-      // Releases the thread waiting for data.
-      Observer::update(c, buf);
-    } else {
-      // Obtem origem
-      Address origin = *msg->sourceAddr();
-      // Obtem periodo
-      SubPacket *sub_pkt = msg->template data<SubPacket>();
-      uint32_t new_period = sub_pkt->period;
-
-      // Adiciona novo subscriber
-      pthread_mutex_lock(&_subscribersMutex);
-      subscribers.push_back(Subscriber{ origin, new_period });
-#ifdef DEBUG_SMD
-      std::cout << "Subscriber " << origin << ' ' << new_period << " added"
-                << std::endl;
-#endif
-      pthread_mutex_unlock(&_subscribersMutex);
-
-      period_sem.acquire();
-      if (period == 0) {
-        period = new_period;
-        has_first_subscriber_sem.release();
-      } else {
-        period = std::gcd(period, new_period);
-      }
-      highest_period = std::max(highest_period, new_period);
-#ifdef DEBUG_SMD
-      std::cout << "Pub period: " << period << std::endl;
-#endif
-      period_sem.release();
-
-      // Libera buffer
-      _communicator->free(buf);
+    Message *msg = (Message *)Base::_communicator->unmarshal(buf);
+    if (*msg->getType() != Message::Type::SUBSCRIBE) {
+      return;
     }
+
+    // Obtem origem
+    Address origin = *msg->sourceAddr();
+    // Obtem periodo
+    typename Base::SubPacket *sub_pkt =
+        msg->template data<typename Base::SubPacket>();
+    uint32_t new_period = sub_pkt->period;
+
+    // Adiciona novo subscriber
+    pthread_mutex_lock(&_subscribersMutex);
+    subscribers.push_back(Subscriber{ origin, new_period });
+#ifdef DEBUG_SMD
+    std::cout << "Subscriber " << origin << ' ' << new_period << " added"
+              << std::endl;
+#endif
+    pthread_mutex_unlock(&_subscribersMutex);
+
+    period_sem.acquire();
+    if (period == 0) {
+      period = new_period;
+      has_first_subscriber_sem.release();
+    } else {
+      period = std::gcd(period, new_period);
+    }
+    highest_period = std::max(highest_period, new_period);
+#ifdef DEBUG_SMD
+    std::cout << "Pub period: " << period << std::endl;
+#endif
+    period_sem.release();
+
+    // Libera buffer
+    Base::_communicator->free(buf);
   }
 
 private:
@@ -172,7 +161,7 @@ private:
           std::cout << std::endl;
 #endif
           auto msg = create_pub_message(data, cur_period);
-          _communicator->send(&msg);
+          Base::_communicator->send(&msg);
 
           std::this_thread::sleep_until(next_wakeup_t);
         }
@@ -193,7 +182,7 @@ private:
     size_t msg_size =
         sizeof(SmartUnit) + PERIOD_SIZE + unit.get_value_size_bytes();
 
-    Message msg(_communicator->addr(), // TODO! Arrumar endereço físico.
+    Message msg(Base::_communicator->addr(), // TODO! Arrumar endereço físico.
                 Address(Ethernet::Address(), Channel::BROADCAST_SID,
                         Channel::BROADCAST),
                 Message::Type::PUBLISH, msg_size);
@@ -207,15 +196,91 @@ private:
     return msg;
   }
 
+private:
+  // Pub Thread ---------------
+  std::atomic<bool> _pub_thread_running = false;
+  uint32_t period = 0;
+  uint32_t highest_period = 0;
+  std::thread pub_thread;
+  std::binary_semaphore has_first_subscriber_sem{ 0 };
+  std::binary_semaphore period_sem{ 1 };
+  // --------------------------
+
+  // Subscriber List ---------------
+  struct Subscriber {
+    Address origin;
+    uint32_t period;
+  };
+  std::vector<Subscriber> subscribers{};
+  pthread_mutex_t _subscribersMutex = PTHREAD_MUTEX_INITIALIZER;
+  // -------------------------------
+
+  Transducer *_transd = nullptr;
+  Condition _cond;
+};
+
+// Subscriber.
+template <typename Communicator, typename Condition>
+class SmartData<Communicator, Condition, void>
+    : SmartDataCommon<Communicator, Condition> {
+public:
+  typedef Concurrent_Observer<
+      typename Communicator::CommObserver::Observed_Data,
+      typename Communicator::CommObserver::Observing_Condition>
+      Observer;
+  typedef typename Communicator::Buffer Buffer;
+  typedef typename Communicator::CommMessage Message;
+  typedef typename Communicator::CommChannel Channel;
+
+  using Base = SmartDataCommon<Communicator, Condition>;
+
+public:
+  SmartData(Communicator *communicator, Condition cond)
+      : Base(communicator), _cond(cond) {
+    Base::_communicator->attach(this, _cond);
+    subscribe(_cond.period);
+  }
+
+  ~SmartData() {
+    if (_sub_thread_running) {
+      stopSubThread();
+    }
+    Base::_communicator->detach(this, _cond);
+  }
+
+  bool receive(void *data) {
+    // Block until a notification is triggered.
+    Buffer *buf = Observer::updated();
+    Message *msg = (Message *)Base::_communicator->unmarshal(buf);
+    unsigned char *pubPkt =
+        msg->template data<Base::PubPacket>()->template data<unsigned char>();
+    std::size_t recv_size = msg->size() - sizeof(Base::Header);
+    std::memcpy(data, pubPkt, recv_size);
+    return recv_size > 0;
+  }
+
+  void update(typename Communicator::CommObserver::Observing_Condition c,
+              typename Communicator::CommObserver::Observed_Data *buf) {
+    Message *msg = (Message *)Base::_communicator->unmarshal(buf);
+
+    if (*msg->getType() == Message::Type::PUBLISH) {
+      // Releases the thread waiting for data.
+      Observer::update(c, buf);
+    }
+  }
+
+private:
   void subscribe(uint32_t period) {
     _sub_msg = new Message(
-        _communicator->addr(),
-        Address(_communicator->addr().getPAddr(), // Nao precisa disso aqui
-                Channel::BROADCAST_SID, Channel::BROADCAST),
-        Message::Type::SUBSCRIBE, sizeof(SubPacket));
+        Base::_communicator->addr(),
+        Address(
+            Base::_communicator->addr().getPAddr(), // Nao precisa disso aqui
+            Channel::BROADCAST_SID, Channel::BROADCAST),
+        Message::Type::SUBSCRIBE, sizeof(typename Base::SubPacket));
 
-    SubPacket *pkt = (SubPacket *)_sub_msg->data();
-    pkt->unit = _transd->get_unit().get_int_unit();
+    typename Base::SubPacket *pkt =
+        (typename Base::SubPacket *)_sub_msg->data();
+    pkt->unit = _cond.unit;
     pkt->period = period;
 
     initSubThread();
@@ -228,7 +293,7 @@ private:
       while (_sub_thread_running) {
         auto next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_resub_period);
-        _communicator->send(_sub_msg);
+        Base::_communicator->send(_sub_msg);
         std::this_thread::sleep_until(next_wakeup_t);
       }
     });
@@ -242,15 +307,6 @@ private:
   }
 
 private:
-  // Pub Thread ---------------
-  std::atomic<bool> _pub_thread_running = false;
-  uint32_t period = 0;
-  uint32_t highest_period = 0;
-  std::thread pub_thread;
-  std::binary_semaphore has_first_subscriber_sem{ 0 };
-  std::binary_semaphore period_sem{ 1 };
-  // --------------------------
-
   // Periodic Subscribe Thread ---------------
   std::atomic<bool> _sub_thread_running = false;
   const uint32_t _resub_period = 1e6;
@@ -258,17 +314,6 @@ private:
   Message *_sub_msg = nullptr;
   // -----------------------------------------
 
-  // Subscriber ---------------
-  struct Subscriber {
-    Address origin;
-    uint32_t period;
-  };
-  std::vector<Subscriber> subscribers{};
-  pthread_mutex_t _subscribersMutex = PTHREAD_MUTEX_INITIALIZER;
-  // --------------------------
-
-  Communicator *_communicator;
-  Transducer *_transd = nullptr;
   Condition _cond;
 };
 

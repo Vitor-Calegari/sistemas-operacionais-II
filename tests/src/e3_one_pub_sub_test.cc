@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
     sem_wait(semaphore);
 
     Communicator comm(&prot, 10);
-    SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
+    SmartData<Communicator, Condition> smart_data(
         &comm, Condition(Meter.get_int_unit(), PERIOD_SUBCRIBER));
 
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
