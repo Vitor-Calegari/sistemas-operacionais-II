@@ -108,7 +108,7 @@ public:
     pthread_mutex_lock(&_subscribersMutex);
     // Check if subscriber already exists
     bool exists = false;
-    for (const auto& sub : subscribers) {
+    for (const auto &sub : subscribers) {
       if (sub.origin == origin && sub.period == new_period) {
         exists = true;
         break;
@@ -117,9 +117,10 @@ public:
     if (!exists) {
       subscribers.push_back(Subscriber{ origin, new_period });
 #ifdef DEBUG_SMD
-      std::cout << get_timestamp() << " Publisher " << getpid() << ": Updating" << std::endl;
+      std::cout << get_timestamp() << " Publisher " << getpid() << ": Updating"
+                << std::endl;
       std::cout << "Subscriber " << origin << ' ' << new_period << " added"
-            << std::endl;
+                << std::endl;
 #endif
       period_sem.acquire();
       if (period == 0) {
@@ -130,7 +131,7 @@ public:
       }
       highest_period = std::max(highest_period, new_period);
 #ifdef DEBUG_SMD
-        std::cout << "New pub period: " << period << std::endl;
+      std::cout << "New pub period: " << period << std::endl;
 #endif
       period_sem.release();
     }
@@ -149,10 +150,10 @@ private:
       }
 
       while (_pub_thread_running) {
-        for (
-          int cur_period = period;
-          _pub_thread_running;
-          cur_period = cur_period + period > highest_period ? period : cur_period + period) {
+        for (int cur_period = period; _pub_thread_running;
+             cur_period = cur_period + period > highest_period
+                              ? period
+                              : cur_period + period) {
           period_sem.acquire();
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
@@ -160,7 +161,8 @@ private:
 
           int data = _transd->get_data();
 #ifdef DEBUG_SMD
-          std::cout << get_timestamp() << " Publisher " << getpid() << ": Publishing"<< std::endl;
+          std::cout << get_timestamp() << " Publisher " << getpid()
+                    << ": Publishing" << std::endl;
           std::cout << "Produced data: ";
           for (size_t i = 0; i < sizeof(data); i++) {
             std::cout << (int)((unsigned char *)&data)[i] << " ";
@@ -192,7 +194,7 @@ private:
     Message msg(Base::_communicator->addr(), // TODO! Arrumar endereço físico.
                 Address(Ethernet::Address(), Channel::BROADCAST_SID,
                         Channel::BROADCAST),
-                Message::Type::PUBLISH, msg_size);
+                msg_size, Message::Type::PUBLISH);
 
     auto int_unit = unit.get_int_unit();
     std::memcpy(msg.data(), &int_unit, sizeof(SmartUnit));
@@ -261,10 +263,10 @@ public:
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
     Message *msg = (Message *)Base::_communicator->unmarshal(buf);
-    unsigned char *pubPkt =
-        msg->template data<typename Base::PubPacket>()->template data<unsigned char>();
+    unsigned char *pubPkt = msg->template data<typename Base::PubPacket>()
+                                ->template data<unsigned char>();
     std::size_t header_size = sizeof(typename Base::Header);
-        std::size_t recv_size = msg->size() - header_size;
+    std::size_t recv_size = msg->size() - header_size;
     std::memcpy(data, pubPkt, recv_size);
     Base::_communicator->free(buf);
     return recv_size > 0;
@@ -285,7 +287,7 @@ private:
         Address(
             Base::_communicator->addr().getPAddr(), // Nao precisa disso aqui
             Channel::BROADCAST_SID, Channel::BROADCAST),
-        Message::Type::SUBSCRIBE, sizeof(typename Base::SubPacket));
+        sizeof(typename Base::SubPacket), Message::Type::SUBSCRIBE);
 
     typename Base::SubPacket *pkt =
         (typename Base::SubPacket *)_sub_msg->data();
@@ -303,7 +305,8 @@ private:
         auto next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_resub_period);
 #ifdef DEBUG_SMD
-        std::cout << get_timestamp() << "Subscriber " << getpid() << ": Resub" << std::endl;
+        std::cout << get_timestamp() << "Subscriber " << getpid() << ": Resub"
+                  << std::endl;
 #endif
         Base::_communicator->send(_sub_msg);
         std::this_thread::sleep_until(next_wakeup_t);

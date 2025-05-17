@@ -55,9 +55,9 @@ int main(int argc, char *argv[]) {
     sem_wait(semaphore);
     int i = 0;
     while (i < NUM_MSGS) {
-      Message message = Message(
-          comm.addr(), Protocol::Address(rsnic.address(), parentPID, 10),
-          Message::Type::COMMON, MSG_SIZE);
+      Message message =
+          Message(comm.addr(),
+                  Protocol::Address(rsnic.address(), parentPID, 10), MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));
