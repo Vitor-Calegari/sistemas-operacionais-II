@@ -15,7 +15,7 @@
 #include <sys/wait.h>
 
 constexpr int NUM_MESSAGES = 5;
-constexpr int PERIOD_SUBCRIBER = 1e6;
+constexpr int PERIOD_SUBCRIBER = 5e6;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 
     Communicator comm(&prot, 10);
     SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
-        &comm, &transducer, Condition(Meter.get_int_unit()));
+        &comm, &transducer, Condition(true, Meter.get_int_unit()));
 
     sem_post(semaphore);
 
@@ -71,16 +71,13 @@ int main(int argc, char *argv[]) {
 
     Communicator comm(&prot, 10);
     SmartData<Communicator, Condition> smart_data(
-        &comm, Condition(Meter.get_int_unit(), PERIOD_SUBCRIBER));
+        &comm, Condition(false, Meter.get_int_unit(), PERIOD_SUBCRIBER));
 
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
-      Message message(0, Message::SUBSCRIBE);
-
-      comm.receive(&message);
+      int data = 0;
+      smart_data.receive(&data);
       std::cout << "Received: ";
-      for (size_t i = 0; i < message.size(); i++) {
-        std::cout << std::dec << static_cast<int>(message.data()[i]) << " ";
-      }
+      std::cout << data;
       std::cout << std::endl;
     }
 

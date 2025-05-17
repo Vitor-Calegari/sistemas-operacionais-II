@@ -78,8 +78,10 @@ private:
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
-      Condition *cond = msg->template data<Condition>();
-      if (!this->notify(*cond, buf)) {
+      Condition::Data *cond_data = msg->template data<Condition::Data>();
+      bool isPub = *msg->getType() == Message::Type::PUBLISH;
+      Condition cond = Condition(isPub, cond_data->unit, cond_data->period);
+      if (!this->notify(cond, buf)) {
         _channel->free(buf);
       }
     }

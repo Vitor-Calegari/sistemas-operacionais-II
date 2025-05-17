@@ -74,7 +74,7 @@ public:
     Address origin;
     Address dest;
     uint8_t type;
-    unsigned short payloadSize;
+    std::size_t payloadSize;
   } __attribute__((packed));
 
   // MTU disponível para o payload: espaço total do buffer menos o tamanho do

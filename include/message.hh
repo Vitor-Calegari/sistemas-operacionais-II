@@ -68,6 +68,6 @@ private:
   Type _msg_type;
   std::size_t _payload_size;
   std::byte *_data;
-};
+} __attribute__((packed));
 
 #endif

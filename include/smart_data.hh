@@ -95,9 +95,6 @@ public:
               typename Communicator::CommObserver::Observing_Condition c,
               typename Communicator::CommObserver::Observed_Data *buf) {
     Message *msg = (Message *)Base::_communicator->unmarshal(buf);
-    if (*msg->getType() != Message::Type::SUBSCRIBE) {
-      return;
-    }
 
     // Obtem origem
     Address origin = *msg->sourceAddr();
@@ -145,8 +142,10 @@ private:
         // int cur_period = period;
         period_sem.release();
 
-        for (int cur_period = period; _pub_thread_running;
-             cur_period = (cur_period + period) % highest_period) {
+        for (
+          int cur_period = period;
+          _pub_thread_running;
+          cur_period = cur_period + period > highest_period ? period : cur_period + period) {
           period_sem.acquire();
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
@@ -247,6 +246,7 @@ public:
       stopSubThread();
     }
     Base::_communicator->detach(this, _cond);
+    delete _sub_msg;
   }
 
   bool receive(void *data) {
@@ -254,20 +254,16 @@ public:
     Buffer *buf = Observer::updated();
     Message *msg = (Message *)Base::_communicator->unmarshal(buf);
     unsigned char *pubPkt =
-        msg->template data<Base::PubPacket>()->template data<unsigned char>();
-    std::size_t recv_size = msg->size() - sizeof(Base::Header);
+        msg->template data<typename Base::PubPacket>()->template data<unsigned char>();
+    std::size_t header_size = sizeof(typename Base::Header);
+        std::size_t recv_size = msg->size() - header_size;
     std::memcpy(data, pubPkt, recv_size);
     return recv_size > 0;
   }
 
   void update(typename Communicator::CommObserver::Observing_Condition c,
               typename Communicator::CommObserver::Observed_Data *buf) {
-    Message *msg = (Message *)Base::_communicator->unmarshal(buf);
-
-    if (*msg->getType() == Message::Type::PUBLISH) {
-      // Releases the thread waiting for data.
-      Observer::update(c, buf);
-    }
+    Observer::update(c, buf);
   }
 
 private:
