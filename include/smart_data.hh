@@ -5,6 +5,7 @@
 #include "ethernet.hh"
 #include "protocol.hh"
 #include "smart_unit.hh"
+#include "utils.hh"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -107,6 +108,7 @@ public:
     pthread_mutex_lock(&_subscribersMutex);
     subscribers.push_back(Subscriber{ origin, new_period });
 #ifdef DEBUG_SMD
+    std::cout << get_timestamp() << " Publisher " << getpid() << ": Updating" << std::endl;
     std::cout << "Subscriber " << origin << ' ' << new_period << " added"
               << std::endl;
 #endif
@@ -121,7 +123,7 @@ public:
     }
     highest_period = std::max(highest_period, new_period);
 #ifdef DEBUG_SMD
-    std::cout << "Pub period: " << period << std::endl;
+    std::cout << "New pub period: " << period << std::endl;
 #endif
     period_sem.release();
 
@@ -138,10 +140,6 @@ private:
       }
 
       while (_pub_thread_running) {
-        period_sem.acquire();
-        // int cur_period = period;
-        period_sem.release();
-
         for (
           int cur_period = period;
           _pub_thread_running;
@@ -153,6 +151,7 @@ private:
 
           int data = _transd->get_data();
 #ifdef DEBUG_SMD
+          std::cout << get_timestamp() << " Publisher " << getpid() << ": Publishing"<< std::endl;
           std::cout << "Produced data: ";
           for (size_t i = 0; i < sizeof(data); i++) {
             std::cout << (int)((unsigned char *)&data)[i] << " ";
@@ -258,11 +257,15 @@ public:
     std::size_t header_size = sizeof(typename Base::Header);
         std::size_t recv_size = msg->size() - header_size;
     std::memcpy(data, pubPkt, recv_size);
+    Base::_communicator->free(buf);
     return recv_size > 0;
   }
 
   void update(typename Communicator::CommObserver::Observing_Condition c,
               typename Communicator::CommObserver::Observed_Data *buf) {
+#ifdef DEBUG_SMD
+    std::cout << get_timestamp() << " Subscriber " << getpid() << std::endl;
+#endif
     Observer::update(c, buf);
   }
 
@@ -306,7 +309,7 @@ private:
 private:
   // Periodic Subscribe Thread ---------------
   std::atomic<bool> _sub_thread_running = false;
-  const uint32_t _resub_period = 1e6;
+  const uint32_t _resub_period = 5e6;
   std::thread _sub_thread;
   Message *_sub_msg = nullptr;
   // -----------------------------------------

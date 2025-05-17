@@ -4,6 +4,9 @@
 #include "buffer.hh"
 #include "ethernet.hh"
 #include <string>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 std::string ethernet_header(Ethernet::Frame *buffer);
 
@@ -16,5 +19,7 @@ void printEthToFile(FILE *log_txt, Buffer<Ethernet::Frame> *buffer);
 void printEth(Buffer<Ethernet::Frame> *buffer);
 
 int randint(int p, int r);
+
+std::string get_timestamp();
 
 #endif
