@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 
     Communicator comm(&prot, 10);
     SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
-        &comm, &transducer, Condition(Meter.get_int_unit(), PERIOD_SUBCRIBER));
+        &comm, &transducer, Condition(Meter.get_int_unit()));
 
     sem_post(semaphore);
 

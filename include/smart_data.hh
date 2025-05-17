@@ -231,6 +231,7 @@ public:
   typedef typename Communicator::Buffer Buffer;
   typedef typename Communicator::CommMessage Message;
   typedef typename Communicator::CommChannel Channel;
+  typedef typename Communicator::Address Address;
 
   using Base = SmartDataCommon<Communicator, Condition>;
 

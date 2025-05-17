@@ -5,7 +5,7 @@
 
 class Condition {
 public:
-  Condition(uint32_t u, uint32_t p) : unit(u), period(p) {
+  Condition(uint32_t u, uint32_t p = 0) : unit(u), period(p) {
   }
 
 public:
@@ -13,7 +13,7 @@ public:
   uint32_t period;
 
   friend bool operator==(const Condition &lhs, const Condition &rhs) {
-    return (lhs.unit == rhs.unit && lhs.period % rhs.period);
+    return lhs.unit == rhs.unit && lhs.period % rhs.period == 0;
   }
 
   friend bool operator<(const Condition &lhs, const Condition &rhs) {
