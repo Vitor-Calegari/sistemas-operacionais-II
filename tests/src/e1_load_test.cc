@@ -1,9 +1,9 @@
 #include "communicator.hh"
 #include "engine.hh"
-#include "shared_engine.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
+#include "shared_engine.hh"
 #include <cstdlib>
 #include <future>
 #include <iostream>
@@ -38,7 +38,7 @@ int main() {
     exit(1);
   }
   sem_init(semaphore, 1, 0);
-  
+
   pid_t parentPID = getpid();
 
   for (int i = 0; i < num_communicators; i++) {
@@ -61,7 +61,9 @@ int main() {
       int j = 0;
       while (j < num_messages_per_comm) {
         // Envia mensagens
-        Message msg(communicator.addr(), Protocol::Address(rsnic.address(), parentPID, 9999),MESSAGE_SIZE);
+        Message msg(communicator.addr(),
+                    Protocol::Address(rsnic.address(), parentPID, 9999),
+                    MESSAGE_SIZE);
         if (communicator.send(&msg)) {
           // std::cout << "Proc(" << std::dec << getpid() << "): Sent msg " << j
           //           << std::endl;
