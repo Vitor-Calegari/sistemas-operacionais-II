@@ -2,6 +2,7 @@
 #define MESSAGE_HH
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 
@@ -57,14 +58,12 @@ public:
   std::byte *data() const {
     return _data;
   }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
 
   template <typename T>
   T *data() {
-    return reinterpret_cast<T *>(&_data);
+    return std::bit_cast<T *>(&_data);
   }
-#pragma GCC diagnostic pop
+
 private:
   Addr _source_addr;
   Addr _dest_addr;
