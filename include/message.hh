@@ -2,23 +2,25 @@
 #define MESSAGE_HH
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 
 template <typename Addr>
 class Message {
 public:
-  enum Type : uint8_t { COMMOM, PUBLISH, SUBSCRIBE };
+  enum Type : uint8_t { COMMON, PUBLISH, SUBSCRIBE };
 
 public:
-  Message(Addr src, Addr dst, Type type, std::size_t payload_size)
+  Message(Addr src, Addr dst, std::size_t payload_size,
+          Type type = Type::COMMON)
       : _source_addr(src), _dest_addr(dst), _msg_type(type),
         _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
-  Message(std::size_t payload_size, Type type)
+  Message(std::size_t payload_size, Type type = Type::COMMON)
       : _source_addr(Addr()), _dest_addr(Addr()), _msg_type(type),
         _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
@@ -56,14 +58,12 @@ public:
   std::byte *data() const {
     return _data;
   }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
-  
+
   template <typename T>
   T *data() {
-    return reinterpret_cast<T *>(&_data);
+    return std::bit_cast<T *>(&_data);
   }
-#pragma GCC diagnostic pop
+
 private:
   Addr _source_addr;
   Addr _dest_addr;

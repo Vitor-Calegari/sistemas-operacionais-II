@@ -1,9 +1,9 @@
 #include "communicator.hh"
 #include "engine.hh"
-#include "shared_engine.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
+#include "shared_engine.hh"
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -37,7 +37,7 @@ int main() {
     exit(1);
   }
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
-  
+
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
@@ -56,23 +56,25 @@ int main() {
     SocketNIC rsnic(INTERFACE_NAME);
     SharedMemNIC smnic(INTERFACE_NAME);
     Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
-  
+
     std::cout << "Comunicação entre threads de um mesmo processo:" << std::endl;
-  
+
     std::thread sender_thread([&]() {
       Communicator communicator(&prot, 1);
       std::unique_lock<std::mutex> lock(mtx);
-      cv.wait(lock, [&comm_waiting]() {
-          return comm_waiting == NUM_RECV_THREADS;
-      });
+      cv.wait(lock,
+              [&comm_waiting]() { return comm_waiting == NUM_RECV_THREADS; });
       for (int j = 0; j < num_messages_per_comm;) {
-        Message msg = Message(communicator.addr(), Protocol::Address(rsnic.address(), getpid(), 2), MESSAGE_SIZE);
+        Message msg = Message(communicator.addr(),
+                              Protocol::Address(rsnic.address(), getpid(), 2),
+                              MESSAGE_SIZE);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();
-        int64_t send_time_us = duration_cast<microseconds>(t_send.time_since_epoch()).count();
+        int64_t send_time_us =
+            duration_cast<microseconds>(t_send.time_since_epoch()).count();
         memcpy(msg.data(), &send_time_us, sizeof(send_time_us));
-  
+
         // Envia a mensagem e incrementa o contador caso seja bem-sucedido
         if (communicator.send(&msg)) {
           sleep(0);
@@ -80,8 +82,7 @@ int main() {
         }
       }
     });
-  
-  
+
     std::thread receiver_thread([&]() {
       Communicator communicator(&prot, 2);
       long long total_latency_us = 0;
@@ -93,28 +94,29 @@ int main() {
       }
       cv.notify_all();
       for (int j = 0; j < num_messages_per_comm; j++) {
-          memset(msg.data(), 0, MESSAGE_SIZE);
-          if (!communicator.receive(&msg)) {
-            cerr << "Erro ao receber mensagem no processo " << getpid() << endl;
-            exit(1);
-          }
-          // Registra o timestamp na recepção
-          auto t_recv = high_resolution_clock::now();
-          int64_t t_sent_us;
-          memcpy(&t_sent_us, msg.data(), sizeof(t_sent_us));
-      
-          // Calcula a latência
-          auto t_recv_us =
-              duration_cast<microseconds>(t_recv.time_since_epoch()).count();
-          long long latency_us = t_recv_us - t_sent_us;
-          total_latency_us += latency_us;
-          msg_count++;
+        memset(msg.data(), 0, MESSAGE_SIZE);
+        if (!communicator.receive(&msg)) {
+          cerr << "Erro ao receber mensagem no processo " << getpid() << endl;
+          exit(1);
+        }
+        // Registra o timestamp na recepção
+        auto t_recv = high_resolution_clock::now();
+        int64_t t_sent_us;
+        memcpy(&t_sent_us, msg.data(), sizeof(t_sent_us));
+
+        // Calcula a latência
+        auto t_recv_us =
+            duration_cast<microseconds>(t_recv.time_since_epoch()).count();
+        long long latency_us = t_recv_us - t_sent_us;
+        total_latency_us += latency_us;
+        msg_count++;
       }
       double avg_latency_us =
-          (msg_count > 0 ? static_cast<double>(total_latency_us) / msg_count : 0);
+          (msg_count > 0 ? static_cast<double>(total_latency_us) / msg_count
+                         : 0);
       cout << "Latência média observada: " << avg_latency_us << " μs" << endl;
-      });
-    
+    });
+
     sender_thread.join();
     receiver_thread.join();
     exit(0);
@@ -123,7 +125,8 @@ int main() {
   int status;
   wait(&status);
 
-  std::cout << "\nComunicação entre threads de processos diferentes:" << std::endl;
+  std::cout << "\nComunicação entre threads de processos diferentes:"
+            << std::endl;
 
   pid_t parentPID = getpid();
   pid_t pid = fork();
@@ -132,7 +135,6 @@ int main() {
     exit(1);
   }
 
-
   SocketNIC rsnic(INTERFACE_NAME);
   SharedMemNIC smnic(INTERFACE_NAME);
   Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
@@ -140,17 +142,20 @@ int main() {
   if (pid == 0) {
     std::thread sender_thread([&]() {
       Communicator communicator(&prot, 10);
-  
+
       // Aguarda liberação do semaphore pelo pai
       sem_wait(semaphore);
       for (int j = 0; j < num_messages_per_comm;) {
-        Message msg = Message(communicator.addr(), Protocol::Address(rsnic.address(), parentPID, 11), MESSAGE_SIZE);
+        Message msg = Message(communicator.addr(),
+                              Protocol::Address(rsnic.address(), parentPID, 11),
+                              MESSAGE_SIZE);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();
-        int64_t send_time_us = duration_cast<microseconds>(t_send.time_since_epoch()).count();
+        int64_t send_time_us =
+            duration_cast<microseconds>(t_send.time_since_epoch()).count();
         memcpy(msg.data(), &send_time_us, sizeof(send_time_us));
-  
+
         // Envia a mensagem e incrementa o contador caso seja bem-sucedido
         if (communicator.send(&msg)) {
           sleep(0);
@@ -163,11 +168,11 @@ int main() {
   } else {
     // Processo pai: recebe mensagens
     Communicator communicator(&prot, 11);
-    
+
     long long total_latency_us = 0;
     int msg_count = 0;
     Message msg(MESSAGE_SIZE);
-    
+
     // Libera o semaphore para que o filho inicie o envio
     sem_post(semaphore);
 
@@ -206,7 +211,8 @@ int main() {
 
     double avg_latency_us =
         (msg_count > 0 ? static_cast<double>(total_latency_us) / msg_count : 0);
-    cout << "Latência média observada: " << avg_latency_us << " μs" << std::endl;
+    cout << "Latência média observada: " << avg_latency_us << " μs"
+         << std::endl;
 
     // Libera recursos do semaphore compartilhado
     sem_destroy(semaphore);

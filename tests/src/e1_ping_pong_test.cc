@@ -1,11 +1,10 @@
 #include "communicator.hh"
 #include "engine.hh"
-#include "shared_engine.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
+#include "shared_engine.hh"
 #include <cstdlib>
-#include <future>
 #include <iostream>
 #include <semaphore.h>
 #include <sys/mman.h>
@@ -32,7 +31,7 @@ int main() {
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC>;
   using Message = Message<Protocol::Address>;
-  using Communicator = Communicator<Protocol, Message>; 
+  using Communicator = Communicator<Protocol, Message>;
   // Cria um semaphore compartilhado entre processos
   sem_t *semaphore =
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
@@ -61,7 +60,9 @@ int main() {
     // Aguarda até que o processo pai libere o semaphore
     sem_wait(semaphore);
 
-    Message send_msg(communicator.addr(), Protocol::Address(rsnic.address(), parentPID, 11), MESSAGE_SIZE);
+    Message send_msg(communicator.addr(),
+                     Protocol::Address(rsnic.address(), parentPID, 11),
+                     MESSAGE_SIZE);
     struct msg_struct ms;
     ms.counter = 0;
     std::memcpy(send_msg.data(), &ms, sizeof(ms));
@@ -126,7 +127,8 @@ int main() {
                 << recvd << std::endl;
       reinterpret_cast<struct msg_struct *>(recv_msg.data())->counter++;
 
-      Message send_msg(communicator.addr(), *recv_msg.sourceAddr(), MESSAGE_SIZE);
+      Message send_msg(communicator.addr(), *recv_msg.sourceAddr(),
+                       MESSAGE_SIZE);
       std::memcpy(send_msg.data(), recv_msg.data(), MESSAGE_SIZE);
 
       bool sent = false;
