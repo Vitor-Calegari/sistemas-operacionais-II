@@ -4,14 +4,12 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "utils.hh"
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
-#include <cstddef>
 #include <iostream>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -19,7 +17,6 @@
 constexpr int NUM_SEND_THREADS = 1;
 constexpr int NUM_RECV_THREADS = 2;
 constexpr int NUM_MESSAGES_PER_RECV_THREAD = 35;
-constexpr int MESSAGE_SIZE = 5;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -53,9 +50,11 @@ int main() {
     Transducer<Meter> transducer(0, 300000);
     SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
         &communicator, &transducer, Condition(true, Meter.get_int_unit()));
-        
+
     std::unique_lock<std::mutex> cv_lock(cv_mtx);
-    cv.wait(cv_lock, [&receivers_ready]() { return receivers_ready == NUM_RECV_THREADS; });
+    cv.wait(cv_lock, [&receivers_ready]() {
+      return receivers_ready == NUM_RECV_THREADS;
+    });
   };
 
   auto receive_task = [&](const int thread_id) {

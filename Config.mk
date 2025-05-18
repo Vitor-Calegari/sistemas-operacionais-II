@@ -2,7 +2,7 @@ MAKENAME = INE5424
 
 INTERFACE_NAME:=$(shell ip addr | awk '/state UP/ {print $$2}' | head -n 1 | sed 's/.$$//')
 
-TESTS = e1_communicator_test e1_ping_pong_test e1_load_test e1_latency_test e2_one_to_one_test e2_latency_test e2_throughput_test e2_many_to_many_test e2_many_to_one_test e2_broadcast_test e2_broadcast_neighborhood_test e3_one_pub_sub_test
+TESTS = e1_communicator_test e1_ping_pong_test e1_load_test e1_latency_test e2_one_to_one_test e2_latency_test e2_throughput_test e2_many_to_many_test e2_many_to_one_test e2_broadcast_test e2_broadcast_neighborhood_test e3_one_pub_sub_test e3_two_subs_one_pub
 MODULES = ethernet utils
 
 SRC_DIR = src
