@@ -95,7 +95,7 @@ public:
   void update([[maybe_unused]]
               typename Communicator::CommObserver::Observing_Condition c,
               typename Communicator::CommObserver::Observed_Data *buf) {
-    Message *msg = (Message *)Base::_communicator->unmarshal(buf);
+    Message *msg = (Message *)Base::_communicator->peek_msg(buf);
 
     // Obtem origem
     Address origin = *msg->sourceAddr();
@@ -231,7 +231,7 @@ private:
 // Subscriber.
 template <typename Communicator, typename Condition>
 class SmartData<Communicator, Condition, void>
-    : SmartDataCommon<Communicator, Condition> {
+    : public SmartDataCommon<Communicator, Condition> {
 public:
   typedef Concurrent_Observer<
       typename Communicator::CommObserver::Observed_Data,
@@ -259,17 +259,10 @@ public:
     delete _sub_msg;
   }
 
-  bool receive(void *data) {
+  bool receive(Message *msg) {
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
-    Message *msg = (Message *)Base::_communicator->unmarshal(buf);
-    unsigned char *pubPkt = msg->template data<typename Base::PubPacket>()
-                                ->template data<unsigned char>();
-    std::size_t header_size = sizeof(typename Base::Header);
-    std::size_t recv_size = msg->size() - header_size;
-    std::memcpy(data, pubPkt, recv_size);
-    Base::_communicator->free(buf);
-    return recv_size > 0;
+    return Base::_communicator->unmarshal(msg, buf);
   }
 
   void update(typename Communicator::CommObserver::Observing_Condition c,

@@ -66,16 +66,19 @@ int main() {
     stdout_lock.unlock();
 
     for (int j = 1; j <= NUM_SEND_THREADS * NUM_MESSAGES_PER_RECV_THREAD; j++) {
-      int data = 0;
-      if (!smart_data.receive(&data)) {
+      Message message = Message(sizeof(SmartData<Communicator, Condition>::Header) + Meter.get_value_size_bytes(), Message::Type::PUBLISH);
+      if (!smart_data.receive(&message)) {
         std::cerr << "Erro ao receber mensagem na thread " << thread_id
                   << std::endl;
         exit(1);
       } else {
         stdout_lock.lock();
         std::cout << std::dec << "Thread (" << thread_id << "): Received (" << j
-                  << "): ";
-        std::cout << data << std::endl;
+        << "): ";
+        for (size_t i = 0; i < message.size(); i++) {
+          std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
+        }
+        std::cout << std::endl;
         stdout_lock.unlock();
       }
     }

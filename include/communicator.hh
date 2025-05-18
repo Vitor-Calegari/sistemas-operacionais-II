@@ -54,6 +54,10 @@ public:
   bool receive(Message *message) {
     // Block until a notification is triggered.
     Buffer *buf = Observer::updated();
+    return this->unmarshal(message, buf);
+  }
+
+  bool unmarshal(Message * message, Buffer *buf) {
     uint8_t type;
     int size =
         _channel->receive(buf, message->sourceAddr(), message->destAddr(),
@@ -63,7 +67,7 @@ public:
     return size > 0;
   }
 
-  void *unmarshal(Buffer *buf) {
+  void *peek_msg(Buffer *buf) {
     return _channel->unmarshal(buf);
   }
 
