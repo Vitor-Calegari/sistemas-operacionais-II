@@ -1,66 +1,38 @@
 #ifndef COMPONENT_HH
 #define COMPONENT_HH
 
-#include "smart_data.hh"
+#include "message.hh"
+#include "communicator.hh"
+#include "smart_unit.hh"
 #include "transducer.hh"
+#include "smart_data.hh"
 
-template<typename Communicator, SmartUnit Unit>
-class Publisher {
-    using Transd = Transducer<Unit>;
-    using SmD = SmartData<Communicator, Transd >;
+template<typename Protocol>
+class Component {
 public:
-    Publisher(Communicator *communicator) {
-        Transd _transd(0, 300000);
-        _smd = SmD(communicator, _transd);
-    }
-
-    ~Publisher() {}
-private:
-    Transd _transd;
-    SmD _smd;
-};
-
-
-template<typename Communicator, typename ... Condition>
-class Controller {
+    using Message = Message<Protocol::Address>;
+    using Communicator = Communicator<Protocol, Message>;
+    using Port = Communicator::Port;
 public:
-    Controller(Communicator *communicator) {
-        (smart_data_list.push_back(new SmartData<Communicator, Condition>(communicator)), ...);
-        start_data_proc();
+    Component(Protocol * prot, Port p) : _comm(prot, p) {
     }
-    ~Controller() {
-        turn_off();
-        for (auto* smd : smart_data_list) {
-            delete smd;
-        }
+public:
+    bool send(Message *message) {
+        return _comm.send(message);
     }
-    void turn_off() {
-        _running = false;
-        if (_proc_thread.joinable()) {
-            _proc_thread.join();
-        }
+    bool receive(Message *message) {
+        return _comm.receive(message);
     }
-private:
-    void start_data_proc() {
-        _running = true;
-        _proc_thread = std::thread([this]() {
-            while (_running) {
-                std::vector<unsigned char> data(1474);
-                for (auto* smd : smart_data_list) {
-                    smd->receive(data.data());
-                    // TODO Realizar alguma verificação sobre os dados obtidos?
-                }
-                process_data();
-            }
-        });
+    template<typename Condition>
+    SmartData<Communicator, Condition> subscribe(Condition cond) {
+        return SmartData<Communicator, Condition>(&_comm, cond);
     }
-    void process_data() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    template<typename Condition, typename Transducer>
+    SmartData<Communicator, Condition, Transducer> register_publisher(Transducer * transd, Condition cond) {
+        return SmartData<Communicator, Condition, Transducer>(&_comm, transd, cond);
     }
 private:
-    bool _running;
-    std::thread _proc_thread;
-    std::vector<SmartData<Communicator, Condition>*> smart_data_list;
+    Communicator _comm;
 };
 
 #endif
