@@ -77,8 +77,8 @@ public:
 
 public:
   static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
-
-public:
+  static const size_t unit_size = Transducer::unit.get_value_size_bytes();
+  public:
   SmartData(Communicator *communicator, Transducer *transd, Condition cond)
       : Base(communicator), _transd(transd), _cond(cond) {
     Base::_communicator->attach(this, _cond);
@@ -158,8 +158,8 @@ private:
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
           period_sem.release();
-
-          int data = _transd->get_data();
+          std::byte data[unit_size];
+          _transd->get_data(data);
 #ifdef DEBUG_SMD
           std::cout << get_timestamp() << " Publisher " << getpid()
                     << ": Publishing" << std::endl;
@@ -185,7 +185,7 @@ private:
     }
   }
 
-  Message create_pub_message(int data, uint32_t cur_period) {
+  Message create_pub_message(std::byte * data, uint32_t cur_period) {
     auto unit = _transd->get_unit();
 
     size_t msg_size =
@@ -199,8 +199,8 @@ private:
     auto int_unit = unit.get_int_unit();
     std::memcpy(msg.data(), &int_unit, sizeof(SmartUnit));
     std::memcpy(msg.data() + sizeof(SmartUnit), &cur_period, PERIOD_SIZE);
-    std::memcpy(msg.data() + sizeof(SmartUnit) + PERIOD_SIZE, &data,
-                unit.get_value_size_bytes());
+    std::memcpy(msg.data() + sizeof(SmartUnit) + PERIOD_SIZE, data,
+    unit_size);
 
     return msg;
   }

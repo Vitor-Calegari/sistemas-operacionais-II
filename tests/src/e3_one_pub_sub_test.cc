@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
   Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
 
   if (publisher) {
-    Transducer<Meter> transducer(0, 300000);
+    Transducer<Meter> transducer(0, 255);
 
     Communicator comm(&prot, 10);
     SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
