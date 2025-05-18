@@ -20,24 +20,27 @@ $(info If possible, have a non-loopback active network interface.)
 $(info !!!!!!!!!!!!!!!!!!!!!)
 endif
 
+TEST_BUILD_DIRS = $(patsubst %,$(BUILD_DIR)/%,$(TEST_MODULES))
+TEST_BIN_DIRS = $(patsubst %,$(BIN_DIR)/%,$(TEST_MODULES))
+
 OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(MODULES))
-TESTS_OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(TESTS))
-TESTS_TARGETS = $(patsubst %,$(BIN_DIR)/%,$(TESTS))
+TEST_OBJS = $(patsubst %,$(BUILD_DIR)/%.o,$(TESTS))
+TEST_TARGETS = $(patsubst %,$(BIN_DIR)/%,$(TESTS))
 
 .PHONY: clean test
 
 all: test
 
-test: $(OBJS) $(TESTS_OBJS) $(TESTS_TARGETS)
+test: $(OBJS) $(TEST_OBJS) $(TEST_TARGETS)
 	@$(run_tests)
 
-$(BIN_DIR)/%: $(BUILD_DIR)/%.o $(OBJS) | $(BIN_DIR)
+$(BIN_DIR)/%: $(BUILD_DIR)/%.o $(OBJS) | $(BIN_DIR) $(TEST_BIN_DIRS)
 	@$(link_binary)
 
-$(BUILD_DIR)/%.o: %.cc | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: %.cc | $(BUILD_DIR) $(TEST_BUILD_DIRS)
 	@$(assemble_object)
 
-$(BUILD_DIR) $(BIN_DIR):
+$(BUILD_DIR) $(TEST_BUILD_DIRS) $(BIN_DIR) $(TEST_BIN_DIRS):
 	@$(create_dir)
 
 clean:

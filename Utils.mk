@@ -9,17 +9,17 @@ define assemble_object =
 endef
 
 define run_tests =
-	for test in $(TESTS) ; do                            \
-		echo "\n======================================"; \
-		echo $(MAKENAME) "Testing: running" $$test;      \
-		echo "--------------------------------------";   \
-		./$(BIN_DIR)/$$test;                             \
+	for test in $(TESTS) ; do                                  \
+		echo "\n======================================";       \
+		echo $(MAKENAME) "Testing: running" `basename $$test`; \
+		echo "--------------------------------------";         \
+		./$(BIN_DIR)/$$test;                                   \
 	done
 endef
 
 define create_dir =
 	if ! [ -d $@ ]; then \
-	  mkdir $@;          \
+	  mkdir -m 777 $@;   \
 	fi
 endef
 
