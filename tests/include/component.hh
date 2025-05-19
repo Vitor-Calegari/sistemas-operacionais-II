@@ -10,29 +10,29 @@
 template<typename Protocol>
 class Component {
 public:
-    using Message = Message<Protocol::Address>;
-    using Communicator = Communicator<Protocol, Message>;
-    using Port = Communicator::Port;
+    using MessageC = Message<typename Protocol::Address>;
+    using CommunicatorC = Communicator<Protocol, MessageC>;
+    using PortC = CommunicatorC::Port;
 public:
-    Component(Protocol * prot, Port p) : _comm(prot, p) {
+    Component(Protocol * prot, PortC p) : _comm(prot, p) {
     }
 public:
-    bool send(Message *message) {
+    bool send(MessageC *message) {
         return _comm.send(message);
     }
-    bool receive(Message *message) {
+    bool receive(MessageC *message) {
         return _comm.receive(message);
     }
     template<typename Condition>
-    SmartData<Communicator, Condition> subscribe(Condition cond) {
-        return SmartData<Communicator, Condition>(&_comm, cond);
+    SmartData<CommunicatorC, Condition> subscribe(Condition cond) {
+        return SmartData<CommunicatorC, Condition>(&_comm, cond);
     }
     template<typename Condition, typename Transducer>
-    SmartData<Communicator, Condition, Transducer> register_publisher(Transducer * transd, Condition cond) {
-        return SmartData<Communicator, Condition, Transducer>(&_comm, transd, cond);
+    SmartData<CommunicatorC, Condition, Transducer> register_publisher(Transducer * transd, Condition cond) {
+        return SmartData<CommunicatorC, Condition, Transducer>(&_comm, transd, cond);
     }
 private:
-    Communicator _comm;
+CommunicatorC _comm;
 };
 
 #endif

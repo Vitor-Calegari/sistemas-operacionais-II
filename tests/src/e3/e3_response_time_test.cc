@@ -1,7 +1,6 @@
 #include "car.hh"
 #include "component.hh"
 #include "cond.hh"
-#include "smart_data.hh"
 #include "transducer.hh"
 #include "smart_unit.hh"
 #include "message.hh"
@@ -9,55 +8,53 @@
 #include <cmath>
 #include <iostream>
 #include <unistd.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
 #include <cassert>
 
 constexpr size_t NUM_MESSAGES = 10;
-constexpr uint32_t DEFAULT_PERIOD_US = 10000;  // 10 ms
-constexpr double TOLERANCE = 0.1;               // 10%
+constexpr uint32_t DEFAULT_PERIOD_US = 5000;
+constexpr double TOLERANCE = 0.1;
 
-int main(int argc, char* argv[]) {
-    uint32_t period_us = (argc > 1) ? std::stoul(argv[1]) : DEFAULT_PERIOD_US;
+int main() {
+    uint32_t period_us = DEFAULT_PERIOD_US;
+    constexpr SmartUnit Meter(SmartUnit::SIUnit::M);
+
+    sem_t *semaphore =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+    sem_init(semaphore, 1, 0); // Inicialmente bloqueado
 
     pid_t pid = fork();
 
-if (pid == 0) {
-    Car car = Car();
-    Transducer<SmartUnit(SmartUnit::SIUnit::M)> transd(0, 255);
-    Condition cond(true, SmartUnit(SmartUnit::SIUnit::M).get_int_unit(), period_us);
-    auto pub_comp = car.create_component(1).template register_publisher<Condition, Transducer<SmartUnit(SmartUnit::SIUnit::M)>>(&transd, cond);
-    for (size_t i = 0; i < NUM_MESSAGES; ++i) {
-        using Message = Message<Car::Protocol::Address>;
-        Message message = Message(8 + SmartUnit(SmartUnit::SIUnit::M).get_value_size_bytes(), Message::Type::PUBLISH);
-        usleep(1000000000);
+    if (pid == 0) {
+        Car car = Car();
+        Transducer<Meter> transd(0, 255);
+        Condition cond(true, Meter.get_int_unit());
+        Car::ComponentC component = car.create_component(1);
+        auto pub_comp = component.template register_publisher<Condition, Transducer<Meter>>(&transd, cond);
+        sem_wait(semaphore);
+        return 0;
     }
-    return 0;
-}
 
     Car car = Car();
-    Condition cond(false, SmartUnit(SmartUnit::SIUnit::M).get_int_unit(), period_us);
-    auto sub_comp = car.create_component(1).template subscribe<Condition>(cond);
+    Condition cond(false, Meter.get_int_unit(), period_us);
+        Car::ComponentC component = car.create_component(1);
+        auto sub_comp = component.template subscribe<Condition>(cond);
 
     std::vector<uint64_t> stamps;
     stamps.reserve(NUM_MESSAGES);
-    using Message = Message<Car::Protocol::Address>;
-    Message message = Message(8 + SmartUnit(SmartUnit::SIUnit::M).get_value_size_bytes(), Message::Type::PUBLISH);
-
-    
-
+    using Message = Message<Car::ProtocolC::Address>;
+    Message message = Message(8 + Meter.get_value_size_bytes(), Message::Type::PUBLISH);
 
     for (size_t i = 0; i < NUM_MESSAGES; ++i) {
-        std::cout << "Periodic response timing test passed for period_us="
-              << period_us << "us\n";
         sub_comp.receive(&message);
-        std::cout << "Periodic response timing test passed for period_us="
-              << period_us << "us\n";
         stamps.push_back(
             std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count()
         );
     }
-
+    sem_post(semaphore);
     int status;
     waitpid(pid, &status, 0);
 

@@ -8,27 +8,28 @@
 #include "component.hh"
 
 #ifndef INTERFACE_NAME
-#define INTERFACE_NAME "lo"
+#define INTERFACE_NAME "enxf8e43bf0c430"
 #endif
 
 class Car {
-    using Buffer = Buffer<Ethernet::Frame>;
-    using SocketNIC = NIC<Engine<Buffer>>;
-    using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-    using Protocol = Protocol<SocketNIC, SharedMemNIC>;
-    using Component = Component<Protocol>;
-    using Port = Component::Port;
+public:
+    using BufferC = Buffer<Ethernet::Frame>;
+    using SocketNIC = NIC<Engine<BufferC>>;
+    using SharedMemNIC = NIC<SharedEngine<BufferC>>;
+    using ProtocolC = Protocol<SocketNIC, SharedMemNIC>;
+    using ComponentC = Component<ProtocolC>;
+    using Port = ComponentC::PortC;
 
 public:
-    Car() : rsnic(INTERFACE_NAME), smnic(INTERFACE_NAME), prot(Protocol::getInstance(&rsnic, &smnic, getpid())) {
+    Car() : rsnic(INTERFACE_NAME), smnic(INTERFACE_NAME), prot(ProtocolC::getInstance(&rsnic, &smnic, getpid())) {
     }
-    Component create_component(Port p) {
-        return Component(&prot, p);
+    ComponentC create_component(Port p) {
+        return ComponentC(&prot, p);
     }
 public:
     SocketNIC rsnic;
     SharedMemNIC smnic;
-    Protocol &prot;
+    ProtocolC &prot;
 };
 
 #endif
