@@ -2,10 +2,14 @@ include Config.mk
 include Utils.mk
 
 vpath %.cc $(SRC_DIR)
-vpath %.cc $(TST_DIR)
+vpath %.cc $(TST_SRC_DIR)
 
 ifdef INCL_DIR
 	CXXFLAGS += -I$(INCL_DIR)
+endif
+
+ifdef TST_INCL_DIR
+	CXXFLAGS += -I$(TST_INCL_DIR)
 endif
 
 ifdef INTERFACE_NAME

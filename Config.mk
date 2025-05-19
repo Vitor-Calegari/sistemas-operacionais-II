@@ -8,7 +8,8 @@ MODULES = ethernet utils
 
 SRC_DIR = src
 INCL_DIR = include
-TST_DIR = tests/src
+TST_SRC_DIR = tests/src
+TST_INCL_DIR = tests/include
 BUILD_DIR = build
 BIN_DIR = bin
 
