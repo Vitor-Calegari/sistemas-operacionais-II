@@ -15,13 +15,23 @@ public:
 
   enum class SIUnit : uint32_t { CD = 0, MOL, K, A, S, KG, M, RAD, SR };
 
+  static constexpr uint32_t SIZE_BYTES = 4;
+
 private:
   static constexpr uint32_t NUMBER_OF_UNITS = 9;
   static constexpr int32_t BASE_UNIT_VALUE = 4;
 
-  enum Sizes : uint32_t { T_BITS = 1, N_BITS = 2, M_BITS = 2, UNIT_BITS = 3 };
+  enum Sizes : uint32_t {
+    T_BITS = 1,
+    N_BITS = 2,
+    M_BITS = 2,
+    UNIT_BITS = 3,
+    MULTI_BITS = 2,
+    DIGITAL_TYPE_BITS = 13,
+    DIGITAL_LENGTH_BITS = 16
+  };
 
-  enum Offsets : uint32_t {
+  enum SIOffsets : uint32_t {
     T = Sizes::UNIT_BITS * NUMBER_OF_UNITS + Sizes::M_BITS + Sizes::N_BITS,
     N = Sizes::UNIT_BITS * NUMBER_OF_UNITS + Sizes::M_BITS,
     M = Sizes::UNIT_BITS * NUMBER_OF_UNITS,
@@ -37,7 +47,14 @@ private:
     CANDELA = Sizes::UNIT_BITS * static_cast<uint32_t>(SIUnit::CD)
   };
 
-  struct UnitStruct {
+  enum DigitalOffsets : uint32_t {
+    LENGTH = 0,
+    TYPE = Sizes::DIGITAL_LENGTH_BITS,
+    MULTI = TYPE + Sizes::DIGITAL_TYPE_BITS,
+    DIGITAL_T = MULTI + Sizes::MULTI_BITS,
+  };
+
+  struct SIStruct {
     uint32_t t : Sizes::T_BITS;
     uint32_t n : Sizes::N_BITS;
     uint32_t m : Sizes::M_BITS;
@@ -53,6 +70,18 @@ private:
     uint32_t candela : Sizes::UNIT_BITS;
   } __attribute__((packed));
 
+  struct DigitalStruct {
+    uint32_t t : Sizes::T_BITS;
+    uint32_t multi : Sizes::MULTI_BITS;
+    uint32_t type : Sizes::DIGITAL_TYPE_BITS;
+    uint32_t length : Sizes::DIGITAL_LENGTH_BITS;
+  } __attribute__((packed));
+
+  union UnitUnion {
+    struct SIStruct si;
+    struct DigitalStruct digital;
+  } __attribute__((packed));
+
 private:
   static constexpr uint32_t get_mask(uint32_t bit_size) {
     return (1 << bit_size) - 1;
@@ -65,56 +94,82 @@ private:
 
   // Idealmente seria usado std::bit_cast ao invés disso. No entanto, Clang não
   // dá suporte à std::bit_cast constexpr com bit-fields.
-  static constexpr struct UnitStruct unit_int_to_struct(const uint32_t unit) {
-    uint32_t t = get_bits_at(unit, get_mask(Sizes::T_BITS), Offsets::T);
-    uint32_t n = get_bits_at(unit, get_mask(Sizes::N_BITS), Offsets::N);
-    uint32_t m = get_bits_at(unit, get_mask(Sizes::M_BITS), Offsets::M);
+  static constexpr union UnitUnion unit_int_to_struct(const uint32_t unit) {
+    union UnitUnion unit_union;
 
-    auto unit_mask = get_mask(Sizes::UNIT_BITS);
+    uint32_t t = get_bits_at(unit, get_mask(Sizes::T_BITS), SIOffsets::T);
 
-    uint32_t steradian = get_bits_at(unit, unit_mask, Offsets::STERADIAN);
-    uint32_t radian = get_bits_at(unit, unit_mask, Offsets::RADIAN);
-    uint32_t meter = get_bits_at(unit, unit_mask, Offsets::METER);
-    uint32_t kilogram = get_bits_at(unit, unit_mask, Offsets::KILOGRAM);
-    uint32_t second = get_bits_at(unit, unit_mask, Offsets::SECOND);
-    uint32_t ampere = get_bits_at(unit, unit_mask, Offsets::AMPERE);
-    uint32_t kelvin = get_bits_at(unit, unit_mask, Offsets::KELVIN);
-    uint32_t mole = get_bits_at(unit, unit_mask, Offsets::MOLE);
-    uint32_t candela = get_bits_at(unit, unit_mask, Offsets::CANDELA);
+    if (t == T::SI) {
+      uint32_t n = get_bits_at(unit, get_mask(Sizes::N_BITS), SIOffsets::N);
+      uint32_t m = get_bits_at(unit, get_mask(Sizes::M_BITS), SIOffsets::M);
 
-    struct UnitStruct unit_st {
-      t, n, m, steradian, radian, meter, kilogram, second, ampere, kelvin, mole,
-          candela
-    };
+      auto unit_mask = get_mask(Sizes::UNIT_BITS);
 
-    return unit_st;
+      uint32_t steradian = get_bits_at(unit, unit_mask, SIOffsets::STERADIAN);
+      uint32_t radian = get_bits_at(unit, unit_mask, SIOffsets::RADIAN);
+      uint32_t meter = get_bits_at(unit, unit_mask, SIOffsets::METER);
+      uint32_t kilogram = get_bits_at(unit, unit_mask, SIOffsets::KILOGRAM);
+      uint32_t second = get_bits_at(unit, unit_mask, SIOffsets::SECOND);
+      uint32_t ampere = get_bits_at(unit, unit_mask, SIOffsets::AMPERE);
+      uint32_t kelvin = get_bits_at(unit, unit_mask, SIOffsets::KELVIN);
+      uint32_t mole = get_bits_at(unit, unit_mask, SIOffsets::MOLE);
+      uint32_t candela = get_bits_at(unit, unit_mask, SIOffsets::CANDELA);
+
+      struct SIStruct unit_st {
+        t, n, m, steradian, radian, meter, kilogram, second, ampere, kelvin,
+            mole, candela
+      };
+      unit_union.si = unit_st;
+    } else {
+      uint32_t multi =
+          get_bits_at(unit, get_mask(Sizes::MULTI_BITS), DigitalOffsets::MULTI);
+      uint32_t type = get_bits_at(unit, get_mask(Sizes::DIGITAL_TYPE_BITS),
+                                  DigitalOffsets::TYPE);
+      uint32_t length = get_bits_at(unit, get_mask(Sizes::DIGITAL_LENGTH_BITS),
+                                    DigitalOffsets::LENGTH);
+
+      struct DigitalStruct unit_st {
+        t, multi, type, length
+      };
+      unit_union.digital = unit_st;
+    }
+
+    return unit_union;
   }
 
   // O uso de std::bit_cast aqui não é ideal, pois ele depende da endianness do
   // sistema.
-  static constexpr uint32_t unit_struct_to_int(const struct UnitStruct unit) {
+  static constexpr uint32_t unit_struct_to_int(const union UnitUnion unit,
+                                               uint8_t unit_type) {
     uint32_t unit_int = 0;
 
-    unit_int += unit.t << Offsets::T;
-    unit_int += unit.n << Offsets::N;
-    unit_int += unit.m << Offsets::M;
+    if (unit_type == T::SI) {
+      unit_int += unit.si.t << SIOffsets::T;
+      unit_int += unit.si.n << SIOffsets::N;
+      unit_int += unit.si.m << SIOffsets::M;
 
-    unit_int += unit.steradian << Offsets::STERADIAN;
-    unit_int += unit.radian << Offsets::RADIAN;
-    unit_int += unit.meter << Offsets::METER;
-    unit_int += unit.kilogram << Offsets::KILOGRAM;
-    unit_int += unit.second << Offsets::SECOND;
-    unit_int += unit.ampere << Offsets::AMPERE;
-    unit_int += unit.kelvin << Offsets::KELVIN;
-    unit_int += unit.mole << Offsets::MOLE;
-    unit_int += unit.candela << Offsets::CANDELA;
+      unit_int += unit.si.steradian << SIOffsets::STERADIAN;
+      unit_int += unit.si.radian << SIOffsets::RADIAN;
+      unit_int += unit.si.meter << SIOffsets::METER;
+      unit_int += unit.si.kilogram << SIOffsets::KILOGRAM;
+      unit_int += unit.si.second << SIOffsets::SECOND;
+      unit_int += unit.si.ampere << SIOffsets::AMPERE;
+      unit_int += unit.si.kelvin << SIOffsets::KELVIN;
+      unit_int += unit.si.mole << SIOffsets::MOLE;
+      unit_int += unit.si.candela << SIOffsets::CANDELA;
+    } else {
+      unit_int += unit.digital.t << DigitalOffsets::DIGITAL_T;
+      unit_int += unit.digital.multi << DigitalOffsets::MULTI;
+      unit_int += unit.digital.type << DigitalOffsets::TYPE;
+      unit_int += unit.digital.length << DigitalOffsets::LENGTH;
+    }
 
     return unit_int;
   }
 
   static constexpr uint32_t si_unit_to_int(const SIUnit si_unit) {
-    uint32_t unit_int = (T::SI << Offsets::T) + (N::INT32 << Offsets::N) +
-                        (M::DIRECT << Offsets::M);
+    uint32_t unit_int = (T::SI << SIOffsets::T) + (N::INT32 << SIOffsets::N) +
+                        (M::DIRECT << SIOffsets::M);
 
     for (uint32_t i = 0; i < NUMBER_OF_UNITS; ++i) {
       unit_int += BASE_UNIT_VALUE << (Sizes::UNIT_BITS * i);
@@ -126,17 +181,21 @@ private:
 
 public:
   // Para que essa classe seja constexpr isso precisa estar público.
-  struct UnitStruct _unit {};
+  union UnitUnion _unit {};
+  uint8_t _unit_type = T::SI;
 
-  constexpr SmartUnit(uint32_t unit) : _unit(unit_int_to_struct(unit)) {
+  constexpr SmartUnit(uint32_t unit)
+      : _unit(unit_int_to_struct(unit)),
+        _unit_type(get_bits_at(unit, get_mask(Sizes::T_BITS), SIOffsets::T)) {
   }
 
   // Presume Int32 por padrão.
   constexpr SmartUnit(SIUnit si_unit)
-      : _unit(unit_int_to_struct(si_unit_to_int(si_unit))) {
+      : _unit(unit_int_to_struct(si_unit_to_int(si_unit))), _unit_type(T::SI) {
   }
 
-#define MULT_UNIT(unit) _unit.unit += rhs._unit.unit - BASE_UNIT_VALUE
+// Todos os operadores somente funcionam em unidades do SI.
+#define MULT_UNIT(unit) _unit.si.unit += rhs._unit.si.unit - BASE_UNIT_VALUE
   constexpr SmartUnit &operator*=(const SmartUnit &rhs) {
     MULT_UNIT(steradian);
     MULT_UNIT(radian);
@@ -170,7 +229,7 @@ public:
   constexpr friend SmartUnit operator*(int, SIUnit) = delete;
 
 #define MULT_INV_UNIT(unit)                                                    \
-  inv_unit._unit.unit = 2 * BASE_UNIT_VALUE - inv_unit._unit.unit
+  inv_unit._unit.si.unit = 2 * BASE_UNIT_VALUE - inv_unit._unit.si.unit
 
   // Implementa inverso multiplicativo da unidade.
   // TODO: Caso a unidade esteja na quarta potência negativa não há inverso
@@ -219,39 +278,22 @@ public:
   }
 
   constexpr uint32_t get_int_unit() const {
-    return unit_struct_to_int(_unit);
+    return unit_struct_to_int(_unit, _unit_type);
   }
 
   constexpr uint32_t get_t() const {
-    return _unit.t;
-  }
-
-  constexpr uint32_t get_n() const {
-    return _unit.n;
-  }
-
-  constexpr uint32_t get_m() const {
-    return _unit.m;
+    return _unit_type;
   }
 
   constexpr uint32_t get_value_size_bytes() const {
-    if (_unit.n == N::INT32 || _unit.n == N::FLOAT32) {
-      return sizeof(int32_t);
+    if (_unit_type == T::SI) {
+      if (_unit.si.n == N::INT32 || _unit.si.n == N::FLOAT32) {
+        return sizeof(int32_t);
+      }
+      return sizeof(int64_t);
+    } else {
+      return _unit.digital.length;
     }
-
-    return sizeof(int64_t);
-  }
-
-  void set_t(uint32_t t) {
-    _unit.t = t;
-  }
-
-  void set_n(uint32_t n) {
-    _unit.n = n;
-  }
-
-  void set_m(uint32_t m) {
-    _unit.m = m;
   }
 
 #ifdef DEBUG
@@ -260,6 +302,7 @@ public:
             << "] ";                                                           \
   std::cout << #unit ": " << _unit.unit << std::endl;
 
+  // Somente para unidades do SI.
   void print_unit() const {
     std::cout << "===============\nUNIT:\n";
 

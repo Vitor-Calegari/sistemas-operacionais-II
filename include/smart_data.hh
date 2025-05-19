@@ -77,8 +77,9 @@ public:
 
 public:
   static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
-  static const size_t unit_size = Transducer::unit.get_value_size_bytes();
-  public:
+  static constexpr size_t UNIT_SIZE = Transducer::unit.get_value_size_bytes();
+
+public:
   SmartData(Communicator *communicator, Transducer *transd, Condition cond)
       : Base(communicator), _transd(transd), _cond(cond) {
     Base::_communicator->attach(this, _cond);
@@ -158,7 +159,7 @@ private:
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
           period_sem.release();
-          std::byte data[unit_size];
+          std::byte data[UNIT_SIZE];
           _transd->get_data(data);
 #ifdef DEBUG_SMD
           std::cout << get_timestamp() << " Publisher " << getpid()
@@ -185,11 +186,11 @@ private:
     }
   }
 
-  Message create_pub_message(std::byte * data, uint32_t cur_period) {
+  Message create_pub_message(std::byte *data, uint32_t cur_period) {
     auto unit = _transd->get_unit();
 
     size_t msg_size =
-        sizeof(SmartUnit) + PERIOD_SIZE + unit.get_value_size_bytes();
+        SmartUnit::SIZE_BYTES + PERIOD_SIZE + unit.get_value_size_bytes();
 
     Message msg(Base::_communicator->addr(), // TODO! Arrumar endereço físico.
                 Address(Ethernet::Address(), Channel::BROADCAST_SID,
@@ -197,10 +198,10 @@ private:
                 msg_size, Message::Type::PUBLISH);
 
     auto int_unit = unit.get_int_unit();
-    std::memcpy(msg.data(), &int_unit, sizeof(SmartUnit));
-    std::memcpy(msg.data() + sizeof(SmartUnit), &cur_period, PERIOD_SIZE);
-    std::memcpy(msg.data() + sizeof(SmartUnit) + PERIOD_SIZE, data,
-    unit_size);
+    std::memcpy(msg.data(), &int_unit, SmartUnit::SIZE_BYTES);
+    std::memcpy(msg.data() + SmartUnit::SIZE_BYTES, &cur_period, PERIOD_SIZE);
+    std::memcpy(msg.data() + SmartUnit::SIZE_BYTES + PERIOD_SIZE, data,
+                UNIT_SIZE);
 
     return msg;
   }
