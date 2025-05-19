@@ -1,3 +1,4 @@
+#include "car.hh"
 #include "communicator.hh"
 #include "cond.hh"
 #include "engine.hh"
@@ -14,7 +15,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-constexpr int NUM_MESSAGES = 5;
+constexpr int NUM_MESSAGES = 10;
 constexpr int PERIOD_SUBCRIBER = 5e3;
 
 #ifndef INTERFACE_NAME
@@ -38,7 +39,9 @@ int main(int argc, char *argv[]) {
     sem_post(semaphore);
   }
 
-  constexpr SmartUnit Meter(SmartUnit::SIUnit::M);
+  constexpr SmartUnit Farad(
+      (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
+      (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
 
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
@@ -47,17 +50,14 @@ int main(int argc, char *argv[]) {
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
-  SocketNIC rsnic = SocketNIC(INTERFACE_NAME);
-  SharedMemNIC smnic = SharedMemNIC(INTERFACE_NAME);
-
-  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  Car car = Car();
 
   if (publisher) {
-    Transducer<Meter> transducer(0, 255);
+    Transducer<Farad> transducer(0, 255);
 
-    Communicator comm(&prot, 10);
-    SmartData<Communicator, Condition, Transducer<Meter>> smart_data(
-        &comm, &transducer, Condition(true, Meter.get_int_unit()));
+    auto comp = car.create_component(10);
+    auto smart_data = comp.register_publisher(
+        &transducer, Condition(true, Farad.get_int_unit()));
 
     sem_post(semaphore);
 
@@ -69,12 +69,15 @@ int main(int argc, char *argv[]) {
   } else {
     sem_wait(semaphore);
 
-    Communicator comm(&prot, 10);
-    SmartData<Communicator, Condition> smart_data(
-        &comm, Condition(false, Meter.get_int_unit(), PERIOD_SUBCRIBER));
+    auto comp = car.create_component(10);
+    auto smart_data = comp.subscribe(
+        Condition(false, Farad.get_int_unit(), PERIOD_SUBCRIBER));
 
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
-      Message message = Message(sizeof(SmartData<Communicator, Condition>::Header) + Meter.get_value_size_bytes(), Message::Type::PUBLISH);
+      Message message =
+          Message(sizeof(SmartData<Communicator, Condition>::Header) +
+                      Farad.get_value_size_bytes(),
+                  Message::Type::PUBLISH);
       smart_data.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {
