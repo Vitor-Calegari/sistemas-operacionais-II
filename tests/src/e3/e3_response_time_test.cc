@@ -13,7 +13,7 @@
 #include <cassert>
 
 constexpr size_t NUM_MESSAGES = 10;
-constexpr uint32_t DEFAULT_PERIOD_US = 5e6;
+constexpr uint32_t DEFAULT_PERIOD_US = 5e3;
 
 int main() {
     uint32_t period_us = DEFAULT_PERIOD_US;
