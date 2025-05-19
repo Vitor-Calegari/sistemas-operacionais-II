@@ -148,6 +148,10 @@ private:
     pub_thread = std::thread([this]() {
       if (period == 0) {
         has_first_subscriber_sem.acquire();
+#ifdef DEBUG_SMD
+        std::cout << get_timestamp() << " Publisher " << getpid()
+                  << ": First Subscriber received" << std::endl;
+#endif
       }
 
       while (_pub_thread_running) {
