@@ -37,7 +37,8 @@ int main() {
   std::condition_variable cv;
 
   int receivers_ready = 0;
-  constexpr SmartUnit Meter(SmartUnit::SIUnit::M);
+  constexpr SmartUnit Watt(SmartUnit::SIUnit::KG * (SmartUnit::SIUnit::M ^ 2) *
+                           (SmartUnit::SIUnit::S ^ 3));
 
   Car car = Car();
 
@@ -47,8 +48,9 @@ int main() {
     std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
     stdout_lock.unlock();
 
-    Transducer<Meter> transducer(0, 300000);
-    comp.register_publisher(&transducer, Condition(true, Meter.get_int_unit()));
+    Transducer<Watt> transducer(0, 300000);
+    auto smart_data = comp.register_publisher(
+        &transducer, Condition(true, Watt.get_int_unit()));
 
     std::unique_lock<std::mutex> cv_lock(cv_mtx);
     cv.wait(cv_lock, [&receivers_ready]() {
@@ -61,7 +63,7 @@ int main() {
 
     uint32_t period = (thread_id + 1) * 5e3;
     auto smart_data =
-        comp.subscribe(Condition(false, Meter.get_int_unit(), period));
+        comp.subscribe(Condition(false, Watt.get_int_unit(), period));
 
     std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
     stdout_lock.unlock();
@@ -69,7 +71,7 @@ int main() {
     for (int j = 1; j <= NUM_PUB_THREADS * NUM_MESSAGES_PER_RECV_THREAD; j++) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      Meter.get_value_size_bytes(),
+                      Watt.get_value_size_bytes(),
                   Message::Type::PUBLISH);
       if (!smart_data.receive(&message)) {
         std::cerr << "Erro ao receber mensagem na thread " << thread_id
