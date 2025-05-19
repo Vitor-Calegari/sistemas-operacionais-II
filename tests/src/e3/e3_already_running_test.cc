@@ -13,7 +13,7 @@
 #include <cassert>
 #include <vector>
 
-constexpr size_t SUBSCRIBE_AFTER_PERIOD = 1e6;
+constexpr size_t PUBLISH_AFTER_PERIOD = 1e6;
 constexpr size_t MESSAGES_TO_RECEIVE_BY_SUBSCRIBER = 25;
 constexpr uint32_t DEFAULT_PERIOD_US = 5e3;
 
@@ -34,19 +34,18 @@ int main(int argc, char* argv[]) {
     }
 
     if (pid == 0) {
+        usleep(PUBLISH_AFTER_PERIOD);
         Car car = Car();
         Transducer<Meter> transd(0, 255);
         Condition cond(true, Meter.get_int_unit(), period_us);
-
+        
         auto component_pub = car.create_component(1);
         auto pub_sd = component_pub.template register_publisher<Condition, Transducer<Meter>>(&transd, cond);
+        std::cout << "Publisher se conectando após " << PUBLISH_AFTER_PERIOD << " us..." << std::endl;
         sem_wait(semaphore);
         return 0;
     }
-    usleep(SUBSCRIBE_AFTER_PERIOD);
-
-    std::cout << "Subscriber se conectando após " << SUBSCRIBE_AFTER_PERIOD << " us..." << std::endl;
-
+    
     Condition cond_sub(false, Meter.get_int_unit(), period_us);
     Car car = Car();
     auto component_sub = car.create_component(2);
