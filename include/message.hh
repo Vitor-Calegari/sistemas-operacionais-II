@@ -46,6 +46,12 @@ public:
   Type *getType() {
     return &_msg_type;
   }
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+  uint64_t *timestamp() {
+    return &_timestamp;
+  }
+  #pragma GCC diagnostic pop
 
   void setSize(std::size_t new_size) {
     _payload_size = new_size;

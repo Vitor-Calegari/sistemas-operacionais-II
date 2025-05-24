@@ -4,6 +4,7 @@
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
+#include "sync_engine.hh"
 #include <cstring>
 #include <netinet/in.h>
 
@@ -18,6 +19,7 @@ class Protocol
 public:
   inline static const typename SocketNIC::Protocol_Number PROTO = htons(0x88B5);
 
+  typedef SyncEngine<Protocol<SocketNIC, SharedMemNIC>> SyncEngineP;
   typedef typename SocketNIC::Header NICHeader;
   typedef typename SocketNIC::BufferNIC Buffer;
   typedef typename SocketNIC::Address Physical_Address;
@@ -126,7 +128,7 @@ protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
   Protocol(SocketNIC *rsnic, SharedMemNIC *smnic, SysID sysID)
-      : _rsnic(rsnic), _smnic(smnic), _sysID(sysID) {
+      : _rsnic(rsnic), _smnic(smnic), _sysID(sysID), _sync_engine(this) {
     _rsnic->attach(this, PROTO);
     _smnic->attach(this, PROTO);
   }
@@ -207,13 +209,13 @@ public:
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
   int receive(Buffer *buf, Address *from, Address *to, uint8_t *type,
-              void *data, unsigned int size) {
+              uint64_t *timestamp, void *data, unsigned int size) {
     SysID originSysID = peekOriginSysID(buf);
-    auto receiveFrom = [this, from, to, type, data, size](auto *nic,
+    auto receiveFrom = [this, from, to, type, timestamp, data, size](auto *nic,
                                                           Buffer *buf) {
       Packet pkt = Packet();
       nic->receive(buf, &pkt, MTU + sizeof(Header));
-      int bytes = fillRecv(pkt, from, to, type, data, size);
+      int bytes = fillRecv(pkt, from, to, type, timestamp, data, size);
       nic->free(buf);
       return bytes;
     };
@@ -238,6 +240,22 @@ private:
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != _sysID && sysID != BROADCAST_SID) {
       _rsnic->free(buf);
+      return;
+    }
+
+    if (pkt->header()->type == PTP::ANNOUNCE || pkt->header()->type == PTP::PTP) {
+      int action = _sync_engine.handlePTP(pkt->header()->timestamp, pkt->header()->origin, pkt->header()->type);
+      switch (action) {
+        case SyncEngineP::ACTION::DO_NOTHING:
+          free(buf);
+          break;
+        case SyncEngineP::ACTION::SEND_DELAY_REQ:
+        case SyncEngineP::ACTION::SEND_DELAY:
+          Address myaddr = getAddr();
+          uint8_t type = PTP::PTP;
+          send(myaddr, pkt->header()->origin, type, nullptr, 0);
+          break;
+      }
       return;
     }
 
@@ -281,6 +299,7 @@ private:
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->type = type;
+    pkt->header()->timestamp = _sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
     std::memcpy(pkt->template data<char>(), data, size);
@@ -336,10 +355,11 @@ private:
   }
 
   int fillRecv(Packet &pkt, Address *from, Address *to, uint8_t *type,
-               void *data, unsigned int size) {
+               uint64_t *timestamp, void *data, unsigned int size) {
     *from = pkt.header()->origin;
     *to = pkt.header()->dest;
     *type = pkt.header()->type;
+    *timestamp = pkt.header()->timestamp;
     unsigned int message_data_size = pkt.header()->payloadSize;
     unsigned int actual_received_bytes =
         size > message_data_size ? message_data_size : size;
@@ -350,6 +370,7 @@ private:
   SocketNIC *_rsnic;
   SharedMemNIC *_smnic;
   SysID _sysID;
+  SyncEngineP _sync_engine;
 };
 
 #endif // PROTOCOL_HH

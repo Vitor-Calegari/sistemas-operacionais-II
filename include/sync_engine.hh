@@ -39,8 +39,8 @@ class SyncEngine {
 public:
   typedef pid_t Stratum;
   typedef Protocol::Address Address;
-  static const ANNOUNCE = Protocol::PTP::ANNOUNCE;
-  static const PTP = Protocol::PTP::PTP;
+  static const uint8_t ANNOUNCE = Protocol::PTP::ANNOUNCE;
+  static const uint8_t PTP = Protocol::PTP::PTP;
 
   enum STATE { WAITING_DELAY = 0, WAITING_SYNC = 1 };
 
@@ -67,7 +67,7 @@ public:
   // 1: sync, enviar delay req.
   // 2: delay req, enviar delay.
   // -1: erro
-  int handlePTP(uint32_t timestamp, Address origin_addr, uint8_t type) {
+  int handlePTP(uint64_t timestamp, Address origin_addr, uint8_t type) {
     int ret = -1;
     if (type == ANNOUNCE) { // All
       addStratum(origin_addr.getSysID());
@@ -129,10 +129,11 @@ private:
         // Anuncia que está na rede
         Address myaddr = _protocol->getAddr();
         Address broadcast = _protocol->getBroadcastAddr();
-        _protocol->send(myaddr, broadcast, ANNOUNCE, nullptr, 0);
+        uint8_t type = ANNOUNCE;
+        _protocol->send(myaddr, broadcast, type, nullptr, 0);
         // Espera eventuais anuncios de outros veiculos
         auto next_wakeup_t = std::chrono::steady_clock::now() +
-                             std::chrono::seconds(_announce_period);
+                             std::chrono::microseconds(_announce_period);
         std::this_thread::sleep_until(next_wakeup_t);
         // Verifica se é lider
         _leader_mutex.lock();
@@ -162,15 +163,17 @@ private:
         // Primeira iteração sempre bloqueia. Enquanto eu for lider, não
         // bloqueia.
         std::unique_lock<std::mutex> lock(_leader_mutex);
-        _leader_cv.wait(lock, [this]() { return _iamleader; });
+        _leader_cv.wait(lock, [this]() { return _iamleader || !_leader_thread_running; });
+        if (!_leader_thread_running) break;
 
         auto next_wakeup_t = std::chrono::steady_clock::now() +
-                             std::chrono::seconds(_leader_period);
+                             std::chrono::microseconds(_leader_period);
 
         // Envia Sync Broadcast
         Address myaddr = _protocol->getAddr();
         Address broadcast = _protocol->getBroadcastAddr();
-        _protocol->send(myaddr, broadcast, PTP, nullptr, 0);
+        uint8_t type = PTP;
+        _protocol->send(myaddr, broadcast, type, nullptr, 0);
 
         std::this_thread::sleep_until(next_wakeup_t);
       }
@@ -180,6 +183,7 @@ private:
   void stopLeaderThread() {
     if (_leader_thread_running) {
       _leader_thread_running = false;
+      _leader_cv.notify_one();
       if (_leader_thread.joinable()) {
         _leader_thread.join();
       }

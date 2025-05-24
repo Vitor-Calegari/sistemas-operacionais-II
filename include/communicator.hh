@@ -61,7 +61,7 @@ public:
     uint8_t type;
     int size =
         _channel->receive(buf, message->sourceAddr(), message->destAddr(),
-                          &type, message->data(), message->size());
+                          &type, message->timestamp(), message->data(), message->size());
     message->setType(type);
     message->setSize(size);
     return size > 0;
