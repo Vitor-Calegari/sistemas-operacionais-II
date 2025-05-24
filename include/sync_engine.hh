@@ -1,3 +1,6 @@
+#ifndef SYNC_ENGINE_HH
+#define SYNC_ENGINE_HH
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -219,3 +222,5 @@ private:
   int _state;
   SimulatedClock _clock;
 };
+
+#endif
