@@ -30,6 +30,11 @@ public:
   static const Port BROADCAST = 0xFFFF;
   static const SysID BROADCAST_SID = 0;
 
+  enum PTP : uint8_t { 
+    ANNOUNCE = 3,
+    PTP = 4, 
+  };
+
   // Endereço do protocolo: combinação de endereço físico e porta
   class Address {
   public:
@@ -69,12 +74,12 @@ public:
   // etc.)
   class Header {
   public:
-    Header() : origin(Address()), dest(Address()), type(0), payloadSize(0) {
+    Header() : origin(Address()), dest(Address()), type(0), timestamp(0), payloadSize(0) {
     }
     Address origin;
     Address dest;
     uint8_t type;
-    // uint32_t timestamp;
+    uint32_t timestamp;
     std::size_t payloadSize;
   } __attribute__((packed));
 
@@ -125,6 +130,14 @@ public:
   ~Protocol() {
     _rsnic->detach(this, PROTO);
     _smnic->detach(this, PROTO);
+  }
+
+  Address getAddr() {
+    return Address(getNICPAddr(), getSysID(), 0);
+  }
+
+  Address getBroadcastAddr() {
+    return Address(getNICPAddr(), BROADCAST_SID, 0);
   }
 
   Physical_Address getNICPAddr() {

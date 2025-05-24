@@ -15,14 +15,14 @@ public:
   Message(Addr src, Addr dst, std::size_t payload_size,
           Type type = Type::COMMON)
       : _source_addr(src), _dest_addr(dst), _msg_type(type),
-        _payload_size(payload_size) {
+        _timestamp(0), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
   Message(std::size_t payload_size, Type type = Type::COMMON)
       : _source_addr(Addr()), _dest_addr(Addr()), _msg_type(type),
-        _payload_size(payload_size) {
+        _timestamp(0), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
@@ -68,6 +68,7 @@ private:
   Addr _source_addr;
   Addr _dest_addr;
   Type _msg_type;
+  uint32_t _timestamp;
   std::size_t _payload_size;
   std::byte *_data;
 } __attribute__((packed));
