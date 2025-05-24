@@ -28,6 +28,7 @@ public:
     bool operator==(const Address &other) const;
     // Operador de desigualdade.
     bool operator!=(const Address &other) const;
+    bool operator<(const Address &other) const;
     // Operador de conversão para bool: Retorna true se o endereço não for zero.
     explicit operator bool() const;
   } __attribute__((packed));
@@ -36,23 +37,26 @@ public:
   typedef unsigned short Protocol;
 
   class Header {
-    public:
-      Header() : dst(Address()), src(Address()), prot(0) {
-      }
-      Address dst;   // Endereço MAC de destino (6 bytes)
-      Address src;   // Endereço MAC de origem (6 bytes)
-      Protocol prot; // EtherType (Protocolo) (2 bytes)
-    } __attribute__((packed));
+  public:
+    Header() : dst(Address()), src(Address()), prot(0) {
+    }
+    Address dst;   // Endereço MAC de destino (6 bytes)
+    Address src;   // Endereço MAC de origem (6 bytes)
+    Protocol prot; // EtherType (Protocolo) (2 bytes)
+  } __attribute__((packed));
 
   // Estrutura que representa um frame Ethernet
   class Frame : public Header {
   public:
-    Header * header() { return this; }
+    Header *header() {
+      return this;
+    }
     template <typename T>
     T *data() {
       return reinterpret_cast<T *>(&_data);
     }
     void clear();
+
   private:
     unsigned char _data[MTU];
   } __attribute__((packed));

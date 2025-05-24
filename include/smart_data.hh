@@ -11,6 +11,7 @@
 #include <condition_variable>
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <numeric>
 #include <semaphore>
 #include <thread>
@@ -136,6 +137,8 @@ public:
 #endif
       period_sem.release();
     }
+    last_resub[Subscriber{ origin, new_period }] =
+        std::chrono::steady_clock::now();
     pthread_mutex_unlock(&_subscribersMutex);
 
     // Libera buffer
@@ -159,6 +162,16 @@ private:
              cur_period = cur_period + period > highest_period
                               ? period
                               : cur_period + period) {
+          for (auto &sub : subscribers) {
+            auto elapsed = last_resub[sub] - std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::microseconds>(elapsed) >
+                std::chrono::microseconds(_resub_tolerance)) {
+              last_resub.erase(sub);
+
+              std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << sub.period
+                        << std::endl;
+            }
+          }
           period_sem.acquire();
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
@@ -211,6 +224,8 @@ private:
   }
 
 private:
+  const uint32_t _resub_tolerance = 3 * 3e6;
+
   // Pub Thread ---------------
   std::atomic<bool> _pub_thread_running = false;
   uint32_t period = 0;
@@ -224,9 +239,14 @@ private:
   struct Subscriber {
     Address origin;
     uint32_t period;
+    friend bool operator<(const Subscriber &lhs, const Subscriber &rhs) {
+      return (lhs.origin < rhs.origin) ||
+             (lhs.origin == rhs.origin && lhs.period < rhs.period);
+    }
   };
   std::vector<Subscriber> subscribers{};
   pthread_mutex_t _subscribersMutex = PTHREAD_MUTEX_INITIALIZER;
+  std::map<struct Subscriber, std::chrono::steady_clock::time_point> last_resub;
   // -------------------------------
 
   Transducer *_transd = nullptr;

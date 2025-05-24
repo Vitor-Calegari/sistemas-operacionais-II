@@ -21,6 +21,10 @@ bool Ethernet::Address::operator!=(const Address &other) const {
   return !(*this == other);
 }
 
+bool Ethernet::Address::operator<(const Address &other) const {
+  return std::memcmp(mac, other.mac, sizeof(mac)) < 0;
+}
+
 // Implementação da conversão para bool: retorna true se o endereço não for zero
 Ethernet::Address::operator bool() const {
   return std::memcmp(mac, Ethernet::ZERO, sizeof(mac)) != 0;

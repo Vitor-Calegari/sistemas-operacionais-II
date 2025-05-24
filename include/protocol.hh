@@ -30,9 +30,9 @@ public:
   static const Port BROADCAST = 0xFFFF;
   static const SysID BROADCAST_SID = 0;
 
-  enum PTP : uint8_t { 
+  enum PTP : uint8_t {
     ANNOUNCE = 3,
-    PTP = 4, 
+    PTP = 4,
   };
 
   // Endereço do protocolo: combinação de endereço físico e porta
@@ -54,6 +54,10 @@ public:
     bool operator==(const Address &other) const {
       return (_paddr == other._paddr) && (_port == other._port);
     }
+    friend bool operator<(const Address &rhs, const Address &lhs) {
+      return (rhs._paddr < lhs._paddr) ||
+             (rhs._paddr == lhs._paddr && rhs._port < lhs._port);
+    }
     Physical_Address getPAddr() const {
       return _paddr;
     }
@@ -74,7 +78,9 @@ public:
   // etc.)
   class Header {
   public:
-    Header() : origin(Address()), dest(Address()), type(0), timestamp(0), payloadSize(0) {
+    Header()
+        : origin(Address()), dest(Address()), type(0), timestamp(0),
+          payloadSize(0) {
     }
     Address origin;
     Address dest;
@@ -152,7 +158,7 @@ public:
     return pkt->header()->origin;
   }
 
-  unsigned char * peekData(Buffer * buf) {
+  unsigned char *peekData(Buffer *buf) {
     Packet *pkt = buf->data()->template data<Packet>();
     return pkt->template data<unsigned char>();
   }
@@ -176,9 +182,10 @@ public:
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, uint8_t &type, void *data,
            unsigned int size) {
-    auto sendWithNIC = [&](auto* nic) -> int {
-      Buffer* buf = nic->alloc(sizeof(Header) + size, 1);
-      if (buf == nullptr) return -1;
+    auto sendWithNIC = [&](auto *nic) -> int {
+      Buffer *buf = nic->alloc(sizeof(Header) + size, 1);
+      if (buf == nullptr)
+        return -1;
       fillBuffer(buf, from, to, type, data, size);
       return nic->send(buf);
     };
@@ -187,22 +194,23 @@ public:
     if (to.getSysID() == BROADCAST_SID) {
       int ret_smnic = sendWithNIC(_smnic);
       int ret_rsnic = sendWithNIC(_rsnic);
-      if (ret_smnic == -1 && ret_rsnic == -1) return -1;
+      if (ret_smnic == -1 && ret_rsnic == -1)
+        return -1;
       return ret_smnic >= ret_rsnic ? ret_smnic : ret_rsnic;
     }
 
     // Regular send: choose appropriate NIC
-    return (to.getSysID() == _sysID) ? sendWithNIC(_smnic) : sendWithNIC(_rsnic);
+    return (to.getSysID() == _sysID) ? sendWithNIC(_smnic)
+                                     : sendWithNIC(_rsnic);
   }
-
-  
 
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
   int receive(Buffer *buf, Address *from, Address *to, uint8_t *type,
               void *data, unsigned int size) {
     SysID originSysID = peekOriginSysID(buf);
-    auto receiveFrom = [this, from, to, type, data, size](auto* nic, Buffer* buf) {
+    auto receiveFrom = [this, from, to, type, data, size](auto *nic,
+                                                          Buffer *buf) {
       Packet pkt = Packet();
       nic->receive(buf, &pkt, MTU + sizeof(Header));
       int bytes = fillRecv(pkt, from, to, type, data, size);
@@ -210,14 +218,13 @@ public:
       return bytes;
     };
 
-    int actual_received_bytes = (originSysID == _sysID) 
-      ? receiveFrom(_smnic, buf)
-      : receiveFrom(_rsnic, buf);
+    int actual_received_bytes = (originSysID == _sysID)
+                                    ? receiveFrom(_smnic, buf)
+                                    : receiveFrom(_rsnic, buf);
     return actual_received_bytes;
   }
-  
 
-  void * unmarshal(Buffer *buf) {
+  void *unmarshal(Buffer *buf) {
     return buf->data()->template data<Packet>();
   }
 
@@ -225,23 +232,24 @@ private:
   // Método update: chamado pela NIC quando um frame é recebido.
   // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
   void update([[maybe_unused]] typename SocketNIC::Observed *obs,
-        [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-        Buffer *buf) {
+              [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
+              Buffer *buf) {
     Packet *pkt = buf->data()->template data<Packet>();
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != _sysID && sysID != BROADCAST_SID) {
-    _rsnic->free(buf);
-    return;
+      _rsnic->free(buf);
+      return;
     }
 
-    auto handlePacket = [this](auto* nic, Buffer* buf, Packet * pkt) {
+    auto handlePacket = [this](auto *nic, Buffer *buf, Packet *pkt) {
       Port port = pkt->header()->dest.getPort();
       if (pkt->header()->dest.getPort() == BROADCAST) {
         std::vector<Port> allComPorts = Observed::getObservsCond();
         Buffer *broadcastBuf;
         for (auto port : allComPorts) {
           broadcastBuf = nic->alloc(buf->size(), 0);
-          if (broadcastBuf == nullptr) continue;
+          if (broadcastBuf == nullptr)
+            continue;
           std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {
@@ -261,8 +269,7 @@ private:
     }
   }
 
-  void fillBuffer(Buffer *buf, Address &from, Address &to,
-    uint8_t &type,
+  void fillBuffer(Buffer *buf, Address &from, Address &to, uint8_t &type,
                   void *data, unsigned int size) {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
