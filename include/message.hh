@@ -68,7 +68,7 @@ private:
   Addr _source_addr;
   Addr _dest_addr;
   Type _msg_type;
-  uint32_t _timestamp;
+  uint64_t _timestamp;
   std::size_t _payload_size;
   std::byte *_data;
 } __attribute__((packed));

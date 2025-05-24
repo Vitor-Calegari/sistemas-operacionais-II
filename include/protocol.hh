@@ -85,7 +85,7 @@ public:
     Address origin;
     Address dest;
     uint8_t type;
-    uint32_t timestamp;
+    uint64_t timestamp;
     std::size_t payloadSize;
   } __attribute__((packed));
 
