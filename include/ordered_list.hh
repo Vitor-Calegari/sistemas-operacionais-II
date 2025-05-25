@@ -1,7 +1,8 @@
 #ifndef ORDERED_LIST_HH
 #define ORDERED_LIST_HH
 
-#include <forward_list>
+#include <algorithm>
+#include <vector>
 
 template <typename D, typename C>
 class Ordered_Node {
@@ -28,27 +29,52 @@ public:
   }
 
 private:
-  const D _value;
-  const C _rank;
+  D _value;
+  C _rank;
 };
 
 template <typename D, typename C>
-class Ordered_List : public std::forward_list<Ordered_Node<D, C>> {
+class Ordered_List {
 private:
-  using List = std::forward_list<Ordered_Node<D, C>>;
+  using List = std::vector<Ordered_Node<D, C>>;
+  List _list;
 
 public:
-  using Iterator = List::iterator;
+  using Iterator = typename List::iterator;
+  using ConstIterator = typename List::const_iterator;
 
-  Ordered_List() : List() {
+  Iterator begin() {
+    return _list.begin();
   }
 
+  Iterator end() {
+    return _list.end();
+  }
+
+  ConstIterator begin() const {
+    return _list.begin();
+  }
+
+  ConstIterator end() const {
+    return _list.end();
+  }
+
+  Ordered_List() = default;
+
   void insert(D d, C c) {
-    List::merge({ { d, c } });
+    Ordered_Node<D, C> new_node(d, c);
+    _list.push_back(new_node);
+    std::sort(_list.begin(), _list.end());
   }
 
   void remove(D d, C c) {
-    List::remove(Ordered_Node<D, C>{ d, c });
+    auto it = std::find_if(_list.begin(), _list.end(),
+                           [&](const Ordered_Node<D, C> &node) {
+                             return node.value() == d && node.rank() == c;
+                           });
+    if (it != _list.end()) {
+      _list.erase(it);
+    }
   }
 };
 

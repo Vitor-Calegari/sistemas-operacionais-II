@@ -43,13 +43,13 @@ public:
   }
 
   std::vector<C> getObservsCond() {
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::mutex> lock(_mutex); // Protege o acesso a _observers
     std::vector<C> ret;
-    for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
-      ret.push_back(obs->rank());
+    for (auto &obs : _observers) { // Usa range-based for para simplificar
+        ret.push_back(obs.rank());
     }
     return ret;
-  }
+}
 
 private:
   Observers _observers;

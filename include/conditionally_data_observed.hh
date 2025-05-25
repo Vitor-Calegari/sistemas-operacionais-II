@@ -29,15 +29,15 @@ public:
     bool notified = false;
     std::lock_guard<std::mutex> lock(_mutex);
 
-    for (auto obs = _observers.begin(); obs != _observers.end(); ++obs) {
-      if (obs->rank() == c) {
-        obs->value()->update(this, c, d);
-        notified = true;
-      }
+    for (const auto &obs : _observers) {
+        if (obs.rank() == c) {
+            obs.value()->update(this, c, d);
+            notified = true;
+        }
     }
 
     return notified;
-  }
+}
   
   private:
   std::mutex _mutex{};

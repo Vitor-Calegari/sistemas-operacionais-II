@@ -194,8 +194,14 @@ public:
 
     // Broadcast: send through both NICs
     if (to.getSysID() == BROADCAST_SID) {
-      int ret_smnic = sendWithNIC(_smnic);
-      int ret_rsnic = sendWithNIC(_rsnic);
+      int ret_smnic = -1;
+      int ret_rsnic = -1;
+      if (type == PTP::ANNOUNCE || type == PTP::PTP) {
+        ret_rsnic = sendWithNIC(_rsnic);
+      } else {
+        ret_rsnic = sendWithNIC(_rsnic);
+        ret_smnic = sendWithNIC(_smnic);
+      }
       if (ret_smnic == -1 && ret_rsnic == -1)
         return -1;
       return ret_smnic >= ret_rsnic ? ret_smnic : ret_rsnic;

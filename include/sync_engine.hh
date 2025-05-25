@@ -10,6 +10,10 @@
 #include <thread>
 #include <vector>
 
+#ifdef DEBUG_SYNC
+#include "utils.hh"
+#endif
+
 class SimulatedClock {
 public:
   SimulatedClock(uint64_t offset_ns = 0) : offset(offset_ns) {
@@ -38,7 +42,7 @@ template <typename Protocol>
 class SyncEngine {
 public:
   typedef pid_t Stratum;
-  typedef Protocol::Address Address;
+  typedef typename Protocol::Address Address;
   static const uint8_t ANNOUNCE = Protocol::PTP::ANNOUNCE;
   static const uint8_t PTP = Protocol::PTP::PTP;
 
@@ -48,7 +52,7 @@ public:
 
 public:
   SyncEngine(Protocol *prot)
-      : _protocol(prot), _iamleader(0), _announce_period(1e6),
+      : _protocol(prot), _iamleader(false), _announce_period(1e6),
         _announce_thread_running(false), _leader_period(1e6),
         _leader_thread_running(false), _clock(0) {
     startAnnounceThread();
@@ -113,12 +117,45 @@ public:
     return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
   }
 
+  void stopAnnounceThread() {
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Stopping Announce " << getpid() << std::endl;
+    #endif
+    if (_announce_thread_running) {
+      _announce_thread_running = false;
+      if (_announce_thread.joinable()) {
+        _announce_thread.join();
+      }
+    }
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Announce stopped" << getpid() << std::endl;
+    #endif
+  }
+
+  void stopLeaderThread() {
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Stopping Leader " << getpid() << std::endl;
+    #endif
+    if (_leader_thread_running) {
+      _leader_thread_running = false;
+      _leader_cv.notify_one();
+      if (_leader_thread.joinable()) {
+        _leader_thread.join();
+      }
+    }
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Leader stopped" << getpid() << std::endl;
+    #endif
+  }
+
 private:
   void addStratum(Stratum stratum) {
+    std::lock_guard<std::mutex> lock(_strata_mutex);
     _knownStrata.push_back(stratum);
   }
 
   void clearStrata() {
+    std::lock_guard<std::mutex> lock(_strata_mutex);
     _knownStrata.clear();
   }
 
@@ -132,28 +169,18 @@ private:
         uint8_t type = ANNOUNCE;
         _protocol->send(myaddr, broadcast, type, nullptr, 0);
         // Espera eventuais anuncios de outros veiculos
-        auto next_wakeup_t = std::chrono::steady_clock::now() +
+        std::chrono::_V2::steady_clock::time_point next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_announce_period);
         std::this_thread::sleep_until(next_wakeup_t);
+        if (!_announce_thread_running) break;
         // Verifica se é lider
-        _leader_mutex.lock();
         _iamleader = amILeader();
-        _leader_mutex.unlock();
         clearStrata();
         // Se é lider, começa a mandar syncs periodicos
         // se não é, volta a esperar
         _leader_cv.notify_one();
       }
     });
-  }
-
-  void stopAnnounceThread() {
-    if (_announce_thread_running) {
-      _announce_thread_running = false;
-      if (_announce_thread.joinable()) {
-        _announce_thread.join();
-      }
-    }
   }
 
   void startLeaderThread() {
@@ -164,6 +191,9 @@ private:
         // bloqueia.
         std::unique_lock<std::mutex> lock(_leader_mutex);
         _leader_cv.wait(lock, [this]() { return _iamleader || !_leader_thread_running; });
+        #ifdef DEBUG_SYNC
+          std::cout << get_timestamp() << " Leader running " << _leader_thread_running << std::endl;
+        #endif
         if (!_leader_thread_running) break;
 
         auto next_wakeup_t = std::chrono::steady_clock::now() +
@@ -176,21 +206,14 @@ private:
         _protocol->send(myaddr, broadcast, type, nullptr, 0);
 
         std::this_thread::sleep_until(next_wakeup_t);
-      }
+       }
     });
   }
 
-  void stopLeaderThread() {
-    if (_leader_thread_running) {
-      _leader_thread_running = false;
-      _leader_cv.notify_one();
-      if (_leader_thread.joinable()) {
-        _leader_thread.join();
-      }
-    }
-  }
+  
 
   bool amILeader() {
+    std::lock_guard<std::mutex> lock(_strata_mutex);
     Stratum myStratum = _protocol->getSysID();
     bool ret = true;
     for (const auto &stratum : _knownStrata) {
@@ -204,16 +227,17 @@ private:
 
 private:
   Protocol *_protocol;
-  bool _iamleader;
+  std::atomic<bool> _iamleader;
   // Stratum --------------------------------------
   std::vector<Stratum> _knownStrata{};
+  std::mutex _strata_mutex;
   // Need Sync Thread -----------------------------
-  uint32_t _announce_period;
+  uint64_t _announce_period;
   std::thread _announce_thread;
   std::atomic<bool> _announce_thread_running;
   // Leader Thread --------------------------------
   std::thread _leader_thread;
-  uint32_t _leader_period;
+  uint64_t _leader_period;
   std::atomic<bool> _leader_thread_running;
   std::condition_variable _leader_cv;
   std::mutex _leader_mutex;
