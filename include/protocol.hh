@@ -114,9 +114,8 @@ public:
     Data _data;
   } __attribute__((packed));
 
-  static Protocol &getInstance(SocketNIC *rsnic, SharedMemNIC *smnic,
-                               SysID sysID) {
-    static Protocol instance(rsnic, smnic, sysID);
+  static Protocol &getInstance(const char *interface_name, SysID sysID) {
+    static Protocol instance(interface_name, sysID);
 
     return instance;
   }
@@ -127,17 +126,18 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  Protocol(SocketNIC *rsnic, SharedMemNIC *smnic, SysID sysID)
-      : _rsnic(rsnic), _smnic(smnic), _sysID(sysID), _sync_engine(this) {
-    _rsnic->attach(this, PROTO);
-    _smnic->attach(this, PROTO);
+  Protocol(const char *interface_name, SysID sysID)
+      : _rsnic(interface_name), _smnic(interface_name), _sysID(sysID),
+        _sync_engine(this) {
+    _rsnic.attach(this, PROTO);
+    _smnic.attach(this, PROTO);
   }
 
 public:
   // Destrutor: remove o protocolo da NIC
   ~Protocol() {
-    _rsnic->detach(this, PROTO);
-    _smnic->detach(this, PROTO);
+    _rsnic.detach(this, PROTO);
+    _smnic.detach(this, PROTO);
   }
 
   Address getAddr() {
@@ -149,7 +149,7 @@ public:
   }
 
   Physical_Address getNICPAddr() {
-    return _rsnic->address();
+    return _rsnic.address();
   }
   SysID getSysID() {
     return _sysID;
@@ -173,9 +173,9 @@ public:
   void free(Buffer *buf) {
     SysID originSysID = peekOriginSysID(buf);
     if (originSysID == _sysID) {
-      _smnic->free(buf);
+      _smnic.free(buf);
     } else {
-      _rsnic->free(buf);
+      _rsnic.free(buf);
     }
   }
 
@@ -184,12 +184,12 @@ public:
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, uint8_t &type, void *data = nullptr,
            unsigned int size = 0) {
-    auto sendWithNIC = [&](auto *nic) -> int {
-      Buffer *buf = nic->alloc(sizeof(Header) + size, 1);
+    auto sendWithNIC = [&](auto &nic) -> int {
+      Buffer *buf = nic.alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
         return -1;
       fillBuffer(buf, from, to, type, data, size);
-      return nic->send(buf);
+      return nic.send(buf);
     };
 
     // Broadcast: send through both NICs
@@ -218,11 +218,11 @@ public:
               uint64_t *timestamp, void *data, unsigned int size) {
     SysID originSysID = peekOriginSysID(buf);
     auto receiveFrom = [this, from, to, type, timestamp, data,
-                        size](auto *nic, Buffer *buf) {
+                        size](auto &nic, Buffer *buf) {
       Packet pkt = Packet();
-      nic->receive(buf, &pkt, MTU + sizeof(Header));
+      nic.receive(buf, &pkt, MTU + sizeof(Header));
       int bytes = fillRecv(pkt, from, to, type, timestamp, data, size);
-      nic->free(buf);
+      nic.free(buf);
       return bytes;
     };
 
@@ -245,7 +245,7 @@ private:
     Packet *pkt = buf->data()->template data<Packet>();
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != _sysID && sysID != BROADCAST_SID) {
-      _rsnic->free(buf);
+      _rsnic.free(buf);
       return;
     }
 
@@ -267,24 +267,24 @@ private:
       return;
     }
 
-    auto handlePacket = [this](auto *nic, Buffer *buf, Packet *pkt) {
+    auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
       Port port = pkt->header()->dest.getPort();
       if (pkt->header()->dest.getPort() == BROADCAST) {
         std::vector<Port> allComPorts = Observed::getObservsCond();
         Buffer *broadcastBuf;
         for (auto port : allComPorts) {
-          broadcastBuf = nic->alloc(buf->size(), 0);
+          broadcastBuf = nic.alloc(buf->size(), 0);
           if (broadcastBuf == nullptr)
             continue;
           std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {
-            nic->free(broadcastBuf);
+            nic.free(broadcastBuf);
           }
         }
-        nic->free(buf);
+        nic.free(buf);
       } else if (!this->notify(port, buf)) {
-        nic->free(buf);
+        nic.free(buf);
       }
     };
 
@@ -377,8 +377,8 @@ private:
     return actual_received_bytes;
   }
 
-  SocketNIC *_rsnic;
-  SharedMemNIC *_smnic;
+  SocketNIC _rsnic;
+  SharedMemNIC _smnic;
   SysID _sysID;
   SyncEngineP _sync_engine;
 };

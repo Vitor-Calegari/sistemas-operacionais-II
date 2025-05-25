@@ -44,10 +44,7 @@ int main(int argc, char *argv[]) {
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
-  SocketNIC rsnic = SocketNIC(INTERFACE_NAME);
-  SharedMemNIC smnic = SharedMemNIC(INTERFACE_NAME);
-
-  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
 
   Communicator comm = Communicator(&prot, 10);
 
@@ -55,9 +52,9 @@ int main(int argc, char *argv[]) {
     sem_wait(semaphore);
     int i = 0;
     while (i < NUM_MSGS) {
-      Message message =
-          Message(comm.addr(),
-                  Protocol::Address(rsnic.address(), parentPID, 10), MSG_SIZE);
+      Message message = Message(
+          comm.addr(), Protocol::Address(prot.getNICPAddr(), parentPID, 10),
+          MSG_SIZE);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));
