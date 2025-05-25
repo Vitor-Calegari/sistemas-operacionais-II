@@ -91,10 +91,13 @@ public:
         } else if (_state == STATE::WAITING_DELAY) { // Delay
           // Calcula novo offset.
           _leader_recvd_delay_req_t = timestamp;
-          // TODO AQUI O CALCULO CONSIDERA QUE T3 E T2 SÃO IGUAIS, POREM NA REALIDADE
-          // OS TEMPOS SERIAM DIFERENTES, POIS, T2 SERIA OBTIDO PELA PLACA DE REDE AO RECEBER
-          // SYNC E T3 SERIA INFORMADO PELA PLACA DE REDE AO REALMENTE ENVIAR A MENSAGEM.
-          uint64_t delay = ( (_leader_recvd_delay_req_t - _recvd_sync_t) + (_recvd_sync_t - _sync_t) ) / 2;
+          // TODO AQUI O CALCULO CONSIDERA QUE T3 E T2 SÃO IGUAIS, POREM NA
+          // REALIDADE OS TEMPOS SERIAM DIFERENTES, POIS, T2 SERIA OBTIDO PELA
+          // PLACA DE REDE AO RECEBER SYNC E T3 SERIA INFORMADO PELA PLACA DE
+          // REDE AO REALMENTE ENVIAR A MENSAGEM.
+          uint64_t delay = ((_leader_recvd_delay_req_t - _recvd_sync_t) +
+                            (_recvd_sync_t - _sync_t)) /
+                           2;
           uint64_t offset = (_recvd_sync_t - _sync_t) - delay;
           _clock.setOffset(offset);
           _state = STATE::WAITING_SYNC;
@@ -110,7 +113,9 @@ public:
 
   uint64_t getTimestamp() const {
     std::chrono::time_point<std::chrono::steady_clock> now = _clock.now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               now.time_since_epoch())
+        .count();
   }
 
 private:
@@ -130,7 +135,7 @@ private:
         Address myaddr = _protocol->getAddr();
         Address broadcast = _protocol->getBroadcastAddr();
         uint8_t type = ANNOUNCE;
-        _protocol->send(myaddr, broadcast, type, nullptr, 0);
+        _protocol->send(myaddr, broadcast, type);
         // Espera eventuais anuncios de outros veiculos
         auto next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_announce_period);
@@ -163,8 +168,10 @@ private:
         // Primeira iteração sempre bloqueia. Enquanto eu for lider, não
         // bloqueia.
         std::unique_lock<std::mutex> lock(_leader_mutex);
-        _leader_cv.wait(lock, [this]() { return _iamleader || !_leader_thread_running; });
-        if (!_leader_thread_running) break;
+        _leader_cv.wait(
+            lock, [this]() { return _iamleader || !_leader_thread_running; });
+        if (!_leader_thread_running)
+          break;
 
         auto next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_leader_period);
@@ -173,7 +180,7 @@ private:
         Address myaddr = _protocol->getAddr();
         Address broadcast = _protocol->getBroadcastAddr();
         uint8_t type = PTP;
-        _protocol->send(myaddr, broadcast, type, nullptr, 0);
+        _protocol->send(myaddr, broadcast, type);
 
         std::this_thread::sleep_until(next_wakeup_t);
       }

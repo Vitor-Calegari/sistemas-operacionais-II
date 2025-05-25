@@ -182,8 +182,8 @@ public:
   // Envia uma mensagem:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
-  int send(Address &from, Address &to, uint8_t &type, void *data,
-           unsigned int size) {
+  int send(Address &from, Address &to, uint8_t &type, void *data = nullptr,
+           unsigned int size = 0) {
     auto sendWithNIC = [&](auto *nic) -> int {
       Buffer *buf = nic->alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
@@ -211,8 +211,8 @@ public:
   int receive(Buffer *buf, Address *from, Address *to, uint8_t *type,
               uint64_t *timestamp, void *data, unsigned int size) {
     SysID originSysID = peekOriginSysID(buf);
-    auto receiveFrom = [this, from, to, type, timestamp, data, size](auto *nic,
-                                                          Buffer *buf) {
+    auto receiveFrom = [this, from, to, type, timestamp, data,
+                        size](auto *nic, Buffer *buf) {
       Packet pkt = Packet();
       nic->receive(buf, &pkt, MTU + sizeof(Header));
       int bytes = fillRecv(pkt, from, to, type, timestamp, data, size);
@@ -243,18 +243,20 @@ private:
       return;
     }
 
-    if (pkt->header()->type == PTP::ANNOUNCE || pkt->header()->type == PTP::PTP) {
-      int action = _sync_engine.handlePTP(pkt->header()->timestamp, pkt->header()->origin, pkt->header()->type);
+    if (pkt->header()->type == PTP::ANNOUNCE ||
+        pkt->header()->type == PTP::PTP) {
+      int action = _sync_engine.handlePTP(
+          pkt->header()->timestamp, pkt->header()->origin, pkt->header()->type);
       switch (action) {
-        case SyncEngineP::ACTION::DO_NOTHING:
-          free(buf);
-          break;
-        case SyncEngineP::ACTION::SEND_DELAY_REQ:
-        case SyncEngineP::ACTION::SEND_DELAY:
-          Address myaddr = getAddr();
-          uint8_t type = PTP::PTP;
-          send(myaddr, pkt->header()->origin, type, nullptr, 0);
-          break;
+      case SyncEngineP::ACTION::DO_NOTHING:
+        free(buf);
+        break;
+      case SyncEngineP::ACTION::SEND_DELAY_REQ:
+      case SyncEngineP::ACTION::SEND_DELAY:
+        Address myaddr = getAddr();
+        uint8_t type = PTP::PTP;
+        send(myaddr, pkt->header()->origin, type);
+        break;
       }
       return;
     }
@@ -288,7 +290,7 @@ private:
   }
 
   void fillBuffer(Buffer *buf, Address &from, Address &to, uint8_t &type,
-                  void *data, unsigned int size) {
+                  void *data = nullptr, unsigned int size = 0) {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
     buf->data()->src = from.getPAddr();
@@ -302,7 +304,9 @@ private:
     pkt->header()->timestamp = _sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
-    std::memcpy(pkt->template data<char>(), data, size);
+    if (data != nullptr) {
+      std::memcpy(pkt->template data<char>(), data, size);
+    }
 #ifdef DEBUG
     std::cout
         << "*************************Protocol Packet*************************"
