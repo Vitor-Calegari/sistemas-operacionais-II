@@ -37,9 +37,7 @@ int main() {
 
   int comm_waiting = 0;
 
-  SocketNIC rsnic(INTERFACE_NAME);
-  SharedMemNIC smnic(INTERFACE_NAME);
-  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
 
   std::mutex stdout_mtx;
 
@@ -54,7 +52,7 @@ int main() {
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
       Message msg = Message(
           communicator.addr(),
-          Protocol::Address(rsnic.address(), getpid(), Protocol::BROADCAST),
+          Protocol::Address(prot.getNICPAddr(), getpid(), Protocol::BROADCAST),
           MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
 

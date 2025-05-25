@@ -21,17 +21,13 @@ public:
   using Port = ComponentC::PortC;
 
 public:
-  Car()
-      : rsnic(INTERFACE_NAME), smnic(INTERFACE_NAME),
-        prot(ProtocolC::getInstance(&rsnic, &smnic, getpid())) {
+  Car() : prot(ProtocolC::getInstance(INTERFACE_NAME, getpid())) {
   }
   ComponentC create_component(Port p) {
     return ComponentC(&prot, p);
   }
 
 public:
-  SocketNIC rsnic;
-  SharedMemNIC smnic;
   ProtocolC &prot;
 };
 
