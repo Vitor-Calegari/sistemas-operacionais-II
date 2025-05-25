@@ -196,6 +196,7 @@ public:
     if (to.getSysID() == BROADCAST_SID) {
       int ret_smnic = -1;
       int ret_rsnic = -1;
+      _sync_engine.setBroadcastAlreadySent(true);
       if (type == PTP::ANNOUNCE || type == PTP::PTP) {
         ret_rsnic = sendWithNIC(_rsnic);
       } else {
@@ -249,22 +250,22 @@ private:
       return;
     }
 
-    if (pkt->header()->type == PTP::ANNOUNCE ||
-        pkt->header()->type == PTP::PTP) {
+    // Se a mensagem veio da nic de sockets, tratar PTP
+    if (pkt->header()->origin.getSysID() != _sysID) {
       int action = _sync_engine.handlePTP(
           pkt->header()->timestamp, pkt->header()->origin, pkt->header()->type);
-      switch (action) {
-      case SyncEngineP::ACTION::DO_NOTHING:
-        free(buf);
-        break;
-      case SyncEngineP::ACTION::SEND_DELAY_REQ:
-      case SyncEngineP::ACTION::SEND_DELAY:
+
+      if (action == SyncEngineP::ACTION::REPLY) {
         Address myaddr = getAddr();
         uint8_t type = PTP::PTP;
         send(myaddr, pkt->header()->origin, type);
-        break;
       }
-      return;
+
+      if (pkt->header()->type == PTP::ANNOUNCE ||
+        pkt->header()->type == PTP::PTP) {
+        free(buf);
+        return;
+      }
     }
 
     auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
