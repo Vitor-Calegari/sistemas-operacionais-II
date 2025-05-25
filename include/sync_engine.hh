@@ -95,10 +95,13 @@ public:
         } else if (_state == STATE::WAITING_DELAY) { // Delay
           // Calcula novo offset.
           _leader_recvd_delay_req_t = timestamp;
-          // TODO AQUI O CALCULO CONSIDERA QUE T3 E T2 SÃO IGUAIS, POREM NA REALIDADE
-          // OS TEMPOS SERIAM DIFERENTES, POIS, T2 SERIA OBTIDO PELA PLACA DE REDE AO RECEBER
-          // SYNC E T3 SERIA INFORMADO PELA PLACA DE REDE AO REALMENTE ENVIAR A MENSAGEM.
-          uint64_t delay = ( (_leader_recvd_delay_req_t - _recvd_sync_t) + (_recvd_sync_t - _sync_t) ) / 2;
+          // TODO AQUI O CALCULO CONSIDERA QUE T3 E T2 SÃO IGUAIS, POREM NA
+          // REALIDADE OS TEMPOS SERIAM DIFERENTES, POIS, T2 SERIA OBTIDO PELA
+          // PLACA DE REDE AO RECEBER SYNC E T3 SERIA INFORMADO PELA PLACA DE
+          // REDE AO REALMENTE ENVIAR A MENSAGEM.
+          uint64_t delay = ((_leader_recvd_delay_req_t - _recvd_sync_t) +
+                            (_recvd_sync_t - _sync_t)) /
+                           2;
           uint64_t offset = (_recvd_sync_t - _sync_t) - delay;
           _clock.setOffset(offset);
           _state = STATE::WAITING_SYNC;
@@ -114,38 +117,9 @@ public:
 
   uint64_t getTimestamp() const {
     std::chrono::time_point<std::chrono::steady_clock> now = _clock.now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-  }
-
-  void stopAnnounceThread() {
-    #ifdef DEBUG_SYNC
-      std::cout << get_timestamp() << " Stopping Announce " << getpid() << std::endl;
-    #endif
-    if (_announce_thread_running) {
-      _announce_thread_running = false;
-      if (_announce_thread.joinable()) {
-        _announce_thread.join();
-      }
-    }
-    #ifdef DEBUG_SYNC
-      std::cout << get_timestamp() << " Announce stopped" << getpid() << std::endl;
-    #endif
-  }
-
-  void stopLeaderThread() {
-    #ifdef DEBUG_SYNC
-      std::cout << get_timestamp() << " Stopping Leader " << getpid() << std::endl;
-    #endif
-    if (_leader_thread_running) {
-      _leader_thread_running = false;
-      _leader_cv.notify_one();
-      if (_leader_thread.joinable()) {
-        _leader_thread.join();
-      }
-    }
-    #ifdef DEBUG_SYNC
-      std::cout << get_timestamp() << " Leader stopped" << getpid() << std::endl;
-    #endif
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               now.time_since_epoch())
+        .count();
   }
 
 private:
@@ -167,7 +141,7 @@ private:
         Address myaddr = _protocol->getAddr();
         Address broadcast = _protocol->getBroadcastAddr();
         uint8_t type = ANNOUNCE;
-        _protocol->send(myaddr, broadcast, type, nullptr, 0);
+        _protocol->send(myaddr, broadcast, type);
         // Espera eventuais anuncios de outros veiculos
         std::chrono::_V2::steady_clock::time_point next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_announce_period);
@@ -181,6 +155,21 @@ private:
         _leader_cv.notify_one();
       }
     });
+  }
+
+  void stopAnnounceThread() {
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Stopping Announce " << getpid() << std::endl;
+    #endif
+    if (_announce_thread_running) {
+      _announce_thread_running = false;
+      if (_announce_thread.joinable()) {
+        _announce_thread.join();
+      }
+    }
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Announce stopped" << getpid() << std::endl;
+    #endif
   }
 
   void startLeaderThread() {
@@ -203,14 +192,28 @@ private:
         Address myaddr = _protocol->getAddr();
         Address broadcast = _protocol->getBroadcastAddr();
         uint8_t type = PTP;
-        _protocol->send(myaddr, broadcast, type, nullptr, 0);
+        _protocol->send(myaddr, broadcast, type);
 
         std::this_thread::sleep_until(next_wakeup_t);
        }
     });
   }
 
-  
+  void stopLeaderThread() {
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Stopping Leader " << getpid() << std::endl;
+    #endif
+    if (_leader_thread_running) {
+      _leader_thread_running = false;
+      _leader_cv.notify_one();
+      if (_leader_thread.joinable()) {
+        _leader_thread.join();
+      }
+    }
+    #ifdef DEBUG_SYNC
+      std::cout << get_timestamp() << " Leader stopped" << getpid() << std::endl;
+    #endif
+  }
 
   bool amILeader() {
     std::lock_guard<std::mutex> lock(_strata_mutex);
