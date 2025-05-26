@@ -183,12 +183,19 @@ public:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, uint8_t &type, void *data = nullptr,
-           unsigned int size = 0) {
+           unsigned int size = 0, uint64_t recv_timestamp = 0, bool should_mark_delay_req_t = false) {
     auto sendWithNIC = [&](auto &nic) -> int {
       Buffer *buf = nic.alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
         return -1;
       fillBuffer(buf, from, to, type, data, size);
+      if (recv_timestamp) {
+        buf->data()->template data<Packet>()->header()->timestamp = recv_timestamp;
+      }
+  
+      if (should_mark_delay_req_t) {
+        _sync_engine.setDelayReqSendT(buf->data()->template data<Packet>()->header()->timestamp);
+      }
       return nic.send(buf);
     };
 
@@ -243,6 +250,7 @@ private:
   void update([[maybe_unused]] typename SocketNIC::Observed *obs,
               [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
               Buffer *buf) {
+    uint64_t recv_timestamp = _sync_engine.getTimestamp();
     Packet *pkt = buf->data()->template data<Packet>();
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != _sysID && sysID != BROADCAST_SID) {
@@ -253,12 +261,19 @@ private:
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != _sysID) {
       int action = _sync_engine.handlePTP(
-          pkt->header()->timestamp, pkt->header()->origin, pkt->header()->type);
+        recv_timestamp, pkt->header()->timestamp, pkt->header()->origin, pkt->header()->type);
 
-      if (action == SyncEngineP::ACTION::REPLY) {
-        Address myaddr = getAddr();
-        uint8_t type = PTP::PTP;
-        send(myaddr, pkt->header()->origin, type);
+      Address myaddr = getAddr();
+      uint8_t type = PTP::PTP;
+      switch (action) {
+      case SyncEngineP::ACTION::DO_NOTHING:
+        break;
+      case SyncEngineP::ACTION::SEND_DELAY_REQ:
+        send(myaddr, pkt->header()->origin, type, nullptr, 0, 0, true);
+        break;
+      case SyncEngineP::ACTION::SEND_DELAY_RESP:
+        send(myaddr, pkt->header()->origin, type, nullptr, 0, recv_timestamp);
+        break;
       }
 
       if (pkt->header()->type == PTP::ANNOUNCE ||

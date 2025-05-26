@@ -48,7 +48,7 @@ public:
 
   enum STATE { WAITING_DELAY = 0, WAITING_SYNC = 1 };
 
-  enum ACTION { DO_NOTHING = 0, REPLY = 1 };
+  enum ACTION { DO_NOTHING = 0, SEND_DELAY_REQ = 1, SEND_DELAY_RESP = 2 };
 
 public:
   SyncEngine(Protocol *prot)
@@ -69,7 +69,7 @@ public:
   // return: int.
   // 0: announce ou delay, não fazer nada.
   // 1: sync ou delay_req, responder
-  int handlePTP(uint64_t timestamp, Address origin_addr, uint8_t type) {
+  int handlePTP(uint64_t recv_timestamp, uint64_t msg_timestamp, Address origin_addr, uint8_t type) {
     int ret = ACTION::DO_NOTHING;
     // Verifica se alguem tem o estrato mais ´alto´ que o meu
     if (origin_addr.getSysID() < _protocol->getSysID()) {
@@ -80,38 +80,35 @@ public:
       if (origin_addr != _master_addr) {     // Sync de um lider diferente
         // Anota tempos do PTP
         _master_addr = origin_addr;
-        _sync_t = timestamp;
-        _recvd_sync_t = getTimestamp();
+        _sync_t = msg_timestamp;
+        _recvd_sync_t = recv_timestamp;
         // Reset State Machine
         _state = STATE::WAITING_DELAY;
-        ret = ACTION::REPLY;
+        ret = ACTION::SEND_DELAY_REQ;
       } else {
         if (_state == STATE::WAITING_SYNC) { // Sync
           // Anota tempos do PTP
-          _sync_t = timestamp;
-          _recvd_sync_t = getTimestamp();
+          _sync_t = msg_timestamp;
+          _recvd_sync_t = recv_timestamp;
           _state = STATE::WAITING_DELAY;
-          ret = ACTION::REPLY;
+          ret = ACTION::SEND_DELAY_REQ;
         } else if (_state == STATE::WAITING_DELAY) { // Delay
           // Calcula novo offset.
-          _leader_recvd_delay_req_t = timestamp;
-          // TODO AQUI O CALCULO CONSIDERA QUE T3 E T2 SÃO IGUAIS, POREM NA
-          // REALIDADE OS TEMPOS SERIAM DIFERENTES, POIS, T2 SERIA OBTIDO PELA
-          // PLACA DE REDE AO RECEBER SYNC E T3 SERIA INFORMADO PELA PLACA DE
-          // REDE AO REALMENTE ENVIAR A MENSAGEM.
-          uint64_t delay = ((_leader_recvd_delay_req_t - _recvd_sync_t) +
+          _leader_recvd_delay_req_t = msg_timestamp;
+
+          uint64_t delay = ((_leader_recvd_delay_req_t - _delay_req_t) +
                             (_recvd_sync_t - _sync_t)) /
                            2;
+
           uint64_t offset = (_recvd_sync_t - _sync_t) - delay;
           _clock.setOffset(offset);
           _state = STATE::WAITING_SYNC;
-          ret = ACTION::REPLY;
         }
       }
     // Se for PTP e sou lider
     } else if (type == PTP && _iamleader) { // Master
       // Lider não tem maquina de estados
-      ret = ACTION::REPLY;
+      ret = ACTION::SEND_DELAY_RESP;
     }
     return ret;
   }
@@ -125,6 +122,10 @@ public:
 
   void setBroadcastAlreadySent(bool already_sent) {
     _broadcast_already_sent = already_sent;
+  }
+
+  void setDelayReqSendT(uint64_t time) {
+    _delay_req_t = time;
   }
 
 private:
