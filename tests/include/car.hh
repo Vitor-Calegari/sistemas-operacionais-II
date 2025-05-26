@@ -21,14 +21,17 @@ public:
   using Port = ComponentC::PortC;
 
 public:
-  Car() : prot(ProtocolC::getInstance(INTERFACE_NAME, getpid())) {
+  Car(const std::string &label = "")
+      : prot(ProtocolC::getInstance(INTERFACE_NAME, getpid())), label(label) {
   }
+
   ComponentC create_component(Port p) {
     return ComponentC(&prot, p);
   }
 
 public:
   ProtocolC &prot;
+  const std::string label;
 };
 
 #endif
