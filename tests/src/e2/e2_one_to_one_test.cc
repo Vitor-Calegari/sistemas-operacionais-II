@@ -44,10 +44,7 @@ int main(int argc, char *argv[]) {
     send = atoi(argv[1]);
   }
 
-  SocketNIC rsnic = SocketNIC(INTERFACE_NAME);
-  SharedMemNIC smnic = SharedMemNIC(INTERFACE_NAME);
-
-  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
 
   if (send) {
     std::thread inter_process_sender_thread([&]() {
@@ -56,7 +53,7 @@ int main(int argc, char *argv[]) {
       int i = 0;
       while (i < NUM_MSGS) {
         Message message = Message(
-            comm.addr(), Protocol::Address(rsnic.address(), parentPID, 10),
+            comm.addr(), Protocol::Address(prot.getNICPAddr(), parentPID, 10),
             MSG_SIZE);
         std::cout << "Inter proc: Sending (" << std::dec << i << "): ";
         for (size_t j = 0; j < message.size(); j++) {
@@ -79,9 +76,9 @@ int main(int argc, char *argv[]) {
       cv.wait(cv_lock, [&receiver_ready]() { return receiver_ready; });
       int i = 0;
       while (i < NUM_MSGS) {
-        Message message =
-            Message(comm.addr(),
-                    Protocol::Address(rsnic.address(), getpid(), 2), MSG_SIZE);
+        Message message = Message(
+            comm.addr(), Protocol::Address(prot.getNICPAddr(), getpid(), 2),
+            MSG_SIZE);
         std::cout << "Inner proc: Sending (" << std::dec << i << "): ";
         for (size_t j = 0; j < message.size(); j++) {
           message.data()[j] = std::byte(randint(0, 255));

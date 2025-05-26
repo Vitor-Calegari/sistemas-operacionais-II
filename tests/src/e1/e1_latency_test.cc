@@ -53,18 +53,16 @@ int main() {
 
   if (pid == 0) {
     // Processo-filho: envia mensagens
-    SocketNIC rsnic(INTERFACE_NAME);
-    SharedMemNIC smnic(INTERFACE_NAME);
-    Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
     Communicator communicator(&prot, 10);
 
     // Aguarda liberação do semaphore pelo pai
     sem_wait(semaphore);
     std::cout << "\033[1B\rSent: 0\033[K\033[1A" << std::flush;
     for (int j = 0; j < num_messages_per_comm;) {
-      Message msg = Message(communicator.addr(),
-                            Protocol::Address(rsnic.address(), parentPID, 11),
-                            MESSAGE_SIZE);
+      Message msg = Message(
+          communicator.addr(),
+          Protocol::Address(prot.getNICPAddr(), parentPID, 11), MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
       // Registra o timestamp no envio
       auto t_send = high_resolution_clock::now();
@@ -83,9 +81,7 @@ int main() {
     exit(0);
   } else {
     // Processo pai: recebe mensagens
-    SocketNIC rsnic(INTERFACE_NAME);
-    SharedMemNIC smnic(INTERFACE_NAME);
-    Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
     Communicator communicator(&prot, 11);
 
     long long total_latency_us = 0;

@@ -51,9 +51,7 @@ int main() {
 
   if (pid == 0) {
     // Código do processo-filho
-    SocketNIC rsnic(INTERFACE_NAME);
-    SharedMemNIC smnic(INTERFACE_NAME);
-    auto &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+    auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
 
     Communicator communicator(&prot, 10);
 
@@ -61,7 +59,7 @@ int main() {
     sem_wait(semaphore);
 
     Message send_msg(communicator.addr(),
-                     Protocol::Address(rsnic.address(), parentPID, 11),
+                     Protocol::Address(prot.getNICPAddr(), parentPID, 11),
                      MESSAGE_SIZE);
     struct msg_struct ms;
     ms.counter = 0;
@@ -101,9 +99,7 @@ int main() {
     exit(0); // Conclui com sucesso no processo-filho
   } else {
     // Processo Pai
-    SocketNIC rsnic(INTERFACE_NAME);
-    SharedMemNIC smnic(INTERFACE_NAME);
-    auto &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+    auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
     Communicator communicator(&prot, 11);
 
     Message send_msg(MESSAGE_SIZE);

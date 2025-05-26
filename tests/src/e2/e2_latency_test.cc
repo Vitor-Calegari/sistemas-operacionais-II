@@ -53,9 +53,7 @@ int main() {
 
     int comm_waiting = 0;
 
-    SocketNIC rsnic(INTERFACE_NAME);
-    SharedMemNIC smnic(INTERFACE_NAME);
-    Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
 
     std::cout << "Comunicação entre threads de um mesmo processo:" << std::endl;
 
@@ -65,9 +63,9 @@ int main() {
       cv.wait(lock,
               [&comm_waiting]() { return comm_waiting == NUM_RECV_THREADS; });
       for (int j = 0; j < num_messages_per_comm;) {
-        Message msg = Message(communicator.addr(),
-                              Protocol::Address(rsnic.address(), getpid(), 2),
-                              MESSAGE_SIZE);
+        Message msg = Message(
+            communicator.addr(),
+            Protocol::Address(prot.getNICPAddr(), getpid(), 2), MESSAGE_SIZE);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();
@@ -135,9 +133,7 @@ int main() {
     exit(1);
   }
 
-  SocketNIC rsnic(INTERFACE_NAME);
-  SharedMemNIC smnic(INTERFACE_NAME);
-  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
 
   if (pid == 0) {
     std::thread sender_thread([&]() {
@@ -146,9 +142,9 @@ int main() {
       // Aguarda liberação do semaphore pelo pai
       sem_wait(semaphore);
       for (int j = 0; j < num_messages_per_comm;) {
-        Message msg = Message(communicator.addr(),
-                              Protocol::Address(rsnic.address(), parentPID, 11),
-                              MESSAGE_SIZE);
+        Message msg = Message(
+            communicator.addr(),
+            Protocol::Address(prot.getNICPAddr(), parentPID, 11), MESSAGE_SIZE);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();

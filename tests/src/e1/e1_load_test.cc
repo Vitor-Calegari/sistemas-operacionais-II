@@ -29,6 +29,7 @@ int main() {
   using Protocol = Protocol<SocketNIC, SharedMemNIC>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
+
   // Cria um semaphore compartilhado entre processos
   sem_t *semaphore =
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
@@ -49,9 +50,7 @@ int main() {
     }
     if (pid == 0) {
       // Código do processo-filho
-      SocketNIC rsnic(INTERFACE_NAME);
-      SharedMemNIC smnic(INTERFACE_NAME);
-      auto &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+      auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
 
       Communicator communicator(&prot, i);
 
@@ -62,7 +61,7 @@ int main() {
       while (j < num_messages_per_comm) {
         // Envia mensagens
         Message msg(communicator.addr(),
-                    Protocol::Address(rsnic.address(), parentPID, 9999),
+                    Protocol::Address(prot.getNICPAddr(), parentPID, 9999),
                     MESSAGE_SIZE);
         if (communicator.send(&msg)) {
           // std::cout << "Proc(" << std::dec << getpid() << "): Sent msg " << j
@@ -75,9 +74,7 @@ int main() {
   }
 
   // Processo pai - Cria seu próprio comunicador
-  SocketNIC rsnic(INTERFACE_NAME);
-  SharedMemNIC smnic(INTERFACE_NAME);
-  auto &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
   Communicator communicator(&prot, 9999);
   Message msg(MESSAGE_SIZE);
 

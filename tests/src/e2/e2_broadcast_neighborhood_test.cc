@@ -51,9 +51,7 @@ int main() {
     }
     if (pid == 0) {
       // Código do processo-filho
-      SocketNIC rsnic2(INTERFACE_NAME);
-      SharedMemNIC smnic2(INTERFACE_NAME);
-      auto &prot2 = Protocol::getInstance(&rsnic2, &smnic2, getpid());
+      auto &prot2 = Protocol::getInstance(INTERFACE_NAME, getpid());
       Communicator communicator(&prot2, i);
 
       sem_receivers->release();
@@ -80,16 +78,14 @@ int main() {
     }
   }
 
-  SocketNIC rsnic(INTERFACE_NAME);
-  SharedMemNIC smnic(INTERFACE_NAME);
-  Protocol &prot = Protocol::getInstance(&rsnic, &smnic, getpid());
+  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
   auto send_task = [&](const int thread_id) {
     Communicator communicator(&prot, thread_id);
 
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
       Message msg =
           Message(communicator.addr(),
-                  Protocol::Address(rsnic.address(), Protocol::BROADCAST_SID,
+                  Protocol::Address(prot.getNICPAddr(), Protocol::BROADCAST_SID,
                                     Protocol::BROADCAST),
                   MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
