@@ -176,11 +176,11 @@ private:
           break;
 
         // Só elege se ter alguém na rede
-        if (_known_strata.size() != 0) {
+        if (_known_sysid.size() != 0) {
           SysID last_leader = _leader;
           _leader = elect();
           _iamleader = _leader == _protocol->getSysID();
-          clearStrata();
+          clearKnownSysID();
           if (_iamleader) { // Se eu for lider, me considero sincronizado
             _synced = true;
           } else if (last_leader !=
@@ -274,20 +274,20 @@ private:
     std::lock_guard<std::mutex> lock(_strata_mutex);
 
     auto mySysID = _protocol->getSysID();
-    auto min_known_strata =
-        *std::min_element(_known_strata.cbegin(), _known_strata.cend());
+    auto min_known_sysid =
+        *std::min_element(_known_sysid.cbegin(), _known_sysid.cend());
 
-    return std::min(mySysID, min_known_strata);
+    return std::min(mySysID, min_known_sysid);
   }
 
   void addSysID(SysID SysID) {
     std::lock_guard<std::mutex> lock(_strata_mutex);
-    _known_strata.push_back(SysID);
+    _known_sysid.push_back(SysID);
   }
 
-  void clearStrata() {
+  void clearKnownSysID() {
     std::lock_guard<std::mutex> lock(_strata_mutex);
-    _known_strata.clear();
+    _known_sysid.clear();
   }
 
 private:
@@ -295,7 +295,7 @@ private:
 
   // SysID ----------------------------------------
   std::atomic<bool> _iamleader = false;
-  std::vector<SysID> _known_strata{};
+  std::vector<SysID> _known_sysid{};
   std::mutex _strata_mutex;
   SysID _leader = -1;
 
