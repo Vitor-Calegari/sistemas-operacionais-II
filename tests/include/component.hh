@@ -33,6 +33,7 @@ public:
     return SmartData<CommunicatorC, Condition, Transducer>(&_comm, transd,
                                                            cond);
   }
+  CommunicatorC::Address addr() { return _comm.addr(); }
 
 private:
   CommunicatorC _comm;
