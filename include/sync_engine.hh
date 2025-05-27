@@ -2,6 +2,7 @@
 #define SYNC_ENGINE_HH
 
 #include "control.hh"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -46,9 +47,9 @@ public:
   static constexpr auto ANNOUNCE = Control::Type::ANNOUNCE;
   static constexpr auto PTP = Control::Type::PTP;
 
-  enum STATE { WAITING_DELAY = 0, WAITING_SYNC = 1 };
+  enum State { WAITING_DELAY = 0, WAITING_SYNC = 1 };
 
-  enum ACTION { DO_NOTHING = 0, SEND_DELAY_REQ = 1, SEND_DELAY_RESP = 2 };
+  enum Action { DO_NOTHING = 0, SEND_DELAY_REQ = 1, SEND_DELAY_RESP = 2 };
 
   static constexpr int HALF_LIFE = 0.45e6;
 
@@ -72,9 +73,9 @@ public:
   // return: int.
   // 0: announce ou delay, não fazer nada.
   // 1: sync ou delay_req, responder
-  ACTION handlePTP(uint64_t recv_timestamp, uint64_t msg_timestamp,
+  Action handlePTP(uint64_t recv_timestamp, uint64_t msg_timestamp,
                    Address origin_addr, Control::Type type) {
-    ACTION ret = ACTION::DO_NOTHING;
+    Action ret = Action::DO_NOTHING;
     addSysID(origin_addr.getSysID());
 
     // Se for PTP e não sou lider
@@ -85,16 +86,16 @@ public:
         _sync_t = msg_timestamp;
         _recvd_sync_t = recv_timestamp;
         // Reset State Machine
-        _state = STATE::WAITING_DELAY;
-        ret = ACTION::SEND_DELAY_REQ;
+        _state = State::WAITING_DELAY;
+        ret = Action::SEND_DELAY_REQ;
       } else {
-        if (_state == STATE::WAITING_SYNC) { // Sync
+        if (_state == State::WAITING_SYNC) { // Sync
           // Anota tempos do PTP
           _sync_t = msg_timestamp;
           _recvd_sync_t = recv_timestamp;
-          _state = STATE::WAITING_DELAY;
-          ret = ACTION::SEND_DELAY_REQ;
-        } else if (_state == STATE::WAITING_DELAY) { // Delay
+          _state = State::WAITING_DELAY;
+          ret = Action::SEND_DELAY_REQ;
+        } else if (_state == State::WAITING_DELAY) { // Delay
           // Calcula novo offset.
           _leader_recvd_delay_req_t = msg_timestamp;
 
@@ -104,14 +105,14 @@ public:
 
           uint64_t offset = (_recvd_sync_t - _sync_t) - delay;
           _clock.setOffset(offset);
-          _state = STATE::WAITING_SYNC;
+          _state = State::WAITING_SYNC;
           _synced = true;
         }
       }
       // Se for PTP e sou lider
     } else if (type == PTP && _iamleader) { // Master
       // Lider não tem maquina de estados
-      ret = ACTION::SEND_DELAY_RESP;
+      ret = Action::SEND_DELAY_RESP;
     }
 
     return ret;
@@ -140,7 +141,7 @@ public:
     return _iamleader;
   }
 
-  STATE getCurState() const {
+  State getCurState() const {
     return _state;
   }
 
@@ -175,7 +176,7 @@ private:
           break;
 
         // Só elege se ter alguém na rede
-        if (_knownStrata.size() != 0) {
+        if (_known_strata.size() != 0) {
           SysID last_leader = _leader;
           _leader = elect();
           _iamleader = _leader == _protocol->getSysID();
@@ -269,26 +270,24 @@ private:
 #endif
   }
 
-  bool elect() {
+  SysID elect() {
     std::lock_guard<std::mutex> lock(_strata_mutex);
-    SysID mySysID = _protocol->getSysID();
-    SysID leader = mySysID;
-    for (const auto &id : _knownStrata) {
-      if (id < leader) {
-        leader = id;
-      }
-    }
-    return leader;
+
+    auto mySysID = _protocol->getSysID();
+    auto min_known_strata =
+        *std::min_element(_known_strata.cbegin(), _known_strata.cend());
+
+    return std::min(mySysID, min_known_strata);
   }
 
   void addSysID(SysID SysID) {
     std::lock_guard<std::mutex> lock(_strata_mutex);
-    _knownStrata.push_back(SysID);
+    _known_strata.push_back(SysID);
   }
 
   void clearStrata() {
     std::lock_guard<std::mutex> lock(_strata_mutex);
-    _knownStrata.clear();
+    _known_strata.clear();
   }
 
 private:
@@ -296,7 +295,7 @@ private:
 
   // SysID ----------------------------------------
   std::atomic<bool> _iamleader = false;
-  std::vector<SysID> _knownStrata{};
+  std::vector<SysID> _known_strata{};
   std::mutex _strata_mutex;
   SysID _leader = -1;
 
@@ -319,7 +318,7 @@ private:
   uint64_t _leader_recvd_delay_req_t{};
 
   Address _master_addr;
-  STATE _state{};
+  State _state{};
   SimulatedClock _clock;
   std::atomic<bool> _synced = false;
   int _announce_iteration{};

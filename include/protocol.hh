@@ -3,9 +3,8 @@
 
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
-#include "conditionally_data_observed.hh"
-#include "sync_engine.hh"
 #include "control.hh"
+#include "sync_engine.hh"
 #include <cstring>
 #include <netinet/in.h>
 
@@ -179,7 +178,8 @@ public:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, Control &ctrl, void *data = nullptr,
-           unsigned int size = 0, uint64_t recv_timestamp = 0, bool should_mark_delay_req_t = false) {
+           unsigned int size = 0, uint64_t recv_timestamp = 0,
+           bool should_mark_delay_req_t = false) {
     auto sendWithNIC = [&](auto &nic) -> int {
       Buffer *buf = nic.alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
@@ -187,11 +187,13 @@ public:
       ctrl.setSynchronized(_sync_engine.getSynced());
       fillBuffer(buf, from, to, ctrl, data, size);
       if (recv_timestamp) {
-        buf->data()->template data<Packet>()->header()->timestamp = recv_timestamp;
+        buf->data()->template data<Packet>()->header()->timestamp =
+            recv_timestamp;
       }
-  
+
       if (should_mark_delay_req_t) {
-        _sync_engine.setDelayReqSendT(buf->data()->template data<Packet>()->header()->timestamp);
+        _sync_engine.setDelayReqSendT(
+            buf->data()->template data<Packet>()->header()->timestamp);
       }
       return nic.send(buf);
     };
@@ -201,7 +203,8 @@ public:
       int ret_smnic = -1;
       int ret_rsnic = -1;
       _sync_engine.setBroadcastAlreadySent(true);
-      if (ctrl.getType() == Control::Type::ANNOUNCE || ctrl.getType() == Control::Type::PTP) {
+      if (ctrl.getType() == Control::Type::ANNOUNCE ||
+          ctrl.getType() == Control::Type::PTP) {
         ret_rsnic = sendWithNIC(_rsnic);
       } else {
         ret_rsnic = sendWithNIC(_rsnic);
@@ -258,23 +261,24 @@ private:
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != _sysID) {
       int action = _sync_engine.handlePTP(
-        recv_timestamp, pkt->header()->timestamp, pkt->header()->origin, pkt->header()->ctrl.getType());
+          recv_timestamp, pkt->header()->timestamp, pkt->header()->origin,
+          pkt->header()->ctrl.getType());
 
       Address myaddr = getAddr();
       Control ctrl(Control::Type::PTP);
       switch (action) {
-      case SyncEngineP::ACTION::DO_NOTHING:
+      case SyncEngineP::Action::DO_NOTHING:
         break;
-      case SyncEngineP::ACTION::SEND_DELAY_REQ:
+      case SyncEngineP::Action::SEND_DELAY_REQ:
         send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
         break;
-      case SyncEngineP::ACTION::SEND_DELAY_RESP:
+      case SyncEngineP::Action::SEND_DELAY_RESP:
         send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, recv_timestamp);
         break;
       }
 
       if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
-        pkt->header()->ctrl.getType() == Control::Type::PTP) {
+          pkt->header()->ctrl.getType() == Control::Type::PTP) {
         free(buf);
         return;
       }
