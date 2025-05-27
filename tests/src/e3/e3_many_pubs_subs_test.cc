@@ -77,8 +77,8 @@ int main() {
     for (int j = 1; j <= NUM_PUB_THREADS * NUM_MESSAGES_PER_RECV_THREAD; j++) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      unit.get_value_size_bytes(),
-                  Message::Type::PUBLISH);
+                      unit.get_value_size_bytes());
+        message.getControl()->setType(Control::Type::PUBLISH);
       if (!smart_data.receive(&message)) {
         std::cerr << "Erro ao receber mensagem na thread " << thread_id
                   << std::endl;

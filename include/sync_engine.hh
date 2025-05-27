@@ -1,6 +1,7 @@
 #ifndef SYNC_ENGINE_HH
 #define SYNC_ENGINE_HH
 
+#include "control.hh"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -43,8 +44,8 @@ class SyncEngine {
 public:
   typedef pid_t Stratum;
   typedef typename Protocol::Address Address;
-  static const uint8_t ANNOUNCE = Protocol::PTP::ANNOUNCE;
-  static const uint8_t PTP = Protocol::PTP::PTP;
+  static const uint8_t ANNOUNCE = Control::Type::ANNOUNCE;
+  static const uint8_t PTP = Control::Type::PTP;
 
   enum STATE { WAITING_DELAY = 0, WAITING_SYNC = 1 };
 
@@ -69,7 +70,7 @@ public:
   // return: int.
   // 0: announce ou delay, não fazer nada.
   // 1: sync ou delay_req, responder
-  int handlePTP(uint64_t recv_timestamp, uint64_t msg_timestamp, Address origin_addr, uint8_t type) {
+  int handlePTP(uint64_t recv_timestamp, uint64_t msg_timestamp, Address origin_addr, Control::Type type) {
     int ret = ACTION::DO_NOTHING;
     // Verifica se alguem tem o estrato mais ´alto´ que o meu
     if (origin_addr.getSysID() < _protocol->getSysID()) {
@@ -137,8 +138,8 @@ private:
           // Anuncia que está na rede
           Address myaddr = _protocol->getAddr();
           Address broadcast = _protocol->getBroadcastAddr();
-          uint8_t type = ANNOUNCE;
-          _protocol->send(myaddr, broadcast, type);
+          Control ctrl(ANNOUNCE);
+          _protocol->send(myaddr, broadcast, ctrl);
         }
         // Espera eventuais anuncios de outros veiculos
         std::chrono::_V2::steady_clock::time_point next_wakeup_t = std::chrono::steady_clock::now() +
@@ -194,8 +195,8 @@ private:
         // Envia Sync Broadcast
         Address myaddr = _protocol->getAddr();
         Address broadcast = _protocol->getBroadcastAddr();
-        uint8_t type = PTP;
-        _protocol->send(myaddr, broadcast, type);
+        Control ctrl(PTP);
+        _protocol->send(myaddr, broadcast, ctrl);
 
         std::this_thread::sleep_until(next_wakeup_t);
        }

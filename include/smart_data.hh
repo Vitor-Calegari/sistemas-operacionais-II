@@ -212,7 +212,7 @@ private:
     Message msg(Base::_communicator->addr(), // TODO! Arrumar endereço físico.
                 Address(Ethernet::Address(), Channel::BROADCAST_SID,
                         Channel::BROADCAST),
-                msg_size, Message::Type::PUBLISH);
+                msg_size, Control::Type::PUBLISH);
 
     auto int_unit = unit.get_int_unit();
     std::memcpy(msg.data(), &int_unit, SmartUnit::SIZE_BYTES);
@@ -305,7 +305,7 @@ private:
         Address(
             Base::_communicator->addr().getPAddr(), // Nao precisa disso aqui
             Channel::BROADCAST_SID, Channel::BROADCAST),
-        sizeof(typename Base::SubPacket), Message::Type::SUBSCRIBE);
+        sizeof(typename Base::SubPacket), Control::Type::SUBSCRIBE);
 
     typename Base::SubPacket *pkt =
         (typename Base::SubPacket *)_sub_msg->data();

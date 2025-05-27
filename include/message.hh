@@ -1,6 +1,7 @@
 #ifndef MESSAGE_HH
 #define MESSAGE_HH
 
+#include "control.hh"
 #include <algorithm>
 #include <bit>
 #include <cstddef>
@@ -9,19 +10,16 @@
 template <typename Addr>
 class Message {
 public:
-  enum Type : uint8_t { COMMON, PUBLISH, SUBSCRIBE };
-
-public:
   Message(Addr src, Addr dst, std::size_t payload_size,
-          Type type = Type::COMMON)
-      : _source_addr(src), _dest_addr(dst), _msg_type(type),
+          Control ctrl = Control(Control::Type::COMMON))
+      : _source_addr(src), _dest_addr(dst), _ctrl(ctrl),
         _timestamp(0), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
-  Message(std::size_t payload_size, Type type = Type::COMMON)
-      : _source_addr(Addr()), _dest_addr(Addr()), _msg_type(type),
+  Message(std::size_t payload_size, Control ctrl = Control(Control::Type::COMMON))
+      : _source_addr(Addr()), _dest_addr(Addr()), _ctrl(ctrl),
         _timestamp(0), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
@@ -39,12 +37,12 @@ public:
     return &_dest_addr;
   }
 
-  void setType(uint8_t new_type) {
-    _msg_type = static_cast<Type>(new_type);
+  void setControl(uint8_t new_ctrl) {
+    _ctrl = static_cast<Control>(new_ctrl);
   }
 
-  Type *getType() {
-    return &_msg_type;
+  Control *getControl() {
+    return &_ctrl;
   }
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
@@ -73,7 +71,7 @@ public:
 private:
   Addr _source_addr;
   Addr _dest_addr;
-  Type _msg_type;
+  Control _ctrl;
   uint64_t _timestamp;
   std::size_t _payload_size;
   std::byte *_data;

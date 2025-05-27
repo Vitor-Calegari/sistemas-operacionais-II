@@ -46,7 +46,8 @@ int main() {
   stamps.reserve(NUM_MESSAGES);
   using Message = Message<Car::ProtocolC::Address>;
   Message message =
-      Message(8 + Meter.get_value_size_bytes(), Message::Type::PUBLISH);
+      Message(8 + Meter.get_value_size_bytes());
+      message.getControl()->setType(Control::Type::PUBLISH);
 
   for (size_t i = 0; i < NUM_MESSAGES; ++i) {
     sub_comp.receive(&message);

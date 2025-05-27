@@ -4,6 +4,7 @@
 #include "concurrent_observed.hh"
 #include "concurrent_observer.hh"
 #include "cond.hh"
+#include "control.hh"
 #include <iostream>
 
 template <typename Channel, typename Message>
@@ -46,8 +47,7 @@ public:
   }
 
   bool send(Message *message) {
-    uint8_t type = *message->getType();
-    return _channel->send(*message->sourceAddr(), *message->destAddr(), type,
+    return _channel->send(*message->sourceAddr(), *message->destAddr(), *message->getControl(),
                           message->data(), message->size()) > 0;
   }
 
@@ -58,11 +58,9 @@ public:
   }
 
   bool unmarshal(Message * message, Buffer *buf) {
-    uint8_t type;
     int size =
         _channel->receive(buf, message->sourceAddr(), message->destAddr(),
-                          &type, message->timestamp(), message->data(), message->size());
-    message->setType(type);
+                          message->getControl(), message->timestamp(), message->data(), message->size());
     message->setSize(size);
     return size > 0;
   }
@@ -78,12 +76,12 @@ public:
 private:
   void update(typename Channel::Observer::Observing_Condition c, Buffer *buf) {
     Message *msg = (Message *)_channel->unmarshal(buf);
-    if (*msg->getType() == Message::Type::COMMON) {
+    if (msg->getControl()->getType() == Control::Type::COMMON) {
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
       Condition::Data *cond_data = msg->template data<Condition::Data>();
-      bool isPub = *msg->getType() == Message::Type::PUBLISH;
+      bool isPub = msg->getControl()->getType() == Control::Type::PUBLISH;
       Condition cond = Condition(isPub, cond_data->unit, cond_data->period);
       if (!this->notify(cond, buf)) {
         _channel->free(buf);

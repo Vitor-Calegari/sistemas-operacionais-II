@@ -76,8 +76,8 @@ int main(int argc, char *argv[]) {
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      Farad.get_value_size_bytes(),
-                  Message::Type::PUBLISH);
+                      Farad.get_value_size_bytes());
+        message.getControl()->setType(Control::Type::PUBLISH);
       smart_data.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {

@@ -5,6 +5,7 @@
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
 #include "sync_engine.hh"
+#include "control.hh"
 #include <cstring>
 #include <netinet/in.h>
 
@@ -31,11 +32,6 @@ public:
 
   static const Port BROADCAST = 0xFFFF;
   static const SysID BROADCAST_SID = 0;
-
-  enum PTP : uint8_t {
-    ANNOUNCE = 3,
-    PTP = 4,
-  };
 
   // Endereço do protocolo: combinação de endereço físico e porta
   class Address {
@@ -81,12 +77,12 @@ public:
   class Header {
   public:
     Header()
-        : origin(Address()), dest(Address()), type(0), timestamp(0),
+        : origin(Address()), dest(Address()), ctrl(0), timestamp(0),
           payloadSize(0) {
     }
     Address origin;
     Address dest;
-    uint8_t type;
+    Control ctrl;
     uint64_t timestamp;
     std::size_t payloadSize;
   } __attribute__((packed));
@@ -182,13 +178,13 @@ public:
   // Envia uma mensagem:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
-  int send(Address &from, Address &to, uint8_t &type, void *data = nullptr,
+  int send(Address &from, Address &to, Control &ctrl, void *data = nullptr,
            unsigned int size = 0, uint64_t recv_timestamp = 0, bool should_mark_delay_req_t = false) {
     auto sendWithNIC = [&](auto &nic) -> int {
       Buffer *buf = nic.alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
         return -1;
-      fillBuffer(buf, from, to, type, data, size);
+      fillBuffer(buf, from, to, ctrl, data, size);
       if (recv_timestamp) {
         buf->data()->template data<Packet>()->header()->timestamp = recv_timestamp;
       }
@@ -204,7 +200,7 @@ public:
       int ret_smnic = -1;
       int ret_rsnic = -1;
       _sync_engine.setBroadcastAlreadySent(true);
-      if (type == PTP::ANNOUNCE || type == PTP::PTP) {
+      if (ctrl.getType() == Control::Type::ANNOUNCE || ctrl.getType() == Control::Type::PTP) {
         ret_rsnic = sendWithNIC(_rsnic);
       } else {
         ret_rsnic = sendWithNIC(_rsnic);
@@ -222,14 +218,14 @@ public:
 
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
-  int receive(Buffer *buf, Address *from, Address *to, uint8_t *type,
+  int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
               uint64_t *timestamp, void *data, unsigned int size) {
     SysID originSysID = peekOriginSysID(buf);
-    auto receiveFrom = [this, from, to, type, timestamp, data,
+    auto receiveFrom = [this, from, to, ctrl, timestamp, data,
                         size](auto &nic, Buffer *buf) {
       Packet pkt = Packet();
       nic.receive(buf, &pkt, MTU + sizeof(Header));
-      int bytes = fillRecv(pkt, from, to, type, timestamp, data, size);
+      int bytes = fillRecv(pkt, from, to, ctrl, timestamp, data, size);
       nic.free(buf);
       return bytes;
     };
@@ -261,23 +257,23 @@ private:
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != _sysID) {
       int action = _sync_engine.handlePTP(
-        recv_timestamp, pkt->header()->timestamp, pkt->header()->origin, pkt->header()->type);
+        recv_timestamp, pkt->header()->timestamp, pkt->header()->origin, pkt->header()->ctrl.getType());
 
       Address myaddr = getAddr();
-      uint8_t type = PTP::PTP;
+      Control ctrl(Control::Type::PTP);
       switch (action) {
       case SyncEngineP::ACTION::DO_NOTHING:
         break;
       case SyncEngineP::ACTION::SEND_DELAY_REQ:
-        send(myaddr, pkt->header()->origin, type, nullptr, 0, 0, true);
+        send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
         break;
       case SyncEngineP::ACTION::SEND_DELAY_RESP:
-        send(myaddr, pkt->header()->origin, type, nullptr, 0, recv_timestamp);
+        send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, recv_timestamp);
         break;
       }
 
-      if (pkt->header()->type == PTP::ANNOUNCE ||
-        pkt->header()->type == PTP::PTP) {
+      if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
+        pkt->header()->ctrl.getType() == Control::Type::PTP) {
         free(buf);
         return;
       }
@@ -311,7 +307,7 @@ private:
     }
   }
 
-  void fillBuffer(Buffer *buf, Address &from, Address &to, uint8_t &type,
+  void fillBuffer(Buffer *buf, Address &from, Address &to, Control &ctrl,
                   void *data = nullptr, unsigned int size = 0) {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
@@ -322,7 +318,7 @@ private:
     Packet *pkt = buf->data()->template data<Packet>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
-    pkt->header()->type = type;
+    pkt->header()->ctrl = ctrl;
     pkt->header()->timestamp = _sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
@@ -380,11 +376,11 @@ private:
 #endif
   }
 
-  int fillRecv(Packet &pkt, Address *from, Address *to, uint8_t *type,
+  int fillRecv(Packet &pkt, Address *from, Address *to, Control *ctrl,
                uint64_t *timestamp, void *data, unsigned int size) {
     *from = pkt.header()->origin;
     *to = pkt.header()->dest;
-    *type = pkt.header()->type;
+    *ctrl = pkt.header()->ctrl;
     *timestamp = pkt.header()->timestamp;
     unsigned int message_data_size = pkt.header()->payloadSize;
     unsigned int actual_received_bytes =

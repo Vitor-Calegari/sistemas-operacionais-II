@@ -53,7 +53,8 @@ int main(int argc, char *argv[]) {
 
   for (size_t i = 0; i < MESSAGES_TO_RECEIVE_BY_SUBSCRIBER; ++i) {
     Message message =
-        Message(8 + Meter.get_value_size_bytes(), Message::Type::PUBLISH);
+        Message(8 + Meter.get_value_size_bytes());
+        message.getControl()->setType(Control::Type::PUBLISH);
     if (!sub_sd.receive(&message)) {
       std::cerr << "Subscriber falhou ao receber a mensagem " << i << std::endl;
       break;
