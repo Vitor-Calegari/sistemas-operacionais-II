@@ -45,13 +45,11 @@ int main(int argc, char* argv[]) {
         }
         
         if (pid == 0) {
-            // Processo filho - representa um carro
             uint64_t offset_ns = (i + 1) * 1e9; // Offsets diferentes em nanossegundos
             
             Car car("Car_" + std::to_string(i));
             auto component = car.create_component(i + 1);
             
-            // Usar SharedEngine para comunicação entre carros
             using SharedBuffer = Buffer<Ethernet::Frame>;
             SharedEngine<SharedBuffer> shared_engine(INTERFACE_NAME);
             
@@ -113,7 +111,6 @@ int main(int argc, char* argv[]) {
                     current_known_leader = my_pid;
                 }
                 
-                // Log de mudança de estado
                 if (am_leader && !was_leader) {
                     std::cout << "Carro " << i << " (PID: " << my_pid 
                              << ") se tornou LÍDER em t=" << elapsed << "us" << std::endl;
@@ -134,7 +131,6 @@ int main(int argc, char* argv[]) {
             
             return 0;
         } else {
-            // Processo pai
             child_pids.push_back(pid);
             if (i == 0) {
                 initial_leader = pid; // O primeiro processo será o líder inicial
@@ -142,13 +138,11 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    // Aguardar eleição inicial
     std::cout << "Aguardando eleição inicial do líder..." << std::endl;
     usleep(INITIAL_LEADER_ELECTION_TIME_US);
     
     std::cout << "Líder inicial esperado: PID " << initial_leader << std::endl;
     
-    // Aguardar morte do líder e reeleição
     std::cout << "Aguardando morte do líder e nova eleição..." << std::endl;
     usleep(LEADER_DEATH_TIME_US + REELECTION_TIME_US);
     
@@ -160,7 +154,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Líder inicial (PID: " << initial_leader << ") morreu conforme esperado" << std::endl;
         
         // Encontrar o novo líder (menor PID entre os restantes)
-        new_leader = child_pids[1]; // Segundo menor PID
+        new_leader = child_pids[1];
         for (size_t i = 2; i < child_pids.size(); ++i) {
             if (child_pids[i] < new_leader) {
                 new_leader = child_pids[i];
@@ -181,14 +175,12 @@ int main(int argc, char* argv[]) {
         std::cerr << "ERRO: Líder inicial não morreu conforme esperado!" << std::endl;
     }
     
-    // Matar todos os processos filhos restantes
     for (pid_t pid : child_pids) {
         if (pid > 0 && pid != initial_leader) {
             kill(pid, SIGTERM);
         }
     }
     
-    // Aguardar todos os processos filhos terminarem
     for (pid_t pid : child_pids) {
         if (pid != initial_leader) {
             waitpid(pid, &status, 0);
