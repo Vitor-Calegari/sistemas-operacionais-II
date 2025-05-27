@@ -184,6 +184,7 @@ public:
       Buffer *buf = nic.alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
         return -1;
+      ctrl.setSynchronized(_sync_engine.getSynced());
       fillBuffer(buf, from, to, ctrl, data, size);
       if (recv_timestamp) {
         buf->data()->template data<Packet>()->header()->timestamp = recv_timestamp;

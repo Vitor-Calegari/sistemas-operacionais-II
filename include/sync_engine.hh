@@ -42,7 +42,7 @@ private:
 template <typename Protocol>
 class SyncEngine {
 public:
-  typedef pid_t Stratum;
+  typedef pid_t SysID;
   typedef typename Protocol::Address Address;
   static const uint8_t ANNOUNCE = Control::Type::ANNOUNCE;
   static const uint8_t PTP = Control::Type::PTP;
@@ -51,11 +51,13 @@ public:
 
   enum ACTION { DO_NOTHING = 0, SEND_DELAY_REQ = 1, SEND_DELAY_RESP = 2 };
 
+  static const int HALF_LIFE = 0.45e6;
+
 public:
   SyncEngine(Protocol *prot)
-      : _protocol(prot), _iamleader(false), _announce_period(1e6),
-        _announce_thread_running(false), _leader_period(1e6),
-        _leader_thread_running(false), _clock(0), _broadcast_already_sent(false), _someone_else_is_leader(false) {
+      : _protocol(prot), _iamleader(false), _leader(-1), _announce_period(HALF_LIFE * 2),
+        _announce_thread_running(false), _leader_period(HALF_LIFE),
+        _leader_thread_running(false), _clock(0), _synced(false), _announce_iteration(0), _broadcast_already_sent(false) {
     startAnnounceThread();
     startLeaderThread();
   }
@@ -72,10 +74,7 @@ public:
   // 1: sync ou delay_req, responder
   int handlePTP(uint64_t recv_timestamp, uint64_t msg_timestamp, Address origin_addr, Control::Type type) {
     int ret = ACTION::DO_NOTHING;
-    // Verifica se alguem tem o estrato mais ´alto´ que o meu
-    if (origin_addr.getSysID() < _protocol->getSysID()) {
-      _someone_else_is_leader = true;
-    }
+    addSysID(origin_addr.getSysID());
     // Se for PTP e não sou lider
     if (type == PTP && !_iamleader) { // Slave
       if (origin_addr != _master_addr) {     // Sync de um lider diferente
@@ -104,6 +103,7 @@ public:
           uint64_t offset = (_recvd_sync_t - _sync_t) - delay;
           _clock.setOffset(offset);
           _state = STATE::WAITING_SYNC;
+          _synced = true;
         }
       }
     // Se for PTP e sou lider
@@ -129,36 +129,59 @@ public:
     _delay_req_t = time;
   }
 
+  bool getSynced() { return _synced; }
+
 private:
   void startAnnounceThread() {
     _announce_thread_running = true;
     _announce_thread = std::thread([this]() {
       while (_announce_thread_running) {
+        if (!_iamleader && _announce_iteration == 1) {
+          _synced = false;
+        }
+
         if (!_broadcast_already_sent) {
           // Anuncia que está na rede
           Address myaddr = _protocol->getAddr();
           Address broadcast = _protocol->getBroadcastAddr();
           Control ctrl(ANNOUNCE);
           _protocol->send(myaddr, broadcast, ctrl);
+        } else {
+          setBroadcastAlreadySent(false);
         }
         // Espera eventuais anuncios de outros veiculos
         std::chrono::_V2::steady_clock::time_point next_wakeup_t = std::chrono::steady_clock::now() +
                              std::chrono::microseconds(_announce_period);
         std::this_thread::sleep_until(next_wakeup_t);
         if (!_announce_thread_running) break;
-        // Verifica se é lider
-        _iamleader = !_someone_else_is_leader;
-        #ifdef DEBUG_SYNC
-        if (_iamleader) {
-          std::cout << get_timestamp() << " Im Leader " <<  getpid() << std::endl;
+        
+        // Só elege se ter alguém na rede
+        if (_knownStrata.size() != 0) {
+          SysID last_leader = _leader;
+          _leader = elect();
+          _iamleader = _leader == _protocol->getSysID();
+          clearStrata();
+          if (_iamleader) { // Se eu for lider, me considero sincronizado
+            _synced = true;
+          } else if (last_leader != _leader) { // Se mudou o lider, me considero desincronizado
+            _synced = false;
+          }
+          #ifdef DEBUG_SYNC
+          if (_iamleader) {
+            std::cout << get_timestamp() << " Im Leader " <<  getpid() << std::endl;
+          }
+          #endif
+          // Se é lider, começa a mandar syncs periodicos
+          // se não é, volta a esperar
+          _leader_cv.notify_one();
+        } else {
+          _iamleader = false;
+          _synced = false;
+          #ifdef DEBUG_SYNC
+          std::cout << get_timestamp() << " No one around " <<  getpid() << std::endl;
+          #endif
         }
-        #endif
-        // Se é lider, começa a mandar syncs periodicos
-        // se não é, volta a esperar
-        _leader_cv.notify_one();
-        // Reinicia variaveis de controle
-        _someone_else_is_leader = false;
-        setBroadcastAlreadySent(false);
+        _announce_iteration = (_announce_iteration + 1) % 2;
       }
     });
   }
@@ -219,13 +242,35 @@ private:
     #endif
   }
 
-  bool amILeader() {
-    return !_someone_else_is_leader;
+  bool elect() {
+    std::lock_guard<std::mutex> lock(_strata_mutex);
+    SysID mySysID = _protocol->getSysID();
+    SysID leader = mySysID;
+    for (const auto& id : _knownStrata) {
+      if (id < leader) {
+        leader = id;
+      }
+    }
+    return leader;
+  }
+
+  void addSysID(SysID SysID) {
+    std::lock_guard<std::mutex> lock(_strata_mutex);
+    _knownStrata.push_back(SysID);
+  }
+
+  void clearStrata() {
+    std::lock_guard<std::mutex> lock(_strata_mutex);
+    _knownStrata.clear();
   }
 
 private:
   Protocol *_protocol;
+  // SysID --------------------------------------
   std::atomic<bool> _iamleader;
+  std::vector<SysID> _knownStrata{};
+  std::mutex _strata_mutex;
+  SysID _leader;
   // Need Sync Thread -----------------------------
   uint64_t _announce_period;
   std::thread _announce_thread;
@@ -244,9 +289,10 @@ private:
   Address _master_addr;
   int _state;
   SimulatedClock _clock;
+  std::atomic<bool> _synced;
+  int _announce_iteration;
   // Optimizations --------------------------------
   std::atomic<bool> _broadcast_already_sent;
-  std::atomic<bool> _someone_else_is_leader;
 };
 
 #endif
