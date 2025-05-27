@@ -35,7 +35,7 @@ public:
   }
 
 private:
-  uint64_t offset; // em nanossegundos
+  uint64_t offset{}; // em nanossegundos
 };
 
 template <typename Protocol>
@@ -43,14 +43,14 @@ class SyncEngine {
 public:
   typedef pid_t SysID;
   typedef typename Protocol::Address Address;
-  static const auto ANNOUNCE = Control::Type::ANNOUNCE;
-  static const auto PTP = Control::Type::PTP;
+  static constexpr auto ANNOUNCE = Control::Type::ANNOUNCE;
+  static constexpr auto PTP = Control::Type::PTP;
 
   enum STATE { WAITING_DELAY = 0, WAITING_SYNC = 1 };
 
   enum ACTION { DO_NOTHING = 0, SEND_DELAY_REQ = 1, SEND_DELAY_RESP = 2 };
 
-  static const int HALF_LIFE = 0.45e6;
+  static constexpr int HALF_LIFE = 0.45e6;
 
 public:
   SyncEngine(Protocol *prot)
@@ -292,34 +292,40 @@ private:
   }
 
 private:
-  Protocol *_protocol;
-  // SysID --------------------------------------
-  std::atomic<bool> _iamleader;
+  Protocol *_protocol = nullptr;
+
+  // SysID ----------------------------------------
+  std::atomic<bool> _iamleader = false;
   std::vector<SysID> _knownStrata{};
   std::mutex _strata_mutex;
-  SysID _leader;
+  SysID _leader = -1;
+
   // Need Sync Thread -----------------------------
-  uint64_t _announce_period;
   std::thread _announce_thread;
-  std::atomic<bool> _announce_thread_running;
+  uint64_t _announce_period = HALF_LIFE * 2;
+  std::atomic<bool> _announce_thread_running = false;
+
   // Leader Thread --------------------------------
   std::thread _leader_thread;
-  uint64_t _leader_period;
-  std::atomic<bool> _leader_thread_running;
+  uint64_t _leader_period = HALF_LIFE;
+  std::atomic<bool> _leader_thread_running = false;
   std::condition_variable _leader_cv;
   std::mutex _leader_mutex;
+
   // PTP ------------------------------------------
-  uint64_t _sync_t;
-  uint64_t _recvd_sync_t;
-  uint64_t _delay_req_t;
-  uint64_t _leader_recvd_delay_req_t;
+  uint64_t _sync_t{};
+  uint64_t _recvd_sync_t{};
+  uint64_t _delay_req_t{};
+  uint64_t _leader_recvd_delay_req_t{};
+
   Address _master_addr;
-  STATE _state;
+  STATE _state{};
   SimulatedClock _clock;
-  std::atomic<bool> _synced;
-  int _announce_iteration;
+  std::atomic<bool> _synced = false;
+  int _announce_iteration{};
+
   // Optimizations --------------------------------
-  std::atomic<bool> _broadcast_already_sent;
+  std::atomic<bool> _broadcast_already_sent = false;
 };
 
 #endif
