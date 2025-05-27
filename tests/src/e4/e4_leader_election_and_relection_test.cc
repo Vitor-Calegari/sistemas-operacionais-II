@@ -31,7 +31,6 @@ struct LeaderElectionMessage {
 int main(int argc, char* argv[]) {
     std::cout << "Iniciando teste de eleição de líder com " << NUM_CARS << " carros..." << std::endl;
 
-    // Criar processos filhos para cada carro
     std::vector<pid_t> child_pids;
     pid_t initial_leader = 0;
     pid_t new_leader = 0;
@@ -190,4 +189,4 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-// g++ -std=c++20 -g tests/src/e4/e4_leader_election_and_relection_test.cc -Iinclude -Itests/include -o leader_election src/ethernet.cc src/utils.cc
+// g++ -std=c++20 -g tests/src/e4/e4_leader_election_and_relection_tesct.cc -Iinclude -Itests/include -o leader_election src/ethernet.cc src/utils.cc
