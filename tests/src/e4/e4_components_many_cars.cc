@@ -1,4 +1,5 @@
 #include "car.hh"
+#include "utils.hh"
 
 #include <array>
 #include <cassert>
@@ -33,6 +34,8 @@ int main() {
   }
 
   if (getpid() != parent_pid) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(randint(350, 2000)));
+
     std::mutex stdout_mtx;
 
     std::mutex cv_mtx;
