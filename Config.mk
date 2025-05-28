@@ -3,7 +3,7 @@ MAKENAME = INE5424
 INTERFACE_NAME:=$(shell ip addr | awk '/state UP/ {print $$2}' | head -n 1 | sed 's/.$$//')
 
 TEST_MODULES = e1 e2 e3 e4
-TESTS = e1/e1_communicator_test e1/e1_ping_pong_test e1/e1_load_test e1/e1_latency_test e2/e2_one_to_one_test e2/e2_latency_test e2/e2_throughput_test e2/e2_many_to_many_test e2/e2_many_to_one_test e2/e2_broadcast_test e2/e2_broadcast_neighborhood_test e3/e3_one_pub_sub_test e3/e3_one_pub_many_subs_test e3/e3_already_running_test e3/e3_response_time_test e3/e3_many_pubs_subs_test e4/e4_cars_leaving e4/e4_sync_engine_unit_test e4/e4_components_same_car e4/e4_components_many_cars e4/e4_single_car_test e4/e4_send_time_test e4/e4_one_to_one_time_test
+TESTS = e1/e1_communicator_test e1/e1_ping_pong_test e1/e1_load_test e1/e1_latency_test e2/e2_one_to_one_test e2/e2_latency_test e2/e2_throughput_test e2/e2_many_to_many_test e2/e2_many_to_one_test e2/e2_broadcast_test e2/e2_broadcast_neighborhood_test e3/e3_one_pub_sub_test e3/e3_one_pub_many_subs_test e3/e3_already_running_test e3/e3_response_time_test e3/e3_many_pubs_subs_test e3/e3_unsubscribe_test e4/e4_cars_leaving e4/e4_sync_engine_unit_test e4/e4_components_same_car e4/e4_components_many_cars e4/e4_single_car_test e4/e4_send_time_test e4/e4_one_to_one_time_test
 MODULES = ethernet utils
 
 SRC_DIR = src
