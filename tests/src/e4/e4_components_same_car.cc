@@ -121,13 +121,8 @@ int main() {
         }
       }
     });
-
     sender_thread.join();
     receiver_thread.join();
-
-    std::cout << "[TEST] " << get_timestamp() << " Component " << component_id 
-              << " (PID: " << getpid() << ") finishing execution" << std::endl;
-
   } else {
     std::cout << "[TEST] " << get_timestamp() << " Parent process monitoring " 
               << NUM_COMPONENTS << " components" << std::endl;
@@ -135,20 +130,7 @@ int main() {
     for (int i = 0; i < NUM_COMPONENTS; ++i) {
       int status;
       pid_t finished_pid = wait(&status);
-      std::cout << "[TEST] " << get_timestamp() << " Component process " 
-                << finished_pid << " finished with status " << status << std::endl;
     }
-
-    std::cout << std::endl << "[TEST] " << get_timestamp() 
-              << " All components communication test completed" << std::endl;
-    
-    std::cout << "\n=== Test Summary ===" << std::endl;
-    std::cout << "Expected behavior:" << std::endl;
-    std::cout << "1. Components establish communication within the same car" << std::endl;
-    std::cout << "2. Each component sends timestamped messages" << std::endl;
-    std::cout << "3. Components receive messages from other components" << std::endl;
-    std::cout << "4. One component becomes leader and coordinates" << std::endl;
-    std::cout << "5. All messages include precise timestamps for synchronization" << std::endl;
   }
 
   return 0;
