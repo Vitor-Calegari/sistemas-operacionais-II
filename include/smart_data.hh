@@ -167,13 +167,13 @@ private:
           std::vector<size_t> to_remove{};
           for (size_t i = 0; i < subscribers.size(); ++i) {
             auto &sub = subscribers[i];
-            auto elapsed = last_resub[sub] - std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::steady_clock::now() - last_resub[sub];
             if (std::chrono::duration_cast<std::chrono::microseconds>(elapsed) >
                 std::chrono::microseconds(_resub_tolerance)) {
               last_resub.erase(sub);
               to_remove.push_back(i);
 
-              std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << sub.period
+              std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec << sub.period
                         << std::endl;
             }
           }
@@ -183,13 +183,13 @@ private:
               subscribers.erase(subscribers.begin() + ind);
             }
             highest_period = 0;
-            std::cout << "Old Period: " << period << std::endl;
+            std::cout << "Old Period: " << std::dec << period << std::endl;
             period = 0;
             for (auto &sub : subscribers) {
               period = std::gcd(period, sub.period);
               highest_period = std::max(highest_period, sub.period);
             }
-            std::cout << "New Period: " << period << std::endl;
+            std::cout << "New Period: " << std::dec << period << std::endl;
           }
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
@@ -242,7 +242,7 @@ private:
   }
 
 private:
-  const uint32_t _resub_tolerance = 3 * 3e6;
+  const uint32_t _resub_tolerance = 2 * 3e6;
 
   // Pub Thread ---------------
   std::atomic<bool> _pub_thread_running = false;
