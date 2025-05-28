@@ -152,6 +152,10 @@ public:
 
 private:
   void startAnnounceThread() {
+#ifdef DEBUG_SYNC
+    std::cout << get_timestamp() << " Announce thread started " << getpid()
+              << std::endl;
+#endif
     _announce_thread_running = true;
     _announce_thread = std::thread([this]() {
       while (_announce_thread_running) {
@@ -190,7 +194,7 @@ private:
           }
 #ifdef DEBUG_SYNC
           if (_iamleader) {
-            std::cout << get_timestamp() << " Im Leader " << getpid()
+            std::cout << get_timestamp() << " I’m Leader " << getpid()
                       << std::endl;
           }
 #endif
@@ -212,7 +216,7 @@ private:
 
   void stopAnnounceThread() {
 #ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << " Stopping Announce " << getpid()
+    std::cout << get_timestamp() << " Stopping Announce thread " << getpid()
               << std::endl;
 #endif
     if (_announce_thread_running) {
@@ -222,12 +226,16 @@ private:
       }
     }
 #ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << " Announce stopped" << getpid()
+    std::cout << get_timestamp() << " Announce thread stopped " << getpid()
               << std::endl;
 #endif
   }
 
   void startLeaderThread() {
+#ifdef DEBUG_SYNC
+    std::cout << get_timestamp() << " Leader thread started " << getpid()
+              << std::endl;
+#endif
     _leader_thread_running = true;
     _leader_thread = std::thread([this]() {
       while (_leader_thread_running) {
@@ -256,7 +264,7 @@ private:
 
   void stopLeaderThread() {
 #ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << " Stopping Leader " << getpid()
+    std::cout << get_timestamp() << " Stopping Leader thread " << getpid()
               << std::endl;
 #endif
     if (_leader_thread_running) {
@@ -267,7 +275,8 @@ private:
       }
     }
 #ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << " Leader stopped" << getpid() << std::endl;
+    std::cout << get_timestamp() << " Leader thread stopped " << getpid()
+              << std::endl;
 #endif
   }
 
@@ -277,8 +286,14 @@ private:
     auto mySysID = _protocol->getSysID();
     auto min_known_sysid =
         *std::min_element(_known_sysid.cbegin(), _known_sysid.cend());
+    auto elected = std::min(mySysID, min_known_sysid);
 
-    return std::min(mySysID, min_known_sysid);
+#ifdef DEBUG_SYNC
+    std::cout << get_timestamp() << ' ' << elected
+              << " was elected as leader by " << getpid() << '.' << std::endl;
+#endif
+
+    return elected;
   }
 
   void addSysID(SysID SysID) {

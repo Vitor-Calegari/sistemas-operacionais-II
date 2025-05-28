@@ -244,6 +244,10 @@ public:
     return buf->data()->template data<Packet>();
   }
 
+  bool amILeader() const {
+    return _sync_engine.amILeader();
+  }
+
 private:
   // Método update: chamado pela NIC quando um frame é recebido.
   // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
