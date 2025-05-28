@@ -107,6 +107,7 @@ public:
           _clock.setOffset(offset);
           _state = State::WAITING_SYNC;
           _synced = true;
+          _announce_iteration = 0;
         }
       }
       // Se for PTP e sou lider
