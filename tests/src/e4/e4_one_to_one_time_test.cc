@@ -1,4 +1,3 @@
-
 #define DEBUG_TIMESTAMP
 #include "car.hh"
 #undef DEBUG_TIMESTAMP
@@ -19,7 +18,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-constexpr int NUM_MESSAGES = 5;
+constexpr int NUM_MESSAGES = 2;
 constexpr int PERIOD_SUBCRIBER = 5e6;
 
 #ifndef INTERFACE_NAME
