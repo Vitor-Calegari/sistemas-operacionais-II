@@ -1,0 +1,120 @@
+#include "car.hh"
+#include "communicator.hh"
+#include "engine.hh"
+#include "message.hh"
+#include "nic.hh"
+#include "protocol.hh"
+#include "shared_engine.hh"
+#include "smart_data.hh"
+#include "smart_unit.hh"
+#include "transducer.hh"
+#include <array>
+#include <cassert>
+#include <csignal>
+#include <iostream>
+#include <sys/wait.h>
+#include <unistd.h>
+
+constexpr int NUM_PUB_THREADS = 1;
+constexpr int NUM_SUB_THREADS = 4;
+constexpr int SUB_NUM_WANTED_MESSAGES = 5;
+
+#ifndef INTERFACE_NAME
+#define INTERFACE_NAME "lo"
+#endif
+
+int main() {
+  using Buffer = Buffer<Ethernet::Frame>;
+  using SocketNIC = NIC<Engine<Buffer>>;
+  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Message = Message<Protocol::Address>;
+  using Communicator = Communicator<Protocol, Message>;
+
+  std::mutex stdout_mtx;
+
+  std::mutex sub_count_mutex;
+  std::condition_variable cond_all_subscribers_done;
+
+  int num_subscribers_done = 0;
+
+  auto publisher_task = [&]<SmartUnit T>(const int thread_id, Car *car,
+                                         Transducer<T> *transducer) {
+    auto comp = car->create_component(thread_id);
+
+    auto smart_data = comp.register_publisher(
+        transducer, Condition(true, transducer->unit.get_int_unit()));
+
+    std::unique_lock<std::mutex> cv_lock(sub_count_mutex);
+    cond_all_subscribers_done.wait(cv_lock, [&num_subscribers_done]() {
+      return num_subscribers_done == NUM_SUB_THREADS;
+    });
+  };
+
+  std::vector<double> sub_periods = {5e6, 10e6, 2e6, 4e6};
+
+  auto subscriber_task = [&](const int thread_id, Car *car,
+                             const SmartUnit unit, int i) {
+    auto comp = car->create_component(thread_id);
+
+    auto smart_data =
+        comp.subscribe(Condition(false, unit.get_int_unit(), sub_periods[i]));
+
+    std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
+    stdout_lock.unlock();
+
+    for (int j = 1; j <= SUB_NUM_WANTED_MESSAGES * (i + 1); ++j) {
+      Message message =
+          Message(sizeof(SmartData<Communicator, Condition>::Header) +
+                  unit.get_value_size_bytes());
+      message.getControl()->setType(Control::Type::PUBLISH);
+      if (!smart_data.receive(&message)) {
+        std::cerr << "Erro ao receber mensagem na thread " << thread_id
+                  << std::endl;
+        exit(1);
+      } else {
+        stdout_lock.lock();
+        std::cout << std::dec << car->label
+                  << " (thread " << thread_id << "): Received (" << j << "): ";
+        for (size_t i = 0; i < message.size(); i++) {
+          std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
+        }
+        std::cout << std::endl;
+        stdout_lock.unlock();
+      }
+    }
+    sub_count_mutex.lock();
+    num_subscribers_done++;
+    sub_count_mutex.unlock();
+    cond_all_subscribers_done.notify_all();
+    std::cout << get_timestamp() << " Subscriber " << thread_id
+                  << " will leave." << std::endl;
+  };
+
+  std::vector<Car> cars = {Car("Citroën")};
+
+  constexpr SmartUnit Watt(SmartUnit::SIUnit::KG * (SmartUnit::SIUnit::M ^ 2) *
+                           (SmartUnit::SIUnit::S ^ 3));
+
+  std::array<std::thread, NUM_PUB_THREADS> pub_threads;
+  std::array<std::thread, NUM_SUB_THREADS> sub_threads;
+
+  for (int i = 0; i < NUM_SUB_THREADS; ++i) {
+    sub_threads[i] = std::thread(subscriber_task, i + NUM_PUB_THREADS,
+                                 &cars[0], Watt, i);
+  }
+
+  auto transd1 = Transducer<Watt>(0, 1000);
+
+  pub_threads[0] = std::thread(publisher_task, 0, &cars[0], &transd1);
+
+  for (int i = 0; i < NUM_PUB_THREADS; ++i) {
+    pub_threads[i].join();
+  }
+
+  for (int i = 0; i < NUM_SUB_THREADS; ++i) {
+    sub_threads[i].join();
+  }
+
+  return 0;
+}

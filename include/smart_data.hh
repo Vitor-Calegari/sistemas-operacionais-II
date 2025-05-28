@@ -183,11 +183,13 @@ private:
               subscribers.erase(subscribers.begin() + ind);
             }
             highest_period = 0;
+            std::cout << "Old Period: " << period << std::endl;
             period = 0;
             for (auto &sub : subscribers) {
               period = std::gcd(period, sub.period);
               highest_period = std::max(highest_period, sub.period);
             }
+            std::cout << "New Period: " << period << std::endl;
           }
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
