@@ -98,7 +98,6 @@ public:
     std::cout << std::endl;
     switch (action) {
     case SyncEngineP::Action::DO_NOTHING:
-
       break;
     case SyncEngineP::Action::SEND_DELAY_REQ:
       break;
@@ -136,22 +135,45 @@ int main() {
   Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
   prot.print_sync_engine();
 
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  int64_t T1, T2, T3, T4 = 0;
 
-  prot.update(12, 5, origin_addr);
+  std::cout << "\n\nTest with captured timestamps\n" << std::endl;
+
+  T1 = 22045047862401;  // Time that Sync was sent by leader
+  T2 = 22045048171391;  // Time that Sync was received by slave
+  T3 = 22045048175594;  // Time that Delay Req was sent by slave
+  T4 = 22045048151500;  // Time that Delay was sent by leader
+
+  std::cout << "Received Sync" << std::endl;
+  // Sync
+  prot.update(T2, T1, origin_addr);
 
   prot.print_sync_engine();
 
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-
-  prot.update(14, 10, origin_addr);
+  std::cout << "Received Delay" << std::endl;
+  // Delay received
+  prot.set_delay(T3);
+  prot.update(T3, T4, origin_addr);
 
   prot.print_sync_engine();
 
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  prot.set_delay(8);
+  std::cout << "\n\nTest with simple timestamps\n" << std::endl;
 
-  prot.update(19, 10, origin_addr);
+  T1 = 10;  // Time that Sync was sent by leader
+  T2 = 15;  // Time that Sync was received by slave
+  T3 = 16;  // Time that Delay Req was sent by slave
+  T4 = 17;  // Time that Delay was sent by leader
+
+  std::cout << "Received Sync" << std::endl;
+  // Sync
+  prot.update(T2, T1, origin_addr);
+
+  prot.print_sync_engine();
+
+  std::cout << "Received Delay" << std::endl;
+  // Delay received
+  prot.set_delay(T3);
+  prot.update(T3, T4, origin_addr);
 
   prot.print_sync_engine();
 
