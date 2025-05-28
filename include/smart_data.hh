@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -163,13 +164,14 @@ private:
              cur_period = cur_period + period > highest_period
                               ? period
                               : cur_period + period) {
-          std::vector<Subscriber> to_remove{};
-          for (auto &sub : subscribers) {
+          std::vector<size_t> to_remove{};
+          for (size_t i = 0; i < subscribers.size(); ++i) {
+            auto &sub = subscribers[i];
             auto elapsed = last_resub[sub] - std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::microseconds>(elapsed) >
                 std::chrono::microseconds(_resub_tolerance)) {
               last_resub.erase(sub);
-              to_remove.push_back(sub);
+              to_remove.push_back(i);
 
               std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << sub.period
                         << std::endl;
@@ -177,15 +179,14 @@ private:
           }
           period_sem.acquire();
           if (to_remove.size() != 0) {
-            for (auto &sub : to_remove) {
-              subscribers.erase(
-                  find(subscribers.begin(), subscribers.end(), sub));
+            for (auto &ind : to_remove) {
+              subscribers.erase(subscribers.begin() + ind);
             }
-            highest_period =
-                *std::max_element(subscribers.begin(), subscribers.end());
+            highest_period = 0;
             period = 0;
             for (auto &sub : subscribers) {
               period = std::gcd(period, sub.period);
+              highest_period = std::max(highest_period, sub.period);
             }
           }
           auto next_wakeup_t = std::chrono::steady_clock::now() +
