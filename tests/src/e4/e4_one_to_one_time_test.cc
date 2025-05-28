@@ -1,0 +1,99 @@
+
+#define DEBUG_TIMESTAMP
+#include "car.hh"
+#undef DEBUG_TIMESTAMP
+
+#include "communicator.hh"
+#include "cond.hh"
+#include "engine.hh"
+#include "message.hh"
+#include "nic.hh"
+#include "protocol.hh"
+#include "shared_engine.hh"
+#include "smart_data.hh"
+#include "smart_unit.hh"
+#include "transducer.hh"
+#include <csignal>
+#include <cstddef>
+#include <iostream>
+#include <sys/mman.h>
+#include <sys/wait.h>
+
+constexpr int NUM_MESSAGES = 5;
+constexpr int PERIOD_SUBCRIBER = 5e6;
+
+#ifndef INTERFACE_NAME
+#define INTERFACE_NAME "lo"
+#endif
+
+int main(int argc, char *argv[]) {
+  sem_t *pub_ready =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  sem_init(pub_ready, 1, 0); // Inicialmente bloqueado
+
+  sem_t *sub_ready =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  sem_init(sub_ready, 1, 0); // Inicialmente bloqueado
+
+  bool publisher;
+  if (argc < 2) {
+    // Novo processo será o publisher.
+    auto ret = fork();
+
+    publisher = ret == 0;
+  } else {
+    publisher = atoi(argv[1]);
+  }
+
+  constexpr SmartUnit Farad(
+      (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
+      (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
+
+  using Buffer = Buffer<Ethernet::Frame>;
+  using SocketNIC = NIC<Engine<Buffer>>;
+  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Message = Message<Protocol::Address>;
+  using Communicator = Communicator<Protocol, Message>;
+
+  Car car = Car();
+
+  if (publisher) {
+    Transducer<Farad> transducer(0, 255);
+
+    auto comp = car.create_component(10);
+    auto smart_data = comp.register_publisher(
+        &transducer, Condition(true, Farad.get_int_unit()));
+
+    sem_post(pub_ready);
+    sem_wait(sub_ready);
+
+    std::cout << "Terminou (publisher)" << std::endl;
+  } else {
+    sem_wait(pub_ready);
+
+    auto comp = car.create_component(10);
+    auto smart_data = comp.subscribe(
+        Condition(false, Farad.get_int_unit(), PERIOD_SUBCRIBER));
+
+    for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
+      Message message =
+          Message(sizeof(SmartData<Communicator, Condition>::Header) +
+                      Farad.get_value_size_bytes());
+        message.getControl()->setType(Control::Type::PUBLISH);
+      smart_data.receive(&message);
+      std::cout << "Received (" << std::dec << i_m << "): ";
+      for (size_t i = 0; i < message.size(); i++) {
+        std::cout << std::hex << static_cast<int>(message.data()[i]) << std::dec << " ";
+      }
+      std::cout << std::endl;
+    }
+
+    sem_post(sub_ready);
+    std::cout << "Terminou (subscriber)" << std::endl;
+  }
+
+  return 0;
+}

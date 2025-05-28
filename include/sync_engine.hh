@@ -12,18 +12,18 @@
 #include <sys/types.h>
 #include <thread>
 
-#ifdef DEBUG_SYNC
+#if defined(DEBUG_SYNC) || defined(DEBUG_TIMESTAMP)
 #include "utils.hh"
 #endif
 
 class SimulatedClock {
 public:
-  SimulatedClock(int64_t offset_ns = 0) : offset(offset_ns) {
+  SimulatedClock(int64_t offset_us = 0) : offset(offset_us) {
   }
 
   // Define novo offset
-  void setOffset(int64_t offset_ns) {
-    offset = offset_ns;
+  void setOffset(int64_t offset_us) {
+    offset = offset_us;
   }
 
   // Retorna offset atual
@@ -33,11 +33,11 @@ public:
 
   // Retorna tempo atual com offset aplicado
   std::chrono::time_point<std::chrono::steady_clock> now() const {
-    return std::chrono::steady_clock::now() - std::chrono::nanoseconds(offset);
+    return std::chrono::steady_clock::now() - std::chrono::microseconds(offset);
   }
 
 private:
-  int64_t offset{}; // em nanossegundos
+  int64_t offset{};
 };
 
 template <typename Protocol>
@@ -105,7 +105,7 @@ public:
                           2;
 
           int64_t offset = (_recvd_sync_t - _sync_t) - delay;
-          std::cout << "offset: " << offset << std::endl;
+
           _clock.setOffset(offset);
           _state = State::WAITING_SYNC;
           _synced = true;
@@ -123,7 +123,7 @@ public:
 
   int64_t getTimestamp() const {
     std::chrono::time_point<std::chrono::steady_clock> now = _clock.now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+    return std::chrono::duration_cast<std::chrono::microseconds>(
                now.time_since_epoch())
         .count();
   }
@@ -200,6 +200,21 @@ private:
                       << std::endl;
           }
 #endif
+#ifdef DEBUG_TIMESTAMP
+          if (_iamleader) {
+            std::cout << get_timestamp() << " I’m Leader " << getpid() << " my offset is " << getClockOffset() << std::endl;
+            if (getClockOffset() != 0) {
+              call();
+            }
+          }
+#endif
+#ifdef DEBUG_TIMESTAMP
+          if (!_iamleader) {
+            std::cout << get_timestamp() << " I’m Slave " << getpid() << " my leader is " << _leader
+            << " My offset is " << getClockOffset() << std::endl;
+
+          }
+#endif
           // Se é lider, começa a mandar syncs periodicos
           // se não é, volta a esperar
           _leader_cv.notify_one();
@@ -214,6 +229,10 @@ private:
         _announce_iteration = (_announce_iteration + 1) % 2;
       }
     });
+  }
+
+  void call() {
+    std::cout << 111 << std::endl;
   }
 
   void stopAnnounceThread() {
