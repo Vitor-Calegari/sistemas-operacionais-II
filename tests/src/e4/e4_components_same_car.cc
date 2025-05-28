@@ -23,6 +23,17 @@ constexpr int SUB_NUM_WANTED_MESSAGES = 5;
 #define INTERFACE_NAME "lo"
 #endif
 
+std::string formatTimestamp(uint64_t timestamp_us) {
+  auto time_point = std::chrono::system_clock::time_point(std::chrono::microseconds(timestamp_us));
+  std::time_t time_t = std::chrono::system_clock::to_time_t(time_point);
+  std::tm *tm = std::localtime(&time_t);
+
+  std::ostringstream oss;
+  oss << std::put_time(tm, "%H:%M:%S") << "."
+      << std::setw(6) << std::setfill('0') << (timestamp_us % 1000000) << " us";
+  return oss.str();
+}
+
 int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
@@ -73,7 +84,7 @@ int main() {
         exit(1);
       } else {
         stdout_lock.lock();
-        std::cout << message.timestamp() << ' ' << std::dec << car->label
+        std::cout << "[Msg sent at: " << formatTimestamp(*message.timestamp())  << "] " << std::dec << car->label
                   << " (thread " << thread_id << "): Received (" << j << "): ";
         for (size_t i = 0; i < message.size(); i++) {
           std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
