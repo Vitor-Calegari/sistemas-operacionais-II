@@ -18,8 +18,8 @@
 #define INTERFACE_NAME "lo"
 #endif
 
-constexpr int LEADER_CHECK_DELAY_SECONDS = 2;
-constexpr int FINAL_WAIT_SECONDS = 3;
+constexpr int LEADER_CHECK_DELAY_SECONDS = 2e6;
+constexpr int FINAL_WAIT_SECONDS = 5e6;
 constexpr int COMPONENT_ID = 61;
 
 void single_car() {
