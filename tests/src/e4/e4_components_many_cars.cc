@@ -17,6 +17,17 @@ constexpr int NUM_COMPONENTS = 4;
 constexpr int NUM_MESSAGES_PER_THREAD = 4;
 constexpr int MESSAGE_SIZE = 25;
 
+std::string formatTimestamp(uint64_t timestamp_us) {
+  auto time_point = std::chrono::system_clock::time_point(std::chrono::microseconds(timestamp_us));
+  std::time_t time_t = std::chrono::system_clock::to_time_t(time_point);
+  std::tm *tm = std::localtime(&time_t);
+
+  std::ostringstream oss;
+  oss << std::put_time(tm, "%H:%M:%S") << "."
+      << std::setw(6) << std::setfill('0') << (timestamp_us % 1000000) << " us";
+  return oss.str();
+}
+
 int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
@@ -67,7 +78,7 @@ int main() {
 
         if (comp.send(&msg)) {
           stdout_lock.lock();
-          std::cout << std::dec << '[' << msg.timestamp() << "] Proc ("
+          std::cout << std::dec << " Proc ("
                     << getpid() << ") Thread (" << thread_id << "): Sending ("
                     << j << "): ";
           std::cout.flush();
@@ -99,7 +110,8 @@ int main() {
           exit(1);
         } else {
           stdout_lock.lock();
-          std::cout << std::dec << '[' << msg.timestamp() << "] Proc ("
+          
+          std::cout << std::dec << "[Msg sent at: " << formatTimestamp(*msg.timestamp()) << "] Proc ("
                     << getpid() << ") Thread (" << thread_id << "): Received ("
                     << j << "): ";
           for (size_t i = 0; i < msg.size(); i++) {

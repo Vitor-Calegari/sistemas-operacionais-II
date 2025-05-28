@@ -32,8 +32,8 @@ public:
   }
 
   // Retorna tempo atual com offset aplicado
-  std::chrono::time_point<std::chrono::steady_clock> now() const {
-    return std::chrono::steady_clock::now() - std::chrono::microseconds(offset);
+  std::chrono::time_point<std::chrono::system_clock> now() const {
+    return std::chrono::system_clock::now() - std::chrono::microseconds(offset);
   }
 
 private:
@@ -122,7 +122,7 @@ public:
   }
 
   int64_t getTimestamp() const {
-    std::chrono::time_point<std::chrono::steady_clock> now = _clock.now();
+    std::chrono::time_point<std::chrono::system_clock> now = _clock.now();
     return std::chrono::duration_cast<std::chrono::microseconds>(
                now.time_since_epoch())
         .count();
