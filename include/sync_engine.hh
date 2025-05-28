@@ -206,7 +206,7 @@ private:
           _synced = false;
 #ifdef DEBUG_SYNC
           std::cout << get_timestamp() << " No one around " << getpid()
-                    << std::endl;
+                    << ": No election." << std::endl;
 #endif
         }
         _announce_iteration = (_announce_iteration + 1) % 2;
