@@ -7,9 +7,9 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <set>
 #include <sys/types.h>
 #include <thread>
-#include <vector>
 
 #ifdef DEBUG_SYNC
 #include "utils.hh"
@@ -283,7 +283,7 @@ private:
 
   void addSysID(SysID SysID) {
     std::lock_guard<std::mutex> lock(_strata_mutex);
-    _known_sysid.push_back(SysID);
+    _known_sysid.insert(SysID);
   }
 
   void clearKnownSysID() {
@@ -296,7 +296,7 @@ private:
 
   // SysID ----------------------------------------
   std::atomic<bool> _iamleader = false;
-  std::vector<SysID> _known_sysid{};
+  std::set<SysID> _known_sysid{};
   std::mutex _strata_mutex;
   SysID _leader = -1;
 
