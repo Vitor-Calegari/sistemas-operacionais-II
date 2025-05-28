@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <iostream>
 #include <mutex>
 #include <set>
 #include <sys/types.h>
@@ -17,16 +18,16 @@
 
 class SimulatedClock {
 public:
-  SimulatedClock(uint64_t offset_ns = 0) : offset(offset_ns) {
+  SimulatedClock(int64_t offset_ns = 0) : offset(offset_ns) {
   }
 
   // Define novo offset
-  void setOffset(uint64_t offset_ns) {
+  void setOffset(int64_t offset_ns) {
     offset = offset_ns;
   }
 
   // Retorna offset atual
-  uint64_t getOffset() const {
+  int64_t getOffset() const {
     return offset;
   }
 
@@ -36,7 +37,7 @@ public:
   }
 
 private:
-  uint64_t offset{}; // em nanossegundos
+  int64_t offset{}; // em nanossegundos
 };
 
 template <typename Protocol>
@@ -73,7 +74,7 @@ public:
   // return: int.
   // 0: announce ou delay, não fazer nada.
   // 1: sync ou delay_req, responder
-  Action handlePTP(uint64_t recv_timestamp, uint64_t msg_timestamp,
+  Action handlePTP(int64_t recv_timestamp, int64_t msg_timestamp,
                    Address origin_addr, Control::Type type) {
     Action ret = Action::DO_NOTHING;
     addSysID(origin_addr.getSysID());
@@ -99,11 +100,12 @@ public:
           // Calcula novo offset.
           _leader_recvd_delay_req_t = msg_timestamp;
 
-          uint64_t delay = ((_leader_recvd_delay_req_t - _delay_req_t) +
-                            (_recvd_sync_t - _sync_t)) /
-                           2;
+          int64_t delay = ((_leader_recvd_delay_req_t - _delay_req_t) +
+                           (_recvd_sync_t - _sync_t)) /
+                          2;
 
-          uint64_t offset = (_recvd_sync_t - _sync_t) - delay;
+          int64_t offset = (_recvd_sync_t - _sync_t) - delay;
+          std::cout << "offset: " << offset << std::endl;
           _clock.setOffset(offset);
           _state = State::WAITING_SYNC;
           _synced = true;
@@ -119,7 +121,7 @@ public:
     return ret;
   }
 
-  uint64_t getTimestamp() const {
+  int64_t getTimestamp() const {
     std::chrono::time_point<std::chrono::steady_clock> now = _clock.now();
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
                now.time_since_epoch())
@@ -130,7 +132,7 @@ public:
     _broadcast_already_sent = already_sent;
   }
 
-  void setDelayReqSendT(uint64_t time) {
+  void setDelayReqSendT(int64_t time) {
     _delay_req_t = time;
   }
 
@@ -146,7 +148,7 @@ public:
     return _state;
   }
 
-  uint64_t getClockOffset() const {
+  int64_t getClockOffset() const {
     return _clock.getOffset();
   }
 
@@ -317,21 +319,21 @@ private:
 
   // Need Sync Thread -----------------------------
   std::thread _announce_thread;
-  uint64_t _announce_period = HALF_LIFE;
+  int64_t _announce_period = HALF_LIFE;
   std::atomic<bool> _announce_thread_running = false;
 
   // Leader Thread --------------------------------
   std::thread _leader_thread;
-  uint64_t _leader_period = HALF_LIFE;
+  int64_t _leader_period = HALF_LIFE;
   std::atomic<bool> _leader_thread_running = false;
   std::condition_variable _leader_cv;
   std::mutex _leader_mutex;
 
   // PTP ------------------------------------------
-  uint64_t _sync_t{};
-  uint64_t _recvd_sync_t{};
-  uint64_t _delay_req_t{};
-  uint64_t _leader_recvd_delay_req_t{};
+  int64_t _sync_t{};
+  int64_t _recvd_sync_t{};
+  int64_t _delay_req_t{};
+  int64_t _leader_recvd_delay_req_t{};
 
   Address _master_addr;
   State _state{};
