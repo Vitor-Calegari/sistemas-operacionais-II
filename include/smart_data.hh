@@ -6,6 +6,7 @@
 #include "protocol.hh"
 #include "smart_unit.hh"
 #include "utils.hh"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -162,14 +163,28 @@ private:
              cur_period = cur_period + period > highest_period
                               ? period
                               : cur_period + period) {
+          std::vector<Subscriber> to_remove{};
           for (auto &sub : subscribers) {
             auto elapsed = last_resub[sub] - std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::microseconds>(elapsed) >
                 std::chrono::microseconds(_resub_tolerance)) {
               last_resub.erase(sub);
+              to_remove.push_back(sub);
 
               std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << sub.period
                         << std::endl;
+            }
+          }
+          if (to_remove.size() != 0) {
+            for (auto &sub : to_remove) {
+              subscribers.erase(
+                  find(subscribers.begin(), subscribers.end(), sub));
+            }
+            highest_period =
+                *std::max_element(subscribers.begin(), subscribers.end());
+            period = 0;
+            for (auto &sub : subscribers) {
+              period = std::gcd(period, sub.period);
             }
           }
           period_sem.acquire();
