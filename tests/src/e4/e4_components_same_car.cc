@@ -53,7 +53,7 @@ int main() {
 
   auto subscriber_task = [&](const int thread_id, Car *car,
                              const SmartUnit unit) {
-    auto comp = car->create_component(thread_id + NUM_PUB_THREADS);
+    auto comp = car->create_component(thread_id);
 
     uint32_t period = (thread_id + 1) * 5e3;
     auto smart_data =
