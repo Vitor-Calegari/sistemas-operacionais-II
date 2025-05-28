@@ -1,4 +1,3 @@
-#define DEBUG_SYNC
 #include "car.hh"
 #include "communicator.hh"
 #include "engine.hh"
@@ -9,26 +8,21 @@
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#undef DEBUG_SYNC
-
+#include <array>
 #include <cassert>
 #include <csignal>
 #include <iostream>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
+
+constexpr int NUM_PUB_THREADS = 4;
+constexpr int NUM_SUB_THREADS = 6;
+constexpr int SUB_NUM_WANTED_MESSAGES = 5;
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
 #endif
 
-constexpr int NUM_COMPONENTS = 4;
-constexpr int CYCLE_DURATION_SECONDS = 4;
-constexpr int NUM_MESSAGES_PER_COMPONENT = 5;
-
-// Teste simulando comunicação entre componentes do mesmo carro
 int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
@@ -37,146 +31,98 @@ int main() {
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
-  auto parent_pid = getpid();
   std::mutex stdout_mtx;
 
-  for (auto i = 0; i < NUM_COMPONENTS; ++i) {
-    auto cur_pid = fork();
-    if (cur_pid == 0) {
-      break;
+  std::mutex sub_count_mutex;
+  std::condition_variable cond_all_subscribers_done;
+
+  int num_subscribers_done = 0;
+
+  auto publisher_task = [&]<SmartUnit T>(const int thread_id, Car *car,
+                                         Transducer<T> *transducer) {
+    auto comp = car->create_component(thread_id);
+
+    auto smart_data = comp.register_publisher(
+        transducer, Condition(true, transducer->unit.get_int_unit()));
+
+    std::unique_lock<std::mutex> cv_lock(sub_count_mutex);
+    cond_all_subscribers_done.wait(cv_lock, [&num_subscribers_done]() {
+      return num_subscribers_done == NUM_SUB_THREADS;
+    });
+  };
+
+  auto subscriber_task = [&](const int thread_id, Car *car,
+                             const SmartUnit unit) {
+    auto comp = car->create_component(thread_id + NUM_PUB_THREADS);
+
+    uint32_t period = (thread_id + 1) * 5e3;
+    auto smart_data =
+        comp.subscribe(Condition(false, unit.get_int_unit(), period));
+
+    std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
+    stdout_lock.unlock();
+
+    for (int j = 1; j <= SUB_NUM_WANTED_MESSAGES; ++j) {
+      Message message =
+          Message(sizeof(SmartData<Communicator, Condition>::Header) +
+                  unit.get_value_size_bytes());
+      message.getControl()->setType(Control::Type::PUBLISH);
+      if (!smart_data.receive(&message)) {
+        std::cerr << "Erro ao receber mensagem na thread " << thread_id
+                  << std::endl;
+        exit(1);
+      } else {
+        stdout_lock.lock();
+        std::cout << message.timestamp() << ' ' << std::dec << car->label
+                  << " (thread " << thread_id << "): Received (" << j << "): ";
+        for (size_t i = 0; i < message.size(); i++) {
+          std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
+        }
+        std::cout << std::endl;
+        stdout_lock.unlock();
+      }
     }
+    sub_count_mutex.lock();
+    num_subscribers_done++;
+    sub_count_mutex.unlock();
+    cond_all_subscribers_done.notify_all();
+  };
+
+  std::vector<Car> cars = { Car("Citroën"), Car("Peugeot") };
+
+  constexpr SmartUnit Watt(SmartUnit::SIUnit::KG * (SmartUnit::SIUnit::M ^ 2) *
+                           (SmartUnit::SIUnit::S ^ 3));
+  constexpr SmartUnit Farad(
+      (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
+      (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
+  constexpr SmartUnit Hertz(SmartUnit::SIUnit::S ^ -1);
+  std::vector<SmartUnit> units = { Watt, Farad, Hertz };
+
+  std::array<std::thread, NUM_PUB_THREADS> pub_threads;
+  std::array<std::thread, NUM_SUB_THREADS> sub_threads;
+
+  for (int i = 0; i < NUM_SUB_THREADS; ++i) {
+    sub_threads[i] = std::thread(subscriber_task, i + NUM_PUB_THREADS,
+                                 &cars[i % 2], units[i % 3]);
   }
 
-  if (getpid() != parent_pid) {
-    Car car;
-    
-    int component_id = 1000 + (getpid() % 1000);
-    auto component = car.create_component(component_id);
+  auto transd1 = Transducer<Watt>(0, 1000);
+  auto transd2 = Transducer<Farad>(0, 2000);
+  auto transd3 = Transducer<Hertz>(0, 3000);
+  auto transd4 = Transducer<Hertz>(15000, 30000);
 
-    std::cout << "[TEST] " << get_timestamp() << " Component " << component_id 
-              << " (PID: " << getpid() << ") initialized in car: " << car.label << std::endl;
+  pub_threads[0] = std::thread(publisher_task, 0, &cars[0], &transd1);
+  pub_threads[1] = std::thread(publisher_task, 1, &cars[1], &transd2);
+  pub_threads[2] = std::thread(publisher_task, 2, &cars[0], &transd3);
+  pub_threads[3] = std::thread(publisher_task, 3, &cars[1], &transd4);
 
-    // Configurar diferentes tipos de dados para cada componente
-    constexpr SmartUnit Watt(SmartUnit::SIUnit::KG * (SmartUnit::SIUnit::M ^ 2) *
-                            (SmartUnit::SIUnit::S ^ 3));
-    constexpr SmartUnit Farad(
-        (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
-        (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
-    constexpr SmartUnit Hertz(SmartUnit::SIUnit::S ^ -1);
+  for (int i = 0; i < NUM_PUB_THREADS; ++i) {
+    pub_threads[i].join();
+  }
 
-    // Cada componente usa uma unidade diferente
-    auto transducer_watt = Transducer<Watt>(component_id, component_id * 10);
-    auto transducer_farad = Transducer<Farad>(component_id + 100, component_id * 20);
-    auto transducer_hertz = Transducer<Hertz>(component_id + 200, component_id * 30);
-
-    // Registra como publisher para um tipo de dado
-    auto smart_data_pub_watt = component.register_publisher(
-        &transducer_watt, Condition(true, transducer_watt.unit.get_int_unit()));
-    
-    // Registra como subscriber para receber dados de outros componentes
-    uint32_t period = 5e3; // 5ms
-    auto smart_data_sub_watt = component.subscribe(Condition(false, Watt.get_int_unit(), period));
-    auto smart_data_sub_farad = component.subscribe(Condition(false, Farad.get_int_unit(), period));
-    auto smart_data_sub_hertz = component.subscribe(Condition(false, Hertz.get_int_unit(), period));
-
-    // Período inicial para estabelecer comunicação
-    std::this_thread::sleep_for(std::chrono::seconds(CYCLE_DURATION_SECONDS));
-
-    // Verifica se este componente é líder
-    if (car.prot.amILeader()) {
-      std::cout << "[TEST] " << get_timestamp() << " Component " << component_id 
-                << " (PID: " << getpid() << ") is LEADER" << std::endl;
-    } else {
-      std::cout << "[TEST] " << get_timestamp() << " Component " << component_id 
-                << " (PID: " << getpid() << ") is FOLLOWER" << std::endl;
-    }
-
-    // Thread para publicar dados
-    std::thread publisher_thread([&]() {
-      for (int msg = 0; msg < NUM_MESSAGES_PER_COMPONENT; ++msg) {
-        try {
-          // Obtém dados do transducer
-          std::vector<std::byte> data(Watt.get_value_size_bytes());
-          transducer_watt.get_data(data.data());
-
-          // Publica dados usando smart_data
-          auto timestamp = get_timestamp();
-          smart_data_pub_watt.publish();
-          
-          std::cout << "[TEST] " << timestamp << " Component " << component_id 
-                    << " published data " << msg + 1 << "/" << NUM_MESSAGES_PER_COMPONENT 
-                    << " (data size: " << data.size() << " bytes)" << std::endl;
-                    
-          std::this_thread::sleep_for(std::chrono::milliseconds(800));
-        } catch (const std::exception& e) {
-          std::cout << "[TEST] " << get_timestamp() << " Component " << component_id 
-                    << " exception publishing: " << e.what() << std::endl;
-        }
-      }
-    });
-
-    // Thread para receber dados
-    std::thread subscriber_thread([&]() {
-      for (int msg = 0; msg < NUM_MESSAGES_PER_COMPONENT * 2; ++msg) {
-        try {
-          Message message_watt = Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                                        Watt.get_value_size_bytes());
-          message_watt.getControl()->setType(Control::Type::PUBLISH);
-
-          if (smart_data_sub_watt.receive(&message_watt)) {
-            auto timestamp = get_timestamp();
-            std::cout << "[TEST] " << timestamp << " Component " << component_id 
-                      << " received Watt data " << msg + 1 << " (size: " 
-                      << message_watt.size() << " bytes)" << std::endl;
-          }
-
-          Message message_farad = Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                                          Farad.get_value_size_bytes());
-          message_farad.getControl()->setType(Control::Type::PUBLISH);
-
-          if (smart_data_sub_farad.receive(&message_farad)) {
-            auto timestamp = get_timestamp();
-            std::cout << "[TEST] " << timestamp << " Component " << component_id 
-                      << " received Farad data " << msg + 1 << " (size: " 
-                      << message_farad.size() << " bytes)" << std::endl;
-          }
-
-          Message message_hertz = Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                                          Hertz.get_value_size_bytes());
-          message_hertz.getControl()->setType(Control::Type::PUBLISH);
-
-          if (smart_data_sub_hertz.receive(&message_hertz)) {
-            auto timestamp = get_timestamp();
-            std::cout << "[TEST] " << timestamp << " Component " << component_id 
-                      << " received Hertz data " << msg + 1 << " (size: " 
-                      << message_hertz.size() << " bytes)" << std::endl;
-          }
-
-          std::this_thread::sleep_for(std::chrono::milliseconds(400));
-        } catch (const std::exception& e) {
-          std::cout << "[TEST] " << get_timestamp() << " Component " << component_id 
-                    << " exception receiving: " << e.what() << std::endl;
-        }
-      }
-    });
-
-    publisher_thread.join();
-    subscriber_thread.join();
-
-    std::cout << "[TEST] " << get_timestamp() << " Component " << component_id 
-              << " (PID: " << getpid() << ") finishing execution" << std::endl;
-
-  } else {
-    std::cout << "[TEST] " << get_timestamp() << " Parent process monitoring " 
-              << NUM_COMPONENTS << " components" << std::endl;
-
-    for (int i = 0; i < NUM_COMPONENTS; ++i) {
-      int status;
-      pid_t finished_pid = wait(&status);
-    }
+  for (int i = 0; i < NUM_SUB_THREADS; ++i) {
+    sub_threads[i].join();
   }
 
   return 0;
 }
-
-// g++ -std=c++20 -g tests/src/e4/e4_components_same_car.cc -Iinclude -Itests/include -o components_same_car_test src/ethernet.cc src/utils.cc
