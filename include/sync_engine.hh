@@ -56,7 +56,7 @@ public:
 public:
   SyncEngine(Protocol *prot)
       : _protocol(prot), _iamleader(false), _leader(-1),
-        _announce_period(HALF_LIFE * 2), _announce_thread_running(false),
+        _announce_period(HALF_LIFE), _announce_thread_running(false),
         _leader_period(HALF_LIFE), _leader_thread_running(false), _clock(0),
         _synced(false), _announce_iteration(0), _broadcast_already_sent(false) {
     startAnnounceThread();
@@ -317,7 +317,7 @@ private:
 
   // Need Sync Thread -----------------------------
   std::thread _announce_thread;
-  uint64_t _announce_period = HALF_LIFE * 2;
+  uint64_t _announce_period = HALF_LIFE;
   std::atomic<bool> _announce_thread_running = false;
 
   // Leader Thread --------------------------------
