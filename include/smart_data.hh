@@ -175,6 +175,7 @@ private:
                         << std::endl;
             }
           }
+          period_sem.acquire();
           if (to_remove.size() != 0) {
             for (auto &sub : to_remove) {
               subscribers.erase(
@@ -187,7 +188,6 @@ private:
               period = std::gcd(period, sub.period);
             }
           }
-          period_sem.acquire();
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
           period_sem.release();
