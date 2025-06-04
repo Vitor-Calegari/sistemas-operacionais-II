@@ -1,0 +1,127 @@
+#ifndef TOWER_PROTOCOL_HH
+#define TOWER_PROTOCOL_HH
+
+#include "protocol_commom.hh"
+
+template <typename SocketNIC, typename SharedMemNIC>
+class TowerProtocol : public ProtocolCommom<SocketNIC, SharedMemNIC> {
+public:
+  using Base = ProtocolCommom<SocketNIC, SharedMemNIC>;
+  using Packet = Base::Packet;
+  using SysID = Base::SysID;
+  using Address = Base::Address;
+  using Port = Base::Port;
+  using SyncEngineP = Base::SyncEngineP;
+  using Buffer = Base::Buffer;
+
+public:
+  static TowerProtocol &getInstance(const char *interface_name, SysID sysID) {
+    static TowerProtocol instance(interface_name, sysID);
+
+    return instance;
+  }
+
+  TowerProtocol(TowerProtocol const &) = delete;
+  void operator=(TowerProtocol const &) = delete;
+
+  ~TowerProtocol() {
+  }
+
+protected:
+  // Construtor: associa o protocolo à NIC e registra-se como observador do
+  // protocolo PROTO
+  TowerProtocol(const char *interface_name, SysID sysID)
+      : Base(interface_name, sysID) {
+  }
+
+  // Método update: chamado pela NIC quando um frame é recebido.
+  // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
+  void update([[maybe_unused]] typename SocketNIC::Observed *obs,
+              [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
+              Buffer *buf) {
+    uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
+    Packet *pkt = buf->data()->template data<Packet>();
+    SysID sysID = pkt->header()->dest.getSysID();
+    if (sysID != Base::_sysID && sysID != Base::BROADCAST_SID) {
+      Base::_rsnic.free(buf);
+      return;
+    }
+
+    // Se a mensagem veio da nic de sockets, tratar PTP
+    if (pkt->header()->origin.getSysID() != Base::_sysID) {
+      int ptp_action = Base::_sync_engine.handlePTP(
+          recv_timestamp, pkt->header()->timestamp, pkt->header()->origin,
+          pkt->header()->ctrl.getType());
+
+      Address myaddr = Base::getAddr();
+      Control ctrl(Control::Type::PTP);
+      switch (ptp_action) {
+      case SyncEngineP::Action::DO_NOTHING:
+        break;
+      case SyncEngineP::Action::SEND_DELAY_REQ:
+        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
+        break;
+      case SyncEngineP::Action::SEND_DELAY_RESP:
+        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0,
+                   recv_timestamp);
+        break;
+      }
+
+      // TODO setar parametros corretos
+      int crypto_action = _crypto_engine.handleMAC(...);
+
+      Address myaddr = Base::getAddr();
+      
+      switch (crypto_action) {
+      case CryptoEngineP::Action::DO_NOTHING:
+        break;
+      case CryptoEngineP::Action::REPLY:
+        // Obter chaves MAC das torres adjacentes
+        // Obter chave publica do carro
+        // Encriptar chaves MAC com a chave publica do carro
+        // Assinar a mensagem com a chave privada da torre
+        // 
+        Control ctrl(Control::Type::MAC);
+        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
+        break;
+      }
+
+      if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
+          pkt->header()->ctrl.getType() == Control::Type::PTP) {
+        Base::free(buf);
+        return;
+      }
+    }
+
+    // auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
+    //   Port port = pkt->header()->dest.getPort();
+    //   if (pkt->header()->dest.getPort() == Base::BROADCAST) {
+    //     std::vector<Port> allComPorts = Base::Observed::getObservsCond();
+    //     Buffer *broadcastBuf;
+    //     for (auto port : allComPorts) {
+    //       broadcastBuf = nic.alloc(buf->size(), 0);
+    //       if (broadcastBuf == nullptr)
+    //         continue;
+    //       std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+    //       broadcastBuf->setSize(buf->size());
+    //       if (!this->notify(port, broadcastBuf)) {
+    //         nic.free(broadcastBuf);
+    //       }
+    //     }
+    //     nic.free(buf);
+    //   } else if (!this->notify(port, buf)) {
+    //     nic.free(buf);
+    //   }
+    // };
+
+    // if (pkt->header()->origin.getSysID() == Base::_sysID) {
+    //   handlePacket(Base::_smnic, buf, pkt);
+    // } else {
+    //   handlePacket(Base::_rsnic, buf, pkt);
+    // }
+  }
+private:
+  CryptoEngineP _crypto_engine;
+};
+
+#endif // TOWER_PROTOCOL_HH

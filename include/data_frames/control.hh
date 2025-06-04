@@ -9,7 +9,8 @@ struct Control {
     PUBLISH = 0x10,   // 0001 0000
     SUBSCRIBE = 0x20, // 0010 0000
     ANNOUNCE = 0x30,  // 0011 0000
-    PTP = 0x40        // 0100 0000
+    PTP = 0x40,       // 0100 0000
+    MAC = 0x50        // 0101 0000
   };
 
   Control(Type type = COMMON) : value(static_cast<uint8_t>(type)) {

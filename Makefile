@@ -5,7 +5,8 @@ vpath %.cc $(SRC_DIR)
 vpath %.cc $(TST_SRC_DIR)
 
 ifdef INCL_DIR
-	CXXFLAGS += -I$(INCL_DIR)
+    INCLUDE_DIRS := $(shell find $(INCL_DIR) -type d)
+    CXXFLAGS += $(addprefix -I,$(INCLUDE_DIRS))
 endif
 
 ifdef TST_INCL_DIR

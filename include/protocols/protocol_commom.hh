@@ -1,5 +1,5 @@
-#ifndef PROTOCOL_HH
-#define PROTOCOL_HH
+#ifndef PROTOCOL_COMMOM_HH
+#define PROTOCOL_COMMOM_HH
 
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
@@ -13,13 +13,13 @@
 #endif
 
 template <typename SocketNIC, typename SharedMemNIC>
-class Protocol
+class ProtocolCommom
     : public Concurrent_Observed<typename SocketNIC::BufferNIC, unsigned short>,
       private SocketNIC::Observer {
 public:
   inline static const typename SocketNIC::Protocol_Number PROTO = htons(0x88B5);
 
-  typedef SyncEngine<Protocol<SocketNIC, SharedMemNIC>> SyncEngineP;
+  typedef SyncEngine<ProtocolCommom<SocketNIC, SharedMemNIC>> SyncEngineP;
   typedef typename SocketNIC::Header NICHeader;
   typedef typename SocketNIC::BufferNIC Buffer;
   typedef typename SocketNIC::Address Physical_Address;
@@ -109,19 +109,19 @@ public:
     Data _data;
   } __attribute__((packed));
 
-  static Protocol &getInstance(const char *interface_name, SysID sysID) {
-    static Protocol instance(interface_name, sysID);
+  static ProtocolCommom &getInstance(const char *interface_name, SysID sysID) {
+    static ProtocolCommom instance(interface_name, sysID);
 
     return instance;
   }
 
-  Protocol(Protocol const &) = delete;
-  void operator=(Protocol const &) = delete;
+  ProtocolCommom(ProtocolCommom const &) = delete;
+  void operator=(ProtocolCommom const &) = delete;
 
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  Protocol(const char *interface_name, SysID sysID)
+  ProtocolCommom(const char *interface_name, SysID sysID)
       : _rsnic(interface_name), _smnic(interface_name), _sysID(sysID),
         _sync_engine(this) {
     _rsnic.attach(this, PROTO);
@@ -130,7 +130,7 @@ protected:
 
 public:
   // Destrutor: remove o protocolo da NIC
-  ~Protocol() {
+  ~ProtocolCommom() {
     _rsnic.detach(this, PROTO);
     _smnic.detach(this, PROTO);
   }
@@ -248,74 +248,11 @@ public:
     return _sync_engine.amILeader();
   }
 
-private:
-  // Método update: chamado pela NIC quando um frame é recebido.
-  // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
-  void update([[maybe_unused]] typename SocketNIC::Observed *obs,
+  virtual void update([[maybe_unused]] typename SocketNIC::Observed *obs,
               [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-              Buffer *buf) {
-    uint64_t recv_timestamp = _sync_engine.getTimestamp();
-    Packet *pkt = buf->data()->template data<Packet>();
-    SysID sysID = pkt->header()->dest.getSysID();
-    if (sysID != _sysID && sysID != BROADCAST_SID) {
-      _rsnic.free(buf);
-      return;
-    }
+              [[maybe_unused]] Buffer *buf) {};
 
-    // Se a mensagem veio da nic de sockets, tratar PTP
-    if (pkt->header()->origin.getSysID() != _sysID) {
-      int action = _sync_engine.handlePTP(
-          recv_timestamp, pkt->header()->timestamp, pkt->header()->origin,
-          pkt->header()->ctrl.getType());
-
-      Address myaddr = getAddr();
-      Control ctrl(Control::Type::PTP);
-      switch (action) {
-      case SyncEngineP::Action::DO_NOTHING:
-        break;
-      case SyncEngineP::Action::SEND_DELAY_REQ:
-        send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
-        break;
-      case SyncEngineP::Action::SEND_DELAY_RESP:
-        send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, recv_timestamp);
-        break;
-      }
-
-      if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
-          pkt->header()->ctrl.getType() == Control::Type::PTP) {
-        free(buf);
-        return;
-      }
-    }
-
-    auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
-      Port port = pkt->header()->dest.getPort();
-      if (pkt->header()->dest.getPort() == BROADCAST) {
-        std::vector<Port> allComPorts = Observed::getObservsCond();
-        Buffer *broadcastBuf;
-        for (auto port : allComPorts) {
-          broadcastBuf = nic.alloc(buf->size(), 0);
-          if (broadcastBuf == nullptr)
-            continue;
-          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
-          broadcastBuf->setSize(buf->size());
-          if (!this->notify(port, broadcastBuf)) {
-            nic.free(broadcastBuf);
-          }
-        }
-        nic.free(buf);
-      } else if (!this->notify(port, buf)) {
-        nic.free(buf);
-      }
-    };
-
-    if (pkt->header()->origin.getSysID() == _sysID) {
-      handlePacket(_smnic, buf, pkt);
-    } else {
-      handlePacket(_rsnic, buf, pkt);
-    }
-  }
-
+  protected:
   void fillBuffer(Buffer *buf, Address &from, Address &to, Control &ctrl,
                   void *data = nullptr, unsigned int size = 0) {
     // Estrutura do frame ethernet todo:
@@ -404,4 +341,4 @@ private:
   SyncEngineP _sync_engine;
 };
 
-#endif // PROTOCOL_HH
+#endif // PROTOCOL_COMMOM_HH
