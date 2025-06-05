@@ -2,6 +2,7 @@
 #define PROTOCOL_HH
 
 #include "protocol_commom.hh"
+#include "key_keeper.hh"
 
 template <typename SocketNIC, typename SharedMemNIC>
 class Protocol : public ProtocolCommom<SocketNIC, SharedMemNIC> {
@@ -67,8 +68,15 @@ protected:
         break;
       }
 
+      if (pkt->header()->ctrl.getType() == Control::Type::MAC) {
+        // TODO Desempacotar chaves do Packet e preencher variavel keys
+        std::vector<MacKeyEntry> keys;
+        _key_keeper.setKeys(keys);
+      }
+
       if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
-          pkt->header()->ctrl.getType() == Control::Type::PTP) {
+          pkt->header()->ctrl.getType() == Control::Type::PTP ||
+          pkt->header()->ctrl.getType() == Control::Type::MAC) {
         Base::free(buf);
         return;
       }
@@ -101,6 +109,8 @@ protected:
       handlePacket(Base::_rsnic, buf, pkt);
     }
   }
+private:
+  KeyKeeper _key_keeper;
 };
 
 #endif // PROTOCOL_HH

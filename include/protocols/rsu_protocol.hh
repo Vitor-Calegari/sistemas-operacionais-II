@@ -2,9 +2,10 @@
 #define TOWER_PROTOCOL_HH
 
 #include "protocol_commom.hh"
+#include "rsu_engine.hh"
 
 template <typename SocketNIC, typename SharedMemNIC>
-class TowerProtocol : public ProtocolCommom<SocketNIC, SharedMemNIC> {
+class RSUProtocol : public ProtocolCommom<SocketNIC, SharedMemNIC> {
 public:
   using Base = ProtocolCommom<SocketNIC, SharedMemNIC>;
   using Packet = Base::Packet;
@@ -13,25 +14,26 @@ public:
   using Port = Base::Port;
   using SyncEngineP = Base::SyncEngineP;
   using Buffer = Base::Buffer;
+  using RSUEngine = RSUEngine<RSUProtocol<SocketNIC, SharedMemNIC>>;
 
 public:
-  static TowerProtocol &getInstance(const char *interface_name, SysID sysID) {
-    static TowerProtocol instance(interface_name, sysID);
+  static RSUProtocol &getInstance(const char *interface_name, SysID sysID) {
+    static RSUProtocol instance(interface_name, sysID);
 
     return instance;
   }
 
-  TowerProtocol(TowerProtocol const &) = delete;
-  void operator=(TowerProtocol const &) = delete;
+  RSUProtocol(RSUProtocol const &) = delete;
+  void operator=(RSUProtocol const &) = delete;
 
-  ~TowerProtocol() {
+  ~RSUProtocol() {
   }
 
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  TowerProtocol(const char *interface_name, SysID sysID)
-      : Base(interface_name, sysID) {
+  RSUProtocol(const char *interface_name, SysID sysID)
+      : Base(interface_name, sysID), _crypto_engine(this) {
   }
 
   // Método update: chamado pela NIC quando um frame é recebido.
@@ -64,25 +66,6 @@ protected:
       case SyncEngineP::Action::SEND_DELAY_RESP:
         Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0,
                    recv_timestamp);
-        break;
-      }
-
-      // TODO setar parametros corretos
-      int crypto_action = _crypto_engine.handleMAC(...);
-
-      Address myaddr = Base::getAddr();
-      
-      switch (crypto_action) {
-      case CryptoEngineP::Action::DO_NOTHING:
-        break;
-      case CryptoEngineP::Action::REPLY:
-        // Obter chaves MAC das torres adjacentes
-        // Obter chave publica do carro
-        // Encriptar chaves MAC com a chave publica do carro
-        // Assinar a mensagem com a chave privada da torre
-        // 
-        Control ctrl(Control::Type::MAC);
-        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
         break;
       }
 
@@ -121,7 +104,7 @@ protected:
     // }
   }
 private:
-  CryptoEngineP _crypto_engine;
+  RSUEngine _crypto_engine;
 };
 
 #endif // TOWER_PROTOCOL_HH
