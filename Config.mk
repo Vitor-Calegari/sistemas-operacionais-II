@@ -15,4 +15,4 @@ BIN_DIR = bin
 
 CXX = g++
 CXXFLAGS = -g -std=c++20 -Wall -Wextra -Wpedantic -Werror
-LDFLAGS = -lm -lpthread
+LDFLAGS = -lm -lpthread -lssl -lcrypto
