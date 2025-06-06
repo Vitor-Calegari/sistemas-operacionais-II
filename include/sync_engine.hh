@@ -11,6 +11,7 @@
 #include <set>
 #include <sys/types.h>
 #include <thread>
+#include <unordered_map>
 
 #if defined(DEBUG_SYNC) || defined(DEBUG_TIMESTAMP)
 #include "utils.hh"
@@ -46,27 +47,25 @@ public:
   typedef pid_t SysID;
   typedef typename Protocol::Address Address;
   static constexpr auto ANNOUNCE = Control::Type::ANNOUNCE;
-  static constexpr auto PTP = Control::Type::PTP;
-
-  enum State { WAITING_DELAY = 0, WAITING_SYNC = 1 };
-
-  enum Action { DO_NOTHING = 0, SEND_DELAY_REQ = 1, SEND_DELAY_RESP = 2 };
+  static constexpr auto DELAY_RESP = Control::Type::DELAY_RESP;
+  static constexpr auto LATE_SYNC = Control::Type::LATE_SYNC;
 
   static constexpr int HALF_LIFE = 0.45e6;
 
 public:
-  SyncEngine(Protocol *prot)
-      : _protocol(prot), _iamleader(false), _leader(-1),
-        _announce_period(HALF_LIFE), _announce_thread_running(false),
-        _leader_period(HALF_LIFE), _leader_thread_running(false), _clock(0),
-        _synced(false), _announce_iteration(0), _broadcast_already_sent(false) {
-    startAnnounceThread();
-    startLeaderThread();
+  SyncEngine(Protocol *prot, bool isRSU)
+      : _protocol(prot), _announce_period(HALF_LIFE),
+        _announce_thread_running(false), _clock(0), _synced(false),
+        _announce_iteration(0), _broadcast_already_sent(false), _isRSU(isRSU) {
+    if (!_isRSU) {
+      startAnnounceThread();
+    }
   }
 
   ~SyncEngine() {
-    stopAnnounceThread();
-    stopLeaderThread();
+    if (!_isRSU) {
+      stopAnnounceThread();
+    }
   }
 
   // Função para lidar com a lógica do PTP. Cuida da logica do master,
@@ -74,51 +73,43 @@ public:
   // return: int.
   // 0: announce ou delay, não fazer nada.
   // 1: sync ou delay_req, responder
-  Action handlePTP(int64_t recv_timestamp, int64_t msg_timestamp,
-                   Address origin_addr, Control::Type type) {
-    Action ret = Action::DO_NOTHING;
-    addSysID(origin_addr.getSysID());
-
-    // Se for PTP e não sou lider
-    if (type == PTP && !_iamleader) {    // Slave
-      if (origin_addr != _master_addr) { // Sync de um lider diferente
-        // Anota tempos do PTP
-        _master_addr = origin_addr;
-        _sync_t = msg_timestamp;
-        _recvd_sync_t = recv_timestamp;
+  void handlePTP(int64_t recv_timestamp, int64_t msg_timestamp,
+                 Address origin_addr, Control::Type type,
+                 int64_t timestamp_related_to) {
+    if (type == DELAY_RESP) { // delay_resp
+      if (origin_addr != _master_addr) { // delay_resp de uma RSU diferente
+        // Anota delay_req_t e delay_resp_t
+        _map_delay_req_delay_resp_t[timestamp_related_to] = msg_timestamp;
         // Reset State Machine
-        _state = State::WAITING_DELAY;
-        ret = Action::SEND_DELAY_REQ;
+        _master_addr = origin_addr;
       } else {
-        if (_state == State::WAITING_SYNC) { // Sync
-          // Anota tempos do PTP
-          _sync_t = msg_timestamp;
-          _recvd_sync_t = recv_timestamp;
-          _state = State::WAITING_DELAY;
-          ret = Action::SEND_DELAY_REQ;
-        } else if (_state == State::WAITING_DELAY) { // Delay
-          // Calcula novo offset.
-          _leader_recvd_delay_req_t = msg_timestamp;
-
-          int64_t delay = ((_leader_recvd_delay_req_t - _delay_req_t) +
-                           (_recvd_sync_t - _sync_t)) /
-                          2;
-
-          int64_t offset = (_recvd_sync_t - _sync_t) - delay;
-
-          _clock.setOffset(offset);
-          _state = State::WAITING_SYNC;
-          _synced = true;
-          _announce_iteration = 0;
-        }
+        // Anota delay_req_t e delay_resp_t
+        _map_delay_req_delay_resp_t[timestamp_related_to] = msg_timestamp;
       }
-      // Se for PTP e sou lider
-    } else if (type == PTP && _iamleader) { // Master
-      // Lider não tem maquina de estados
-      ret = Action::SEND_DELAY_RESP;
-    }
+    } else if (type == LATE_SYNC) { // Late Sync
+      // Caso eu não tenha recebido Delay_Resp antes de ter recebido o late sync, retorna
+      if (_map_delay_req_delay_resp_t.find(timestamp_related_to) == _map_delay_req_delay_resp_t.end()) {
+        return;
+      }
+      
+      // Tempo que lider enviou o Late Sync
+      int64_t t1 = msg_timestamp;
+      // Tempo que slave recebeu Late Sync
+      int64_t t2 = recv_timestamp;
+      // Tempo em que slave requisitou Delay
+      int64_t t3 = timestamp_related_to;
+      // Tempo em que Lider recebeu a requisiçao do Delay
+      int64_t t4 = _map_delay_req_delay_resp_t[timestamp_related_to];
 
-    return ret;
+      // Calcula novo offset.
+      int64_t delay = ((t4 - t3) + (t2 - t1)) / 2;
+      int64_t offset = (t2 - t1) - delay;
+
+      _clock.setOffset(offset);
+      _synced = true;
+      _announce_iteration = 0;
+    }
+    return;
   }
 
   int64_t getTimestamp() const {
@@ -132,20 +123,8 @@ public:
     _broadcast_already_sent = already_sent;
   }
 
-  void setDelayReqSendT(int64_t time) {
-    _delay_req_t = time;
-  }
-
   bool getSynced() {
-    return _synced;
-  }
-
-  bool amILeader() const {
-    return _iamleader;
-  }
-
-  State getCurState() const {
-    return _state;
+    return _synced || _isRSU;
   }
 
   int64_t getClockOffset() const {
@@ -161,7 +140,7 @@ private:
     _announce_thread_running = true;
     _announce_thread = std::thread([this]() {
       while (_announce_thread_running) {
-        if (!_iamleader && _announce_iteration == 1) {
+        if (_announce_iteration == 1) {
           _synced = false;
         }
 
@@ -182,57 +161,9 @@ private:
         if (!_announce_thread_running)
           break;
 
-        // Só elege se ter alguém na rede
-        if (_known_sysid.size() != 0) {
-          SysID last_leader = _leader;
-          _leader = elect();
-          _iamleader = _leader == _protocol->getSysID();
-          clearKnownSysID();
-          if (_iamleader) { // Se eu for lider, me considero sincronizado
-            _synced = true;
-          } else if (last_leader !=
-                     _leader) { // Se mudou o lider, me considero desincronizado
-            _synced = false;
-          }
-#ifdef DEBUG_SYNC
-          if (_iamleader) {
-            std::cout << get_timestamp() << " I’m Leader " << getpid()
-                      << std::endl;
-          }
-#endif
-#ifdef DEBUG_TIMESTAMP
-          if (_iamleader) {
-            std::cout << get_timestamp() << " I’m Leader " << getpid() << " my offset is " << getClockOffset() << std::endl;
-            if (getClockOffset() != 0) {
-              call();
-            }
-          }
-#endif
-#ifdef DEBUG_TIMESTAMP
-          if (!_iamleader) {
-            std::cout << get_timestamp() << " I’m Slave " << getpid() << " my leader is " << _leader
-            << " My offset is " << getClockOffset() << std::endl;
-
-          }
-#endif
-          // Se é lider, começa a mandar syncs periodicos
-          // se não é, volta a esperar
-          _leader_cv.notify_one();
-        } else {
-          _iamleader = false;
-          _synced = false;
-#ifdef DEBUG_SYNC
-          std::cout << get_timestamp() << " No one around " << getpid()
-                    << ": No election." << std::endl;
-#endif
-        }
         _announce_iteration = (_announce_iteration + 1) % 2;
       }
     });
-  }
-
-  void call() {
-    std::cout << 111 << std::endl;
   }
 
   void stopAnnounceThread() {
@@ -252,116 +183,25 @@ private:
 #endif
   }
 
-  void startLeaderThread() {
-#ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << " Leader thread started " << getpid()
-              << std::endl;
-#endif
-    _leader_thread_running = true;
-    _leader_thread = std::thread([this]() {
-      while (_leader_thread_running) {
-        // Primeira iteração sempre bloqueia. Enquanto eu for lider, não
-        // bloqueia.
-        std::unique_lock<std::mutex> lock(_leader_mutex);
-        _leader_cv.wait(
-            lock, [this]() { return _iamleader || !_leader_thread_running; });
-
-        if (!_leader_thread_running)
-          break;
-
-        auto next_wakeup_t = std::chrono::steady_clock::now() +
-                             std::chrono::microseconds(_leader_period);
-
-        // Envia Sync Broadcast
-        Address myaddr = _protocol->getAddr();
-        Address broadcast = _protocol->getBroadcastAddr();
-        Control ctrl(PTP);
-        _protocol->send(myaddr, broadcast, ctrl);
-
-        std::this_thread::sleep_until(next_wakeup_t);
-      }
-    });
-  }
-
-  void stopLeaderThread() {
-#ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << " Stopping Leader thread " << getpid()
-              << std::endl;
-#endif
-    if (_leader_thread_running) {
-      _leader_thread_running = false;
-      _leader_cv.notify_one();
-      if (_leader_thread.joinable()) {
-        _leader_thread.join();
-      }
-    }
-#ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << " Leader thread stopped " << getpid()
-              << std::endl;
-#endif
-  }
-
-  SysID elect() {
-    std::lock_guard<std::mutex> lock(_strata_mutex);
-
-    auto mySysID = _protocol->getSysID();
-    auto min_known_sysid =
-        *std::min_element(_known_sysid.cbegin(), _known_sysid.cend());
-    auto elected = std::min(mySysID, min_known_sysid);
-
-#ifdef DEBUG_SYNC
-    std::cout << get_timestamp() << ' ' << elected
-              << " was elected as leader by " << getpid() << '.' << std::endl;
-#endif
-
-    return elected;
-  }
-
-  void addSysID(SysID SysID) {
-    std::lock_guard<std::mutex> lock(_strata_mutex);
-    _known_sysid.insert(SysID);
-  }
-
-  void clearKnownSysID() {
-    std::lock_guard<std::mutex> lock(_strata_mutex);
-    _known_sysid.clear();
-  }
-
 private:
   Protocol *_protocol = nullptr;
-
-  // SysID ----------------------------------------
-  std::atomic<bool> _iamleader = false;
-  std::set<SysID> _known_sysid{};
-  std::mutex _strata_mutex;
-  SysID _leader = -1;
-
   // Need Sync Thread -----------------------------
   std::thread _announce_thread;
   int64_t _announce_period = HALF_LIFE;
   std::atomic<bool> _announce_thread_running = false;
 
-  // Leader Thread --------------------------------
-  std::thread _leader_thread;
-  int64_t _leader_period = HALF_LIFE;
-  std::atomic<bool> _leader_thread_running = false;
-  std::condition_variable _leader_cv;
-  std::mutex _leader_mutex;
-
   // PTP ------------------------------------------
-  int64_t _sync_t{};
-  int64_t _recvd_sync_t{};
-  int64_t _delay_req_t{};
-  int64_t _leader_recvd_delay_req_t{};
+  // Map que relaciona tempos de delay_req(chave) e tempos de delay_resp(valor)
+  std::unordered_map<int64_t, int64_t> _map_delay_req_delay_resp_t;
 
   Address _master_addr;
-  State _state{};
   SimulatedClock _clock;
   std::atomic<bool> _synced = false;
   int _announce_iteration{};
 
   // Optimizations --------------------------------
   std::atomic<bool> _broadcast_already_sent = false;
+  bool _isRSU;
 };
 
 #endif

@@ -15,11 +15,11 @@ public:
   using SyncEngineP = Base::SyncEngineP;
   using Buffer = Base::Buffer;
   using RSUEngine = RSUEngine<RSUProtocol<SocketNIC, SharedMemNIC>>;
+  using Coord = RSUEngine::Coord;
 
 public:
-  static RSUProtocol &getInstance(const char *interface_name, SysID sysID) {
-    static RSUProtocol instance(interface_name, sysID);
-
+  static RSUProtocol &getInstance(const char *interface_name, SysID sysID, SharedData * shared_data, Coord coord, int id) {
+    static RSUProtocol instance(interface_name, sysID, shared_data, coord, id);
     return instance;
   }
 
@@ -32,8 +32,8 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  RSUProtocol(const char *interface_name, SysID sysID)
-      : Base(interface_name, sysID), _crypto_engine(this) {
+  RSUProtocol(const char *interface_name, SysID sysID, SharedData * shared_data, Coord coord, int id)
+      : Base(interface_name, sysID, true), _crypto_engine(this, shared_data, coord, id) {
   }
 
   // Método update: chamado pela NIC quando um frame é recebido.
@@ -49,62 +49,63 @@ protected:
       return;
     }
 
+    if (pkt->header()->ctrl.getType() == Control::Type::DELAY_RESP ||
+        pkt->header()->ctrl.getType() == Control::Type::LATE_SYNC ||
+        pkt->header()->ctrl.getType() == Control::Type::MAC) {
+      Base::free(buf);
+      return;
+    }
+
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != Base::_sysID) {
-      int ptp_action = Base::_sync_engine.handlePTP(
-          recv_timestamp, pkt->header()->timestamp, pkt->header()->origin,
-          pkt->header()->ctrl.getType());
-
-      Address myaddr = Base::getAddr();
-      Control ctrl(Control::Type::PTP);
-      switch (ptp_action) {
-      case SyncEngineP::Action::DO_NOTHING:
-        break;
-      case SyncEngineP::Action::SEND_DELAY_REQ:
-        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
-        break;
-      case SyncEngineP::Action::SEND_DELAY_RESP:
-        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0,
-                   recv_timestamp);
-        break;
+      // Se não está sincronizado, enviar mensagens para carro sincronizar
+      if (!pkt->header()->ctrl.isSynchronized()) {
+        Address myaddr = Base::getAddr();
+        Control ctrl(Control::Type::DELAY_RESP);
+        int64_t timestamp_relate_to = pkt->header()->timestamp;
+        // Delay Resp
+        Base::send(myaddr, pkt->header()->origin, ctrl, (void *)timestamp_relate_to, 8,
+                    recv_timestamp);
+        // Late Sync
+        ctrl.setType(Control::Type::LATE_SYNC);
+        Base::send(myaddr, pkt->header()->origin, ctrl, (void *)timestamp_relate_to, 8);
       }
 
-      if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
-          pkt->header()->ctrl.getType() == Control::Type::PTP) {
+      if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
         Base::free(buf);
         return;
       }
     }
 
-    // auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
-    //   Port port = pkt->header()->dest.getPort();
-    //   if (pkt->header()->dest.getPort() == Base::BROADCAST) {
-    //     std::vector<Port> allComPorts = Base::Observed::getObservsCond();
-    //     Buffer *broadcastBuf;
-    //     for (auto port : allComPorts) {
-    //       broadcastBuf = nic.alloc(buf->size(), 0);
-    //       if (broadcastBuf == nullptr)
-    //         continue;
-    //       std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
-    //       broadcastBuf->setSize(buf->size());
-    //       if (!this->notify(port, broadcastBuf)) {
-    //         nic.free(broadcastBuf);
-    //       }
-    //     }
-    //     nic.free(buf);
-    //   } else if (!this->notify(port, buf)) {
-    //     nic.free(buf);
-    //   }
-    // };
+    auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
+      Port port = pkt->header()->dest.getPort();
+      if (pkt->header()->dest.getPort() == Base::BROADCAST) {
+        std::vector<Port> allComPorts = Base::Observed::getObservsCond();
+        Buffer *broadcastBuf;
+        for (auto port : allComPorts) {
+          broadcastBuf = nic.alloc(buf->size(), 0);
+          if (broadcastBuf == nullptr)
+            continue;
+          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+          broadcastBuf->setSize(buf->size());
+          if (!this->notify(port, broadcastBuf)) {
+            nic.free(broadcastBuf);
+          }
+        }
+        nic.free(buf);
+      } else if (!this->notify(port, buf)) {
+        nic.free(buf);
+      }
+    };
 
-    // if (pkt->header()->origin.getSysID() == Base::_sysID) {
-    //   handlePacket(Base::_smnic, buf, pkt);
-    // } else {
-    //   handlePacket(Base::_rsnic, buf, pkt);
-    // }
+    if (pkt->header()->origin.getSysID() == Base::_sysID) {
+      handlePacket(Base::_smnic, buf, pkt);
+    } else {
+      handlePacket(Base::_rsnic, buf, pkt);
+    }
   }
 private:
   RSUEngine _crypto_engine;
 };
 
-#endif // TOWER_PROTOCOL_HH
+#endif // RSU_PROTOCOL_HH

@@ -33,7 +33,7 @@ public:
   static constexpr int renew_mac_int = 3;
 
 public:
-  RSUEngine(SharedData * shared_data, Coord coord, int id) : _coord(coord), _id(id), _shared_data(shared_data) {
+  RSUEngine(Protocol * protocol, SharedData * shared_data, Coord coord, int id) : _protocol(protocol), _coord(coord), _id(id), _shared_data(shared_data) {
     startKeySenderThread();
   }
 

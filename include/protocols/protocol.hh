@@ -32,7 +32,7 @@ protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
   Protocol(const char *interface_name, SysID sysID)
-      : Base(interface_name, sysID) {
+      : Base(interface_name, sysID, false) {
   }
 
   // Método update: chamado pela NIC quando um frame é recebido.
@@ -50,22 +50,11 @@ protected:
 
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != Base::_sysID) {
-      int action = Base::_sync_engine.handlePTP(
-          recv_timestamp, pkt->header()->timestamp, pkt->header()->origin,
-          pkt->header()->ctrl.getType());
-
-      Address myaddr = Base::getAddr();
-      Control ctrl(Control::Type::PTP);
-      switch (action) {
-      case SyncEngineP::Action::DO_NOTHING:
-        break;
-      case SyncEngineP::Action::SEND_DELAY_REQ:
-        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0, 0, true);
-        break;
-      case SyncEngineP::Action::SEND_DELAY_RESP:
-        Base::send(myaddr, pkt->header()->origin, ctrl, nullptr, 0,
-                   recv_timestamp);
-        break;
+      if (pkt->header()->ctrl.getType() == Control::Type::DELAY_RESP ||
+          pkt->header()->ctrl.getType() == Control::Type::LATE_SYNC) {
+        Base::_sync_engine.handlePTP(
+            recv_timestamp, pkt->header()->timestamp, pkt->header()->origin,
+            pkt->header()->ctrl.getType(), *pkt->template data<int64_t>());
       }
 
       if (pkt->header()->ctrl.getType() == Control::Type::MAC) {
@@ -75,7 +64,8 @@ protected:
       }
 
       if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
-          pkt->header()->ctrl.getType() == Control::Type::PTP ||
+          pkt->header()->ctrl.getType() == Control::Type::DELAY_RESP ||
+          pkt->header()->ctrl.getType() == Control::Type::LATE_SYNC ||
           pkt->header()->ctrl.getType() == Control::Type::MAC) {
         Base::free(buf);
         return;

@@ -121,9 +121,9 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  ProtocolCommom(const char *interface_name, SysID sysID)
+  ProtocolCommom(const char *interface_name, SysID sysID, bool isRSU)
       : _rsnic(interface_name), _smnic(interface_name), _sysID(sysID),
-        _sync_engine(this) {
+        _sync_engine(this, isRSU) {
     _rsnic.attach(this, PROTO);
     _smnic.attach(this, PROTO);
   }
@@ -178,8 +178,7 @@ public:
   // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, Control &ctrl, void *data = nullptr,
-           unsigned int size = 0, uint64_t recv_timestamp = 0,
-           bool should_mark_delay_req_t = false) {
+           unsigned int size = 0, uint64_t recv_timestamp = 0) {
     auto sendWithNIC = [&](auto &nic) -> int {
       Buffer *buf = nic.alloc(sizeof(Header) + size, 1);
       if (buf == nullptr)
@@ -190,11 +189,6 @@ public:
         buf->data()->template data<Packet>()->header()->timestamp =
             recv_timestamp;
       }
-
-      if (should_mark_delay_req_t) {
-        _sync_engine.setDelayReqSendT(
-            buf->data()->template data<Packet>()->header()->timestamp);
-      }
       return nic.send(buf);
     };
 
@@ -204,7 +198,9 @@ public:
       int ret_rsnic = -1;
       _sync_engine.setBroadcastAlreadySent(true);
       if (ctrl.getType() == Control::Type::ANNOUNCE ||
-          ctrl.getType() == Control::Type::PTP) {
+          ctrl.getType() == Control::Type::DELAY_RESP ||
+          ctrl.getType() == Control::Type::LATE_SYNC ||
+          ctrl.getType() == Control::Type::MAC) {
         ret_rsnic = sendWithNIC(_rsnic);
       } else {
         ret_rsnic = sendWithNIC(_rsnic);
