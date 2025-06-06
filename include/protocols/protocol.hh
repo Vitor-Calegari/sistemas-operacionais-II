@@ -2,6 +2,7 @@
 #define PROTOCOL_HH
 
 #include "key_keeper.hh"
+#include "mac.hh"
 #include "mac_structs.hh"
 #include "protocol_commom.hh"
 #include <bit>
@@ -45,6 +46,11 @@ protected:
               Buffer *buf) {
     uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
     Packet *pkt = buf->data()->template data<Packet>();
+    if (pkt->header()->tag != MAC::Tag{}) {
+      // TODO: Pegar a chave do quadrante do remetente da mensagem e verificar
+      // MAC.
+      // MAC::verify(...)
+    }
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != Base::_sysID && sysID != Base::BROADCAST_SID) {
       Base::_rsnic.free(buf);
@@ -116,6 +122,33 @@ protected:
     } else {
       handlePacket(Base::_rsnic, buf, pkt);
     }
+  }
+
+protected:
+  void fillBuffer(Buffer *buf, Address &from, Address &to, Control &ctrl,
+                  void *data = nullptr, unsigned int size = 0) {
+    // Estrutura do frame ethernet todo:
+    // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
+    buf->data()->src = from.getPAddr();
+    buf->data()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
+    buf->data()->prot = Base::PROTO;
+    // Payload do Ethernet::Frame é o Protocol::Packet
+    Packet *pkt = buf->data()->template data<Packet>();
+    pkt->header()->origin = from;
+    pkt->header()->dest = to;
+    pkt->header()->ctrl = ctrl;
+    pkt->header()->timestamp = Base::_sync_engine.getTimestamp();
+    pkt->header()->payloadSize = size;
+    buf->setSize(sizeof(Base::NICHeader) + sizeof(Base::Header) + size);
+    if (data != nullptr) {
+      std::memcpy(pkt->template data<char>(), data, size);
+    }
+    // TODO Conhecer quadrante atual para requisitar chave secreta de KeyKeeper.
+    MAC::Key key{};
+    auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
+    std::vector<std::byte> msg_vec(msg.begin(), msg.end());
+    auto tag = MAC::compute(key, msg_vec);
+    pkt->header()->tag = tag;
   }
 
 private:
