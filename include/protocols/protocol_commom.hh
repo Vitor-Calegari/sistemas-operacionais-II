@@ -4,6 +4,7 @@
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
 #include "control.hh"
+#include "mac.hh"
 #include "sync_engine.hh"
 #include <cstring>
 #include <netinet/in.h>
@@ -77,13 +78,14 @@ public:
   public:
     Header()
         : origin(Address()), dest(Address()), ctrl(0), timestamp(0),
-          payloadSize(0) {
+          payloadSize(0), tag{} {
     }
     Address origin;
     Address dest;
     Control ctrl;
     uint64_t timestamp;
     std::size_t payloadSize;
+    MAC::Tag tag;
   } __attribute__((packed));
 
   // MTU disponível para o payload: espaço total do buffer menos o tamanho do
@@ -249,10 +251,10 @@ public:
   }
 
   virtual void update([[maybe_unused]] typename SocketNIC::Observed *obs,
-              [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-              [[maybe_unused]] Buffer *buf) {};
+                      [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
+                      [[maybe_unused]] Buffer *buf) {};
 
-  protected:
+protected:
   void fillBuffer(Buffer *buf, Address &from, Address &to, Control &ctrl,
                   void *data = nullptr, unsigned int size = 0) {
     // Estrutura do frame ethernet todo:
