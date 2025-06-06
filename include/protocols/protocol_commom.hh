@@ -221,13 +221,13 @@ public:
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
   int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
-              uint64_t *timestamp, void *data, unsigned int size) {
+              uint64_t *timestamp, MAC::Tag *tag, void *data, unsigned int size) {
     SysID originSysID = peekOriginSysID(buf);
-    auto receiveFrom = [this, from, to, ctrl, timestamp, data,
+    auto receiveFrom = [this, from, to, ctrl, timestamp, tag, data,
                         size](auto &nic, Buffer *buf) {
       Packet pkt = Packet();
       nic.receive(buf, &pkt, MTU + sizeof(Header));
-      int bytes = fillRecv(pkt, from, to, ctrl, timestamp, data, size);
+      int bytes = fillRecv(pkt, from, to, ctrl, timestamp, tag, data, size);
       nic.free(buf);
       return bytes;
     };
@@ -321,12 +321,13 @@ protected:
   }
 
   int fillRecv(Packet &pkt, Address *from, Address *to, Control *ctrl,
-               uint64_t *timestamp, void *data, unsigned int size) {
+               uint64_t *timestamp, MAC::Tag *tag, void *data, unsigned int size) {
     *from = pkt.header()->origin;
     *to = pkt.header()->dest;
     *ctrl = pkt.header()->ctrl;
     *timestamp = pkt.header()->timestamp;
     unsigned int message_data_size = pkt.header()->payloadSize;
+    std::memcpy(tag, &pkt.header()->tag, tag->size());
     unsigned int actual_received_bytes =
         size > message_data_size ? message_data_size : size;
     std::memcpy(data, pkt.template data<char>(), actual_received_bytes);

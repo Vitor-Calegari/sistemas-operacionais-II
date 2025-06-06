@@ -59,6 +59,10 @@ public:
     return _payload_size;
   }
 
+  MAC::Tag *tag() {
+    return &_tag;
+  }
+
   std::byte *data() const {
     return _data;
   }
@@ -74,6 +78,7 @@ private:
   Control _ctrl;
   uint64_t _timestamp;
   std::size_t _payload_size;
+  MAC::Tag _tag{};
   std::byte *_data;
 } __attribute__((packed));
 
