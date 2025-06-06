@@ -1,6 +1,6 @@
 #define DEBUG_TIMESTAMP
+#include "rsu_protocol.hh"
 #include "car.hh"
-#undef DEBUG_TIMESTAMP
 
 #include "communicator.hh"
 #include "cond.hh"
@@ -12,7 +12,6 @@
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#include "rsu_protocol.hh"
 #include "mac_structs.hh"
 #include <csignal>
 #include <cstddef>
@@ -22,6 +21,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+#undef DEBUG_TIMESTAMP
 
 constexpr int NUM_MESSAGES = 2;
 constexpr int PERIOD_SUBCRIBER = 5e6;
@@ -52,6 +52,16 @@ int main() {
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   sem_init(sub_ready, 1, 0); // Inicialmente bloqueado
 
+  sem_t *rsu_sem =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  sem_init(rsu_sem, 1, 0); // Inicialmente bloqueado
+
+  sem_t *shared_mem_sem =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  sem_init(shared_mem_sem, 1, 0); // Inicialmente bloqueado
+
   // Cria e configura a memória compartilhada
   int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
   ftruncate(shm_fd, sizeof(SharedData));
@@ -73,9 +83,18 @@ int main() {
   shared_data->counter = 0;
   shared_data->entries_size_x = 1;
   shared_data->entries_size_y = 1;
-  shared_data->choosen_rsu = getpid();
+  
+  auto ret_rsu = fork();
 
-  RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(0,0), 0);
+  if (!ret_rsu) {
+    sem_wait(shared_mem_sem);
+    [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(0,0), 0);
+    sem_wait(rsu_sem);
+    return 0;
+  } else {
+    shared_data->choosen_rsu = ret_rsu;
+    sem_post(shared_mem_sem);
+  }
 
   constexpr SmartUnit Farad(
     (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
@@ -96,48 +115,56 @@ int main() {
     }
   }
 
-  Car car = Car();
+  if (subscriber || publisher) {
 
-  if (publisher) {
-    Transducer<Farad> transducer(0, 255);
+    Car car = Car();
 
-    auto comp = car.create_component(10);
-    auto smart_data = comp.register_publisher(
-        &transducer, Condition(true, Farad.get_int_unit()));
+    if (publisher) {
+      Transducer<Farad> transducer(0, 255);
 
-    sem_post(pub_ready);
-    sem_wait(sub_ready);
+      auto comp = car.create_component(10);
+      auto smart_data = comp.register_publisher(
+          &transducer, Condition(true, Farad.get_int_unit()));
 
-    std::cout << "Terminou (publisher)" << std::endl;
-  } else if (subscriber) {
-    sem_wait(pub_ready);
+      sem_post(pub_ready);
+      sem_wait(sub_ready);
 
-    auto comp = car.create_component(10);
-    auto smart_data = comp.subscribe(
-        Condition(false, Farad.get_int_unit(), PERIOD_SUBCRIBER));
+      std::cout << "Terminou (publisher)" << std::endl;
+    } else if (subscriber) {
+      sem_wait(pub_ready);
 
-    for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
-      Message message =
-          Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      Farad.get_value_size_bytes());
-        message.getControl()->setType(Control::Type::PUBLISH);
-      smart_data.receive(&message);
-      std::cout << "Received (" << std::dec << i_m << "): ";
-      for (size_t i = 0; i < message.size(); i++) {
-        std::cout << std::hex << static_cast<int>(message.data()[i]) << std::dec << " ";
+      auto comp = car.create_component(10);
+      auto smart_data = comp.subscribe(
+          Condition(false, Farad.get_int_unit(), PERIOD_SUBCRIBER));
+
+      for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
+        Message message =
+            Message(sizeof(SmartData<Communicator, Condition>::Header) +
+                        Farad.get_value_size_bytes());
+          message.getControl()->setType(Control::Type::PUBLISH);
+        smart_data.receive(&message);
+        std::cout << "Received (" << std::dec << i_m << "): ";
+        for (size_t i = 0; i < message.size(); i++) {
+          std::cout << std::hex << static_cast<int>(message.data()[i]) << std::dec << " ";
+        }
+        std::cout << std::endl;
       }
-      std::cout << std::endl;
-    }
 
-    sem_post(sub_ready);
-    std::cout << "Terminou (subscriber)" << std::endl;
+      sem_post(sub_ready);
+      std::cout << "Terminou (subscriber)" << std::endl;
+    }
+    return 0;
   }
 
   int status;
   for (int i = 0; i < 2; i++) {
     wait(&status);
   }
-  
+  sem_post(rsu_sem);
+  for (int i = 0; i < 1; i++) {
+    wait(&status);
+  }
+
   pthread_mutex_destroy(&shared_data->mutex);
   pthread_barrier_destroy(&shared_data->barrier);
   munmap(shared_data, sizeof(SharedData));

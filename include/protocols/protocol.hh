@@ -1,8 +1,11 @@
 #ifndef PROTOCOL_HH
 #define PROTOCOL_HH
 
-#include "protocol_commom.hh"
 #include "key_keeper.hh"
+#include "mac_structs.hh"
+#include "protocol_commom.hh"
+#include <bit>
+#include <cstddef>
 
 template <typename SocketNIC, typename SharedMemNIC>
 class Protocol : public ProtocolCommom<SocketNIC, SharedMemNIC> {
@@ -58,8 +61,23 @@ protected:
       }
 
       if (pkt->header()->ctrl.getType() == Control::Type::MAC) {
-        // TODO Desempacotar chaves do Packet e preencher variavel keys
         std::vector<MacKeyEntry> keys;
+
+        auto data = pkt->template data<std::byte>();
+        for (int i = 0; i < 9; ++i) {
+          std::array<std::byte, sizeof(MacKeyEntry)> key_bytes{};
+
+          bool is_fully_zeroed = true;
+          for (size_t j = 0; j < key_bytes.size(); ++j) {
+            key_bytes[j] = data[sizeof(MacKeyEntry) * i + j];
+            is_fully_zeroed |= (key_bytes[j] != std::byte(0));
+          }
+
+          if (!is_fully_zeroed) {
+            keys.push_back(std::bit_cast<MacKeyEntry>(key_bytes));
+          }
+        }
+
         _key_keeper.setKeys(keys);
       }
 
@@ -99,6 +117,7 @@ protected:
       handlePacket(Base::_rsnic, buf, pkt);
     }
   }
+
 private:
   KeyKeeper _key_keeper;
 };

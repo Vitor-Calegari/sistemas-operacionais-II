@@ -1,23 +1,26 @@
 #ifndef MAC_STRUCTS_HH
 #define MAC_STRUCTS_HH
 
+#include "mac.hh"
 #include <pthread.h>
 
-static const int MAX_ENTRIES = 10;
+#ifndef MAX_ENTRIES
+#define MAX_ENTRIES 256
+#endif
 
 struct MacKeyEntry {
-    int id;
-    char bytes[32];  // TODO ajustar numero de bytes
-  };
-  
+  int id;
+  MAC::Key key;
+};
+
 struct SharedData {
-    pthread_mutex_t mutex;
-    pthread_barrier_t barrier;
-    int counter;
-    MacKeyEntry entries[MAX_ENTRIES];
-    int entries_size_x;
-    int entries_size_y;
-    pid_t choosen_rsu;
+  pthread_mutex_t mutex;
+  pthread_barrier_t barrier;
+  int counter;
+  MacKeyEntry entries[MAX_ENTRIES];
+  int entries_size_x;
+  int entries_size_y;
+  pid_t choosen_rsu;
 };
 
 #endif

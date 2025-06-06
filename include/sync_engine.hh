@@ -91,7 +91,7 @@ public:
       if (_map_delay_req_delay_resp_t.find(timestamp_related_to) == _map_delay_req_delay_resp_t.end()) {
         return;
       }
-      
+
       // Tempo que lider enviou o Late Sync
       int64_t t1 = msg_timestamp;
       // Tempo que slave recebeu Late Sync
@@ -107,7 +107,13 @@ public:
 
       _clock.setOffset(offset);
       _synced = true;
+      _announc_it_mtx.lock();
       _announce_iteration = 0;
+      _announc_it_mtx.unlock();
+      _map_delay_req_delay_resp_t.clear();
+#ifdef DEBUG_TIMESTAMP
+      std::cout << get_timestamp() << " I’m Car " << getpid() << " My offset is " << getClockOffset() << std::endl;
+#endif
     }
     return;
   }
@@ -140,9 +146,20 @@ private:
     _announce_thread_running = true;
     _announce_thread = std::thread([this]() {
       while (_announce_thread_running) {
+        _announc_it_mtx.lock();
         if (_announce_iteration == 1) {
           _synced = false;
         }
+
+#ifdef DEBUG_TIMESTAMP
+      if (!_synced) {
+        std::cout << get_timestamp() << " I’m Car " << getpid() << " " << _announce_iteration << " I need SYNC" << std::endl;
+      } else {
+        std::cout << get_timestamp() << " I’m Car " << getpid() << " " << _announce_iteration << " I dont need SYNC" << std::endl;
+      }
+#endif
+        _announce_iteration = (_announce_iteration + 1) % 2;
+        _announc_it_mtx.unlock();
 
         if (!_broadcast_already_sent) {
           // Anuncia que está na rede
@@ -160,8 +177,7 @@ private:
         std::this_thread::sleep_until(next_wakeup_t);
         if (!_announce_thread_running)
           break;
-
-        _announce_iteration = (_announce_iteration + 1) % 2;
+        
       }
     });
   }
@@ -197,6 +213,7 @@ private:
   Address _master_addr;
   SimulatedClock _clock;
   std::atomic<bool> _synced = false;
+  std::mutex _announc_it_mtx;
   int _announce_iteration{};
 
   // Optimizations --------------------------------

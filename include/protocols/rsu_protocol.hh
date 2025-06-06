@@ -14,8 +14,8 @@ public:
   using Port = Base::Port;
   using SyncEngineP = Base::SyncEngineP;
   using Buffer = Base::Buffer;
-  using RSUEngine = RSUEngine<RSUProtocol<SocketNIC, SharedMemNIC>>;
-  using Coord = RSUEngine::Coord;
+  using RSUEngineP = RSUEngine<RSUProtocol<SocketNIC, SharedMemNIC>>;
+  using Coord = RSUEngineP::Coord;
 
 public:
   static RSUProtocol &getInstance(const char *interface_name, SysID sysID, SharedData * shared_data, Coord coord, int id) {
@@ -44,6 +44,16 @@ protected:
     uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
     Packet *pkt = buf->data()->template data<Packet>();
     SysID sysID = pkt->header()->dest.getSysID();
+
+#ifdef DEBUG_TIMESTAMP
+    std::cout << get_timestamp() << " I’m RSU " << getpid() << " I received a";
+    if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
+      std::cout << " ANNOUNCE message " << std::endl;
+    } else {
+      std::cout << " OUTRO message " << std::endl;
+    }
+#endif
+
     if (sysID != Base::_sysID && sysID != Base::BROADCAST_SID) {
       Base::_rsnic.free(buf);
       return;
@@ -64,18 +74,23 @@ protected:
         Control ctrl(Control::Type::DELAY_RESP);
         int64_t timestamp_relate_to = pkt->header()->timestamp;
         // Delay Resp
-        Base::send(myaddr, pkt->header()->origin, ctrl, (void *)timestamp_relate_to, 8,
+        Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to, 8,
                     recv_timestamp);
         // Late Sync
         ctrl.setType(Control::Type::LATE_SYNC);
-        Base::send(myaddr, pkt->header()->origin, ctrl, (void *)timestamp_relate_to, 8);
+        Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to, 8);
       }
-
+#ifdef DEBUG_TIMESTAMP
+      else {
+        std::cout << get_timestamp() << " I’m RSU " << getpid() << " car already synced " << std::endl;
+      }
+#endif
       if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
         Base::free(buf);
         return;
       }
     }
+
 
     auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
       Port port = pkt->header()->dest.getPort();
@@ -105,7 +120,7 @@ protected:
     }
   }
 private:
-  RSUEngine _crypto_engine;
+  RSUEngineP _crypto_engine;
 };
 
 #endif // RSU_PROTOCOL_HH
