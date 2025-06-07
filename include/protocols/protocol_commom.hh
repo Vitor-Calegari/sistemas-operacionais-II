@@ -77,12 +77,14 @@ public:
   class Header {
   public:
     Header()
-        : origin(Address()), dest(Address()), ctrl(0), timestamp(0),
+        : origin(Address()), dest(Address()), ctrl(0), coord_x(0), coord_y(0), timestamp(0),
           payloadSize(0), tag{} {
     }
     Address origin;
     Address dest;
     Control ctrl;
+    double coord_x;
+    double coord_y;
     uint64_t timestamp;
     std::size_t payloadSize;
     MAC::Tag tag;
@@ -221,13 +223,15 @@ public:
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
   int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
-              uint64_t *timestamp, MAC::Tag *tag, void *data, unsigned int size) {
+              double *coord_x, double *_coord_y, uint64_t *timestamp,
+              MAC::Tag *tag, void *data, unsigned int size) {
     SysID originSysID = peekOriginSysID(buf);
-    auto receiveFrom = [this, from, to, ctrl, timestamp, tag, data,
-                        size](auto &nic, Buffer *buf) {
+    auto receiveFrom = [this, from, to, ctrl, coord_x, _coord_y, timestamp, tag,
+                        data, size](auto &nic, Buffer *buf) {
       Packet pkt = Packet();
       nic.receive(buf, &pkt, MTU + sizeof(Header));
-      int bytes = fillRecv(pkt, from, to, ctrl, timestamp, tag, data, size);
+      int bytes = fillRecv(pkt, from, to, ctrl, coord_x, _coord_y, timestamp,
+                           tag, data, size);
       nic.free(buf);
       return bytes;
     };
@@ -263,6 +267,9 @@ protected:
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
+    // TODO preencher coord_x e coord_y
+    // pkt->header()->coord_x = GET_COORD_X_FROM_LOCATOR
+    // pkt->header()->coord_y = GET_COORD_Y_FROM_LOCATOR
     pkt->header()->timestamp = _sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
@@ -321,10 +328,13 @@ protected:
   }
 
   int fillRecv(Packet &pkt, Address *from, Address *to, Control *ctrl,
+               double *coord_x, double *coord_y,
                uint64_t *timestamp, MAC::Tag *tag, void *data, unsigned int size) {
     *from = pkt.header()->origin;
     *to = pkt.header()->dest;
     *ctrl = pkt.header()->ctrl;
+    *coord_x = pkt.header()->coord_x;
+    *coord_y = pkt.header()->coord_y;
     *timestamp = pkt.header()->timestamp;
     unsigned int message_data_size = pkt.header()->payloadSize;
     std::memcpy(tag, &pkt.header()->tag, tag->size());

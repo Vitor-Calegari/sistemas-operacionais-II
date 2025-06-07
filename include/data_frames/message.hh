@@ -44,6 +44,14 @@ public:
   Control *getControl() {
     return &_ctrl;
   }
+
+  double *getCoordX() {
+    return &_coord_x;
+  }
+
+  double *getCoordY() {
+    return &_coord_y;
+  }
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
   uint64_t *timestamp() {
@@ -76,6 +84,8 @@ private:
   Addr _source_addr;
   Addr _dest_addr;
   Control _ctrl;
+  double _coord_x;
+  double _coord_y;
   uint64_t _timestamp;
   std::size_t _payload_size;
   MAC::Tag _tag{};

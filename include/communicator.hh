@@ -57,10 +57,11 @@ public:
     return this->unmarshal(message, buf);
   }
 
-  bool unmarshal(Message * message, Buffer *buf) {
-    int size =
-        _channel->receive(buf, message->sourceAddr(), message->destAddr(),
-                          message->getControl(), message->timestamp(), message->tag(), message->data(), message->size());
+  bool unmarshal(Message *message, Buffer *buf) {
+    int size = _channel->receive(
+        buf, message->sourceAddr(), message->destAddr(), message->getControl(),
+        message->getCoordX(), message->getCoordY(), message->timestamp(),
+        message->tag(), message->data(), message->size());
     message->setSize(size);
     return size > 0;
   }

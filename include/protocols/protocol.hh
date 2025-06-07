@@ -137,6 +137,9 @@ protected:
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
+    // TODO preencher coord_x e coord_y
+    // pkt->header()->coord_x = GET_COORD_X_FROM_LOCATOR
+    // pkt->header()->coord_y = GET_COORD_Y_FROM_LOCATOR
     pkt->header()->timestamp = Base::_sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(Base::NICHeader) + sizeof(Base::Header) + size);
