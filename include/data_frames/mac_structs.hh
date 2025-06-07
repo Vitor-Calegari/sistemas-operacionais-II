@@ -5,7 +5,7 @@
 #include <pthread.h>
 
 #ifndef MAX_ENTRIES
-#define MAX_ENTRIES 256
+#define MAX_ENTRIES 1024
 #endif
 
 struct MacKeyEntry {
