@@ -6,6 +6,7 @@
 #include "rsu_protocol.hh"
 #include "cond.hh"
 #include "message.hh"
+#include "navigator.hh"
 #include <semaphore.h>
 #include <csignal>
 #include <cstddef>
@@ -28,8 +29,14 @@ public:
     using SocketNIC = NIC<Engine<Buffer>>;
     using SharedMemNIC = NIC<SharedEngine<Buffer>>;
     using RSU = RSUProtocol<SocketNIC, SharedMemNIC>;
+    using Coordinate = NavigatorCommon::Coordinate;
 
-    Map(int n_col, int n_line) : RSUNum(n_col * n_line), shouldEnd(false) {
+    static const double RSU_RANGE = 10;  // -10 a 0 a 10
+
+    Map(int n_col, int n_line) : RSUNum(n_col * n_line), shouldEnd(false), NUM_COLS(n_col), NUM_LINES(n_line) {
+
+        // TODO 
+        // Instanciar uma topologia e passar para ela o range da torre e a sua dimensao
 
         // Inicializa mutex da variavel de condição
         pthread_mutexattr_t mutex_cond_attr;
@@ -111,9 +118,17 @@ public:
     }
 
 private:
-    // TODO FAZER COM QUE CADA RSU TENHA SUA PROPRIA LOCALIÇÃO
     int createRSU(int c, int l) {
-        [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(c,l), c * (l + 1));
+        int x_offset = c - NUM_COLS / 2;
+        int y_offset = NUM_LINES / 2 - l;
+
+        double x = RSU_RANGE + x_offset * 2 * RSU_RANGE;
+        double y = RSU_RANGE + y_offset * 2 * RSU_RANGE;
+        Coordinate point(x, y);
+
+        // TODO Passar topologia ao navigator
+        NavigatorDirected nav = NavigatorDirected({point}, 0);
+        [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(c,l), c * (l + 1), &nav);
         waitCond();
         exit(0);
     }
@@ -140,4 +155,7 @@ private:
     SharedData* shared_data;
     pthread_cond_t cond;
     pthread_mutex_t mutex;
+    int NUM_COLS;
+    int NUM_LINES;
+    // TODO topologia
 };
