@@ -163,7 +163,7 @@ private:
 #ifdef DEBUG_TIMESTAMP
         printSyncMsg(_needSync, _synced, _announce_iteration);
 #endif
-        _announce_iteration = (_announce_iteration + 1) % IT_TO_DESYNC;
+        _announce_iteration = (_announce_iteration + 1) % (IT_TO_DESYNC + 1);
         _announc_it_mtx.unlock();
 
         if (!_broadcast_already_sent) {
