@@ -12,10 +12,13 @@
 class NavigatorCommon {
 public:
   using Coordinate = std::pair<double, double>;
+  using Dimension = std::pair<double, double>;
 
-  NavigatorCommon(double comm_range, double topology_size, double speed = 1)
+  NavigatorCommon(double comm_range, Dimension topology_dimension,
+                  double speed = 1)
       : _last_timepoint(std::chrono::steady_clock::now()), _speed(speed), _x(0),
-        _y(0), _comm_range(comm_range), _topology_size(topology_size) {
+        _y(0), _comm_range(comm_range),
+        _topology_dimension(topology_dimension) {
   }
 
   virtual Coordinate get_location() = 0;
@@ -39,10 +42,11 @@ protected:
 
   // Restrict the coordinate to stay inside the network topology.
   Coordinate clamp_coordinate(Coordinate coord) const {
+    auto [topo_dim_x, topo_dim_y] = _topology_dimension;
     auto [new_x, new_y] = coord;
 
-    new_x = std::min(_topology_size, std::max(-_topology_size, new_x));
-    new_y = std::min(_topology_size, std::max(-_topology_size, new_y));
+    new_x = std::min(topo_dim_x / 2, std::max(-topo_dim_x / 2, new_x));
+    new_y = std::min(topo_dim_y / 2, std::max(-topo_dim_y / 2, new_y));
 
     return { new_x, new_y };
   }
@@ -52,13 +56,14 @@ protected:
   double _x, _y;
 
   const double _comm_range;
-  const double _topology_size;
+  const Dimension _topology_dimension;
 };
 
 class NavigatorRandomWalk : public NavigatorCommon {
 public:
-  NavigatorRandomWalk(double comm_range, double topology_size, double speed = 1)
-      : NavigatorCommon(comm_range, topology_size, speed),
+  NavigatorRandomWalk(double comm_range, Dimension topology_dimension,
+                      double speed = 1)
+      : NavigatorCommon(comm_range, topology_dimension, speed),
         _rng(std::random_device{}()), _dist(0, 1), _angle(0), _angular_vel(0) {
   }
 
@@ -90,8 +95,8 @@ private:
 class NavigatorDirected : public NavigatorCommon {
 public:
   NavigatorDirected(const std::vector<Coordinate> &points, double comm_range,
-                    double topology_size, double speed = 1)
-      : NavigatorCommon(comm_range, topology_size, speed), _points(points),
+                    Dimension topology_dimension, double speed = 1)
+      : NavigatorCommon(comm_range, topology_dimension, speed), _points(points),
         _cur_point(0), _next_point(1), _seg_len_remaining(0), _unit_x(0),
         _unit_y(0) {
     for (auto &point : _points) {
