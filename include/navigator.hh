@@ -46,9 +46,9 @@ protected:
 
 class NavigatorRandomWalk : public NavigatorCommon {
 public:
-  NavigatorRandomWalk(double speed = 1)
-      : NavigatorCommon(speed), _rng(std::random_device{}()), _dist(0, 1),
-        _angle(0), _angular_vel(0) {
+  NavigatorRandomWalk(double speed = 1, double comm_range = 1)
+      : NavigatorCommon(speed, comm_range), _rng(std::random_device{}()),
+        _dist(0, 1), _angle(0), _angular_vel(0) {
   }
 
   Coordinate get_location() override {
@@ -77,9 +77,10 @@ private:
 
 class NavigatorDirected : public NavigatorCommon {
 public:
-  NavigatorDirected(const std::vector<Coordinate> &points, double speed = 1)
-      : NavigatorCommon(speed), _points(points), _cur_point(0), _next_point(1),
-        _seg_len_remaining(0), _unit_x(0), _unit_y(0) {
+  NavigatorDirected(const std::vector<Coordinate> &points, double speed = 1,
+                    double comm_range = 1)
+      : NavigatorCommon(speed, comm_range), _points(points), _cur_point(0),
+        _next_point(1), _seg_len_remaining(0), _unit_x(0), _unit_y(0) {
     if (!_points.empty()) {
       _x = _points[0].first;
       _y = _points[0].second;
