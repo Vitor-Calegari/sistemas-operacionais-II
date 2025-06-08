@@ -53,6 +53,14 @@ protected:
       // MAC.
       // MAC::verify(...)
     }
+
+    double coord_x = pkt->header()->coord_x;
+    double coord_y = pkt->header()->coord_y;
+    if (!Base::_nav->is_in_range({ coord_x, coord_y })) {
+      Base::free(buf);
+      return;
+    }
+
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != Base::_sysID && sysID != Base::BROADCAST_SID) {
       Base::_rsnic.free(buf);
