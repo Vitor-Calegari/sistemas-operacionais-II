@@ -31,6 +31,10 @@ public:
     return delta_x * delta_x + delta_y * delta_y <= _comm_range * _comm_range;
   }
 
+  Topology get_topology() const {
+    return _topology;
+  }
+
 protected:
   double compute_delta_time() {
     auto now = std::chrono::steady_clock::now();
