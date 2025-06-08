@@ -2,6 +2,7 @@
 #define MESSAGE_HH
 
 #include "control.hh"
+#include "mac.hh"
 #include <algorithm>
 #include <bit>
 #include <cstddef>
@@ -12,15 +13,16 @@ class Message {
 public:
   Message(Addr src, Addr dst, std::size_t payload_size,
           Control ctrl = Control(Control::Type::COMMON))
-      : _source_addr(src), _dest_addr(dst), _ctrl(ctrl),
-        _timestamp(0), _payload_size(payload_size) {
+      : _source_addr(src), _dest_addr(dst), _ctrl(ctrl), _timestamp(0),
+        _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
-  Message(std::size_t payload_size, Control ctrl = Control(Control::Type::COMMON))
-      : _source_addr(Addr()), _dest_addr(Addr()), _ctrl(ctrl),
-        _timestamp(0), _payload_size(payload_size) {
+  Message(std::size_t payload_size,
+          Control ctrl = Control(Control::Type::COMMON))
+      : _source_addr(Addr()), _dest_addr(Addr()), _ctrl(ctrl), _timestamp(0),
+        _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
@@ -52,12 +54,12 @@ public:
   double *getCoordY() {
     return &_coord_y;
   }
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
   uint64_t *timestamp() {
     return &_timestamp;
   }
-  #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 
   void setSize(std::size_t new_size) {
     _payload_size = new_size;

@@ -13,14 +13,21 @@ class NavigatorCommon {
 public:
   using Coordinate = std::pair<double, double>;
 
-  NavigatorCommon(double speed = 1)
+  NavigatorCommon(double speed = 1, double comm_range = 1)
       : _last_timepoint(std::chrono::steady_clock::now()), _speed(speed), _x(0),
-        _y(0) {
+        _y(0), _comm_range(comm_range) {
   }
 
-  virtual ~NavigatorCommon() = default;
-
   virtual Coordinate get_location() = 0;
+
+  bool is_in_range(Coordinate coord) const {
+    auto [other_x, other_y] = coord;
+
+    auto delta_x = std::abs(_x - other_x);
+    auto delta_y = std::abs(_y - other_y);
+
+    return delta_x * delta_x + delta_y * delta_y <= _comm_range * _comm_range;
+  }
 
 protected:
   double compute_delta_time() {
@@ -33,6 +40,8 @@ protected:
   std::chrono::steady_clock::time_point _last_timepoint;
   double _speed;
   double _x, _y;
+
+  double _comm_range;
 };
 
 class NavigatorRandomWalk : public NavigatorCommon {

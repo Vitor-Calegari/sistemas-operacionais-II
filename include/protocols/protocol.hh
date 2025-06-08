@@ -4,6 +4,7 @@
 #include "key_keeper.hh"
 #include "mac.hh"
 #include "mac_structs.hh"
+#include "navigator.hh"
 #include "protocol_commom.hh"
 #include <bit>
 #include <cstddef>
@@ -20,8 +21,9 @@ public:
   using Buffer = Base::Buffer;
 
 public:
-  static Protocol &getInstance(const char *interface_name, SysID sysID) {
-    static Protocol instance(interface_name, sysID);
+  static Protocol &getInstance(const char *interface_name, SysID sysID,
+                               NavigatorCommon *nav) {
+    static Protocol instance(interface_name, sysID, nav);
 
     return instance;
   }
@@ -35,8 +37,8 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  Protocol(const char *interface_name, SysID sysID)
-      : Base(interface_name, sysID, false) {
+  Protocol(const char *interface_name, SysID sysID, NavigatorCommon *nav)
+      : Base(interface_name, sysID, false, nav) {
   }
 
   // Método update: chamado pela NIC quando um frame é recebido.
@@ -51,6 +53,14 @@ protected:
       // MAC.
       // MAC::verify(...)
     }
+
+    double coord_x = pkt->header()->coord_x;
+    double coord_y = pkt->header()->coord_y;
+    if (!Base::_nav->is_in_range({ coord_x, coord_y })) {
+      Base::free(buf);
+      return;
+    }
+
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != Base::_sysID && sysID != Base::BROADCAST_SID) {
       Base::_rsnic.free(buf);
@@ -137,9 +147,11 @@ protected:
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
-    // TODO preencher coord_x e coord_y
-    // pkt->header()->coord_x = GET_COORD_X_FROM_LOCATOR
-    // pkt->header()->coord_y = GET_COORD_Y_FROM_LOCATOR
+
+    auto [x, y] = Base::_nav->get_location();
+    pkt->header()->coord_x = x;
+    pkt->header()->coord_y = y;
+
     pkt->header()->timestamp = Base::_sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(Base::NICHeader) + sizeof(Base::Header) + size);
