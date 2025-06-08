@@ -5,6 +5,7 @@
 #include "conditional_data_observer.hh"
 #include "control.hh"
 #include "mac.hh"
+#include "navigator.hh"
 #include "sync_engine.hh"
 #include <cstring>
 #include <netinet/in.h>
@@ -77,8 +78,8 @@ public:
   class Header {
   public:
     Header()
-        : origin(Address()), dest(Address()), ctrl(0), coord_x(0), coord_y(0), timestamp(0),
-          payloadSize(0), tag{} {
+        : origin(Address()), dest(Address()), ctrl(0), coord_x(0), coord_y(0),
+          timestamp(0), payloadSize(0), tag{} {
     }
     Address origin;
     Address dest;
@@ -113,8 +114,9 @@ public:
     Data _data;
   } __attribute__((packed));
 
-  static ProtocolCommom &getInstance(const char *interface_name, SysID sysID) {
-    static ProtocolCommom instance(interface_name, sysID);
+  static ProtocolCommom &getInstance(const char *interface_name, SysID sysID,
+                                     bool isRSU, NavigatorCommon *nav) {
+    static ProtocolCommom instance(interface_name, sysID, isRSU, nav);
 
     return instance;
   }
@@ -125,9 +127,10 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  ProtocolCommom(const char *interface_name, SysID sysID, bool isRSU)
+  ProtocolCommom(const char *interface_name, SysID sysID, bool isRSU,
+                 NavigatorCommon *nav)
       : _rsnic(interface_name), _smnic(interface_name), _sysID(sysID),
-        _sync_engine(this, isRSU) {
+        _sync_engine(this, isRSU), _nav(nav) {
     _rsnic.attach(this, PROTO);
     _smnic.attach(this, PROTO);
   }
@@ -267,9 +270,11 @@ protected:
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
-    // TODO preencher coord_x e coord_y
-    // pkt->header()->coord_x = GET_COORD_X_FROM_LOCATOR
-    // pkt->header()->coord_y = GET_COORD_Y_FROM_LOCATOR
+
+    auto [x, y] = _nav->get_location();
+    pkt->header()->coord_x = x;
+    pkt->header()->coord_y = y;
+
     pkt->header()->timestamp = _sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
@@ -328,8 +333,8 @@ protected:
   }
 
   int fillRecv(Packet &pkt, Address *from, Address *to, Control *ctrl,
-               double *coord_x, double *coord_y,
-               uint64_t *timestamp, MAC::Tag *tag, void *data, unsigned int size) {
+               double *coord_x, double *coord_y, uint64_t *timestamp,
+               MAC::Tag *tag, void *data, unsigned int size) {
     *from = pkt.header()->origin;
     *to = pkt.header()->dest;
     *ctrl = pkt.header()->ctrl;
@@ -348,6 +353,7 @@ protected:
   SharedMemNIC _smnic;
   SysID _sysID;
   SyncEngineP _sync_engine;
+  NavigatorCommon *_nav;
 };
 
 #endif // PROTOCOL_COMMOM_HH

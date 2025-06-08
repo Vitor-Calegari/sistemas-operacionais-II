@@ -1,6 +1,7 @@
 #ifndef TOWER_PROTOCOL_HH
 #define TOWER_PROTOCOL_HH
 
+#include "navigator.hh"
 #include "protocol_commom.hh"
 #include "rsu_engine.hh"
 
@@ -18,8 +19,11 @@ public:
   using Coord = RSUEngineP::Coord;
 
 public:
-  static RSUProtocol &getInstance(const char *interface_name, SysID sysID, SharedData * shared_data, Coord coord, int id) {
-    static RSUProtocol instance(interface_name, sysID, shared_data, coord, id);
+  static RSUProtocol &getInstance(const char *interface_name, SysID sysID,
+                                  SharedData *shared_data, Coord coord, int id,
+                                  NavigatorCommon *nav) {
+    static RSUProtocol instance(interface_name, sysID, shared_data, coord, id,
+                                nav);
     return instance;
   }
 
@@ -32,8 +36,10 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  RSUProtocol(const char *interface_name, SysID sysID, SharedData * shared_data, Coord coord, int id)
-      : Base(interface_name, sysID, true), _crypto_engine(this, shared_data, coord, id) {
+  RSUProtocol(const char *interface_name, SysID sysID, SharedData *shared_data,
+              Coord coord, int id, NavigatorCommon *nav)
+      : Base(interface_name, sysID, true, nav),
+        _crypto_engine(this, shared_data, coord, id) {
   }
 
   // Método update: chamado pela NIC quando um frame é recebido.
@@ -75,14 +81,16 @@ protected:
         int64_t timestamp_relate_to = pkt->header()->timestamp;
         // Delay Resp
         Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to, 8,
-                    recv_timestamp);
+                   recv_timestamp);
         // Late Sync
         ctrl.setType(Control::Type::LATE_SYNC);
-        Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to, 8);
+        Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to,
+                   8);
       }
 #ifdef DEBUG_TIMESTAMP
       else {
-        std::cout << get_timestamp() << " I’m RSU " << getpid() << " car already synced " << std::endl;
+        std::cout << get_timestamp() << " I’m RSU " << getpid()
+                  << " car already synced " << std::endl;
       }
 #endif
       if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
@@ -90,7 +98,6 @@ protected:
         return;
       }
     }
-
 
     auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
       Port port = pkt->header()->dest.getPort();
@@ -119,6 +126,7 @@ protected:
       handlePacket(Base::_rsnic, buf, pkt);
     }
   }
+
 private:
   RSUEngineP _crypto_engine;
 };
