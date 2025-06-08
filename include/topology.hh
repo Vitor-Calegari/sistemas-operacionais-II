@@ -12,7 +12,8 @@ public:
 
   Topology(Size size, double rsu_range)
       : _size(size), _rsu_range(rsu_range),
-        _dimension({ _size.first * _rsu_range, _size.second * _rsu_range }) {
+        _dimension(
+            { _size.first * 2 * _rsu_range, _size.second * 2 * _rsu_range }) {
   }
 
   // TODO: Verificar se o cálculo está correto nos testes.
