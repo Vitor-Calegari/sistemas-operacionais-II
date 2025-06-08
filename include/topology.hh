@@ -52,9 +52,9 @@ public:
   }
 
 private:
-  const Size _size;
-  const double _rsu_range;
-  const Dimension _dimension;
+  Size _size;
+  double _rsu_range;
+  Dimension _dimension;
 };
 
 #endif
