@@ -7,36 +7,43 @@
 class Topology {
 public:
   using Coordinate = std::pair<double, double>;
+  using Size = std::pair<int, int>;
   using Dimension = std::pair<double, double>;
 
-  Topology(Dimension dim, double rsu_range) : _dim(dim), _rsu_range(rsu_range) {
+  Topology(Size size, double rsu_range)
+      : _size(size), _rsu_range(rsu_range),
+        _dimension({ _size.first * _rsu_range, _size.second * _rsu_range }) {
   }
 
   // TODO: Verificar se o cálculo está correto nos testes.
   int get_quadrant_id(Coordinate coord) {
     auto [x, y] = coord;
 
-    x /= _rsu_range;
-    x += _dim.first;
+    x /= 2 * _rsu_range;
+    x += double(_size.first) / 2;
 
     int x_int = floor(x);
-    if (x_int == _dim.first) {
+    if (x_int == _size.first) {
       --x_int;
     }
 
-    y /= _rsu_range;
-    y -= _dim.second;
+    y /= 2 * _rsu_range;
+    y -= double(_size.second) / 2;
 
     int y_int = floor(y);
-    if (y_int == _dim.second) {
+    if (y_int == _size.second) {
       --y_int;
     }
 
-    return x_int + y_int * _dim.second;
+    return x_int + y_int * _size.second;
+  }
+
+  Size get_size() const {
+    return _size;
   }
 
   Dimension get_dimension() const {
-    return _dim;
+    return _dimension;
   }
 
   double get_range() const {
@@ -44,8 +51,9 @@ public:
   }
 
 private:
-  Dimension _dim;
-  double _rsu_range;
+  const Size _size;
+  const double _rsu_range;
+  const Dimension _dimension;
 };
 
 #endif
