@@ -7,6 +7,7 @@
 #include "cond.hh"
 #include "message.hh"
 #include "navigator.hh"
+#include "topology.hh"
 #include <semaphore.h>
 #include <csignal>
 #include <cstddef>
@@ -30,13 +31,14 @@ public:
     using SharedMemNIC = NIC<SharedEngine<Buffer>>;
     using RSU = RSUProtocol<SocketNIC, SharedMemNIC>;
     using Coordinate = NavigatorCommon::Coordinate;
+    using Dimension = Topology::Dimension;
 
     static const double RSU_RANGE = 10;  // -10 a 0 a 10
 
     Map(int n_col, int n_line) : RSUNum(n_col * n_line), shouldEnd(false), NUM_COLS(n_col), NUM_LINES(n_line) {
 
-        // TODO 
-        // Instanciar uma topologia e passar para ela o range da torre e a sua dimensao
+        Dimension dim(n_col, n_line);
+        _topo = Topology(dim, RSU_RANGE);
 
         // Inicializa mutex da variavel de condição
         pthread_mutexattr_t mutex_cond_attr;
@@ -157,5 +159,5 @@ private:
     pthread_mutex_t mutex;
     int NUM_COLS;
     int NUM_LINES;
-    // TODO topologia
+    Topology _topo;
 };

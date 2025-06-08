@@ -5,6 +5,7 @@
 #include <utility>
 
 class Topology {
+public:
   using Coordinate = std::pair<double, double>;
   using Dimension = std::pair<double, double>;
 
