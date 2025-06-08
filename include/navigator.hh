@@ -13,9 +13,9 @@ class NavigatorCommon {
 public:
   using Coordinate = std::pair<double, double>;
 
-  NavigatorCommon(double speed = 1, double comm_range = 1)
+  NavigatorCommon(double comm_range, double topology_size, double speed = 1)
       : _last_timepoint(std::chrono::steady_clock::now()), _speed(speed), _x(0),
-        _y(0), _comm_range(comm_range) {
+        _y(0), _comm_range(comm_range), _topology_size(topology_size) {
   }
 
   virtual Coordinate get_location() = 0;
@@ -37,18 +37,29 @@ protected:
     return delta.count();
   }
 
+  // Restrict the coordinate to stay inside the network topology.
+  Coordinate clamp_coordinate(Coordinate coord) const {
+    auto [new_x, new_y] = coord;
+
+    new_x = std::min(_topology_size, std::max(-_topology_size, new_x));
+    new_y = std::min(_topology_size, std::max(-_topology_size, new_y));
+
+    return { new_x, new_y };
+  }
+
   std::chrono::steady_clock::time_point _last_timepoint;
   double _speed;
   double _x, _y;
 
-  double _comm_range;
+  const double _comm_range;
+  const double _topology_size;
 };
 
 class NavigatorRandomWalk : public NavigatorCommon {
 public:
-  NavigatorRandomWalk(double speed = 1, double comm_range = 1)
-      : NavigatorCommon(speed, comm_range), _rng(std::random_device{}()),
-        _dist(0, 1), _angle(0), _angular_vel(0) {
+  NavigatorRandomWalk(double comm_range, double topology_size, double speed = 1)
+      : NavigatorCommon(comm_range, topology_size, speed),
+        _rng(std::random_device{}()), _dist(0, 1), _angle(0), _angular_vel(0) {
   }
 
   Coordinate get_location() override {
@@ -58,9 +69,10 @@ public:
     _angular_vel = _angular_vel * (1 - _ang_damping * dt) + ang_accel * dt;
     _angle += _angular_vel * dt;
 
-    _x += _speed * std::cos(_angle) * dt;
-    _y += _speed * std::sin(_angle) * dt;
+    double new_x = _x + _speed * std::cos(_angle) * dt;
+    double new_y = _y + _speed * std::sin(_angle) * dt;
 
+    std::tie(_x, _y) = clamp_coordinate({ new_x, new_y });
     return { _x, _y };
   }
 
@@ -77,13 +89,17 @@ private:
 
 class NavigatorDirected : public NavigatorCommon {
 public:
-  NavigatorDirected(const std::vector<Coordinate> &points, double speed = 1,
-                    double comm_range = 1)
-      : NavigatorCommon(speed, comm_range), _points(points), _cur_point(0),
-        _next_point(1), _seg_len_remaining(0), _unit_x(0), _unit_y(0) {
+  NavigatorDirected(const std::vector<Coordinate> &points, double comm_range,
+                    double topology_size, double speed = 1)
+      : NavigatorCommon(comm_range, topology_size, speed), _points(points),
+        _cur_point(0), _next_point(1), _seg_len_remaining(0), _unit_x(0),
+        _unit_y(0) {
+    for (auto &point : _points) {
+      point = clamp_coordinate(point);
+    }
+
     if (!_points.empty()) {
-      _x = _points[0].first;
-      _y = _points[0].second;
+      std::tie(_x, _y) = _points[0];
 
       if (_points.size() > 1) {
         calc_line_segment();
