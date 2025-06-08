@@ -22,4 +22,5 @@ int randint(int p, int r);
 
 std::string get_timestamp();
 
+void printSyncMsg(bool _needSync, bool _synced);
 #endif

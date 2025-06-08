@@ -188,6 +188,7 @@ public:
       if (buf == nullptr)
         return -1;
       ctrl.setSynchronized(_sync_engine.getSynced());
+      ctrl.setNeedSync(_sync_engine.getNeedSync());
       fillBuffer(buf, from, to, ctrl, data, size);
       if (recv_timestamp) {
         buf->data()->template data<Packet>()->header()->timestamp =

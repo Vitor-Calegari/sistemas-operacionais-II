@@ -51,11 +51,13 @@ public:
   static constexpr auto LATE_SYNC = Control::Type::LATE_SYNC;
 
   static constexpr int HALF_LIFE = 0.45e6;
+  static constexpr int IT_TO_NEED_SYNC = 1;
+  static constexpr int IT_TO_DESYNC = 3;
 
 public:
   SyncEngine(Protocol *prot, bool isRSU)
       : _protocol(prot), _announce_period(HALF_LIFE),
-        _announce_thread_running(false), _clock(0), _synced(false),
+        _announce_thread_running(false), _clock(0), _synced(false), _needSync(true),
         _announce_iteration(0), _broadcast_already_sent(false), _isRSU(isRSU) {
     if (!_isRSU) {
       startAnnounceThread();
@@ -107,6 +109,7 @@ public:
 
       _clock.setOffset(offset);
       _synced = true;
+      _needSync = false;
       _announc_it_mtx.lock();
       _announce_iteration = 0;
       _announc_it_mtx.unlock();
@@ -133,6 +136,10 @@ public:
     return _synced || _isRSU;
   }
 
+  bool getNeedSync() {
+    return _needSync;
+  }
+
   int64_t getClockOffset() const {
     return _clock.getOffset();
   }
@@ -147,18 +154,16 @@ private:
     _announce_thread = std::thread([this]() {
       while (_announce_thread_running) {
         _announc_it_mtx.lock();
-        if (_announce_iteration == 1) {
+        if (_announce_iteration == IT_TO_NEED_SYNC) {
+          _needSync = true;
+        } else if (_announce_iteration == IT_TO_DESYNC && _needSync) {
           _synced = false;
         }
 
 #ifdef DEBUG_TIMESTAMP
-      if (!_synced) {
-        std::cout << get_timestamp() << " I’m Car " << getpid() << " " << _announce_iteration << " I need SYNC" << std::endl;
-      } else {
-        std::cout << get_timestamp() << " I’m Car " << getpid() << " " << _announce_iteration << " I dont need SYNC" << std::endl;
-      }
+        printSyncMsg(_needSync, _synced, _announce_iteration);
 #endif
-        _announce_iteration = (_announce_iteration + 1) % 2;
+        _announce_iteration = (_announce_iteration + 1) % IT_TO_DESYNC;
         _announc_it_mtx.unlock();
 
         if (!_broadcast_already_sent) {
@@ -213,6 +218,7 @@ private:
   Address _master_addr;
   SimulatedClock _clock;
   std::atomic<bool> _synced = false;
+  std::atomic<bool> _needSync = true;
   std::mutex _announc_it_mtx;
   int _announce_iteration{};
 

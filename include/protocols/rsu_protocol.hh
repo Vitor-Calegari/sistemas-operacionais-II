@@ -69,7 +69,7 @@ protected:
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != Base::_sysID) {
       // Se não está sincronizado, enviar mensagens para carro sincronizar
-      if (!pkt->header()->ctrl.isSynchronized()) {
+      if (pkt->header()->ctrl.needSync()) {
         Address myaddr = Base::getAddr();
         Control ctrl(Control::Type::DELAY_RESP);
         int64_t timestamp_relate_to = pkt->header()->timestamp;

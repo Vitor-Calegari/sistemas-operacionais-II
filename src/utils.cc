@@ -1,6 +1,7 @@
 #include "utils.hh"
 #include <iostream>
 #include <random>
+#include <unistd.h>
 
 std::string ethernet_header(Ethernet::Frame *buffer) {
   // Construir a string diretamente
@@ -94,4 +95,22 @@ std::string get_timestamp() {
   ss << "[" << std::put_time(tm, "%H:%M:%S") << "." 
      << std::setfill('0') << std::setw(3) << ms.count() << "]";
   return ss.str();
+}
+
+void printSyncMsg(bool _needSync, bool _synced, int _announce_iteration) {
+  if (_needSync) {
+    std::cout << get_timestamp() << " I’m Car " << getpid() << " I need SYNC, my iteration is " << _announce_iteration << " and I'am ";
+    if (_synced) {
+      std::cout << " synced. " << std::endl;
+    } else {
+      std::cout << " not synced. " << std::endl;
+    }
+  } else {
+    std::cout << get_timestamp() << " I’m Car " << getpid() << " I need SYNC, my iteration is " << _announce_iteration << " and I'am ";
+    if (_synced) {
+      std::cout << " synced. " << std::endl;
+    } else {
+      std::cout << " not synced. " << std::endl;
+    }
+  }
 }
