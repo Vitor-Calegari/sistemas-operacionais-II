@@ -1,6 +1,8 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
+#include "navigator.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
@@ -41,10 +43,11 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
+  Map *map = new Map(1, 1);
   pid_t parent = fork();
 
   if (!parent) {
@@ -53,7 +56,10 @@ int main() {
 
     int comm_waiting = 0;
 
-    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+    Topology topo = map->getTopology();
+    NavigatorCommon::Coordinate point(0, 0);
+    Protocol &prot =
+        Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
 
     std::cout << "Comunicação entre threads de um mesmo processo:" << std::endl;
 
@@ -133,7 +139,10 @@ int main() {
     exit(1);
   }
 
-  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+  Topology topo = map->getTopology();
+  NavigatorCommon::Coordinate point(0, 0);
+  Protocol &prot =
+      Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
 
   if (pid == 0) {
     std::thread sender_thread([&]() {
@@ -201,9 +210,11 @@ int main() {
       timeout = true;
     }
 
+    map->finalizeRSU();
     // Aguarda o término do filho
     int status;
     wait(&status);
+    delete map;
 
     double avg_latency_us =
         (msg_count > 0 ? static_cast<double>(total_latency_us) / msg_count : 0);
