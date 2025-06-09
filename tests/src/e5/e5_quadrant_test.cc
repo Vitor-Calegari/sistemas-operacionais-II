@@ -1,7 +1,3 @@
-// topology_test.cc
-// Teste unitário para a classe Topology (nova API) com escolha de quadrante em fronteiras
-// e teste de interseção de fronteiras (ponto no meio de 4 quadrantes)
-
 #include <cassert>
 #include <cmath>
 #include <iostream>

@@ -1,6 +1,8 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
+#include "navigator.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
@@ -25,11 +27,16 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
-  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+  Map *map = new Map(1, 1);
+
+  Topology topo = map->getTopology();
+  NavigatorCommon::Coordinate point(0, 0);
+  Protocol &prot =
+      Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
 
   std::mutex stdout_mtx;
 
@@ -110,6 +117,9 @@ int main() {
     send_threads[i].join();
   }
   receive_thread.join();
+
+  map->finalizeRSU();
+  delete map;
 
   return 0;
 }

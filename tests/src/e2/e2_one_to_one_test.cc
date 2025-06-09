@@ -1,6 +1,8 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
+#include "navigator.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
@@ -22,7 +24,7 @@ int main(int argc, char *argv[]) {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
@@ -44,7 +46,12 @@ int main(int argc, char *argv[]) {
     send = atoi(argv[1]);
   }
 
-  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+  Map *map = new Map(1, 1);
+
+  Topology topo = map->getTopology();
+  NavigatorCommon::Coordinate point(0, 0);
+  Protocol &prot =
+      Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
 
   if (send) {
     std::thread inter_process_sender_thread([&]() {
@@ -124,10 +131,12 @@ int main(int argc, char *argv[]) {
     inter_receiver_thread.join();
   }
 
+  map->finalizeRSU();
   if (argc < 2 && !send) {
     int status;
     wait(&status);
   }
+  delete map;
 
   sem_destroy(semaphore);
 
