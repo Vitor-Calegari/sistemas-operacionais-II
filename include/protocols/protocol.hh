@@ -24,8 +24,11 @@ public:
 
 public:
   static Protocol &getInstance(const char *interface_name, SysID sysID,
-    const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1) {
-    static Protocol instance(interface_name, sysID, points, topology, comm_range, speed);
+                               const std::vector<Coordinate> &points,
+                               Topology topology, double comm_range,
+                               double speed = 1) {
+    static Protocol instance(interface_name, sysID, points, topology,
+                             comm_range, speed);
 
     return instance;
   }
@@ -39,8 +42,11 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  Protocol(const char *interface_name, SysID sysID, const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1)
-      : Base(interface_name, sysID, false, points, topology, comm_range, speed) {
+  Protocol(const char *interface_name, SysID sysID,
+           const std::vector<Coordinate> &points, Topology topology,
+           double comm_range, double speed = 1)
+      : Base(interface_name, sysID, false, points, topology, comm_range,
+             speed) {
   }
 
   // Método update: chamado pela NIC quando um frame é recebido.
@@ -78,8 +84,8 @@ protected:
     if (pkt_type == Control::Type::MAC) {
       auto quadrant_rsu =
           Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y });
-      auto quadrant = Base::_nav.get_topology().get_quadrant_id(
-          Base::_nav.get_location());
+      auto quadrant =
+          Base::_nav.get_topology().get_quadrant_id(Base::_nav.get_location());
 
       if (quadrant_rsu != quadrant) {
         Base::free(buf);
@@ -162,7 +168,7 @@ protected:
 
 protected:
   void fillBuffer(Buffer *buf, Address &from, Address &to, Control &ctrl,
-                  void *data = nullptr, unsigned int size = 0) {
+                  void *data = nullptr, unsigned int size = 0) override {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
     buf->data()->src = from.getPAddr();
@@ -180,13 +186,14 @@ protected:
 
     pkt->header()->timestamp = Base::_sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
-    buf->setSize(sizeof(Base::NICHeader) + sizeof(Base::Header) + size);
+    buf->setSize(sizeof(typename Base::NICHeader) +
+                 sizeof(typename Base::Header) + size);
     if (data != nullptr) {
       std::memcpy(pkt->template data<char>(), data, size);
     }
 
-    MAC::Key key = _key_keeper.getKey(
-        Base::_nav.get_topology().get_quadrant_id({ x, y }));
+    MAC::Key key =
+        _key_keeper.getKey(Base::_nav.get_topology().get_quadrant_id({ x, y }));
     auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
     std::vector<std::byte> msg_vec(msg.begin(), msg.end());
     auto tag = MAC::compute(key, msg_vec);

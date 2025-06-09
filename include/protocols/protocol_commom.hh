@@ -21,7 +21,8 @@ class ProtocolCommom
 public:
   inline static const typename SocketNIC::Protocol_Number PROTO = htons(0x88B5);
 
-  typedef SyncEngine<ProtocolCommom<SocketNIC, SharedMemNIC, Navigator>> SyncEngineP;
+  typedef SyncEngine<ProtocolCommom<SocketNIC, SharedMemNIC, Navigator>>
+      SyncEngineP;
   typedef typename SocketNIC::Header NICHeader;
   typedef typename SocketNIC::BufferNIC Buffer;
   typedef typename SocketNIC::Address Physical_Address;
@@ -116,8 +117,12 @@ public:
   } __attribute__((packed));
 
   static ProtocolCommom &getInstance(const char *interface_name, SysID sysID,
-                                     bool isRSU, const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1) {
-    static ProtocolCommom instance(interface_name, sysID, isRSU, points, topology, comm_range, speed);
+                                     bool isRSU,
+                                     const std::vector<Coordinate> &points,
+                                     Topology topology, double comm_range,
+                                     double speed = 1) {
+    static ProtocolCommom instance(interface_name, sysID, isRSU, points,
+                                   topology, comm_range, speed);
     return instance;
   }
 
@@ -128,12 +133,14 @@ protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
   ProtocolCommom(const char *interface_name, SysID sysID, bool isRSU,
-    const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1)
+                 const std::vector<Coordinate> &points, Topology topology,
+                 double comm_range, double speed = 1)
       : _rsnic(interface_name), _smnic(interface_name), _sysID(sysID),
         _sync_engine(this, isRSU), _nav(points, topology, comm_range, speed) {
     _rsnic.attach(this, PROTO);
     _smnic.attach(this, PROTO);
-    std::cout << get_timestamp() << " Protocol " << _sysID << " ended"<< std::endl;
+    std::cout << get_timestamp() << " Protocol " << _sysID << " ended"
+              << std::endl;
   }
 
 public:
@@ -260,8 +267,9 @@ public:
                       [[maybe_unused]] Buffer *buf) {};
 
 protected:
-  void fillBuffer(Buffer *buf, Address &from, Address &to, Control &ctrl,
-                  void *data = nullptr, unsigned int size = 0) {
+  virtual void fillBuffer(Buffer *buf, Address &from, Address &to,
+                          Control &ctrl, void *data = nullptr,
+                          unsigned int size = 0) {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
     buf->data()->src = from.getPAddr();
