@@ -60,43 +60,6 @@ protected:
     double coord_y = pkt->header()->coord_y;
     Control::Type pkt_type = pkt->header()->ctrl.getType();
 
-    if (pkt_type != Control::Type::DELAY_RESP && pkt_type != Control::Type::LATE_SYNC && pkt->header()->tag != MAC::Tag{}) {
-      MAC::Key key = _key_keeper.getKey(
-          Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y }));
-
-      MAC::Tag tag = pkt->header()->tag;
-      pkt->header()->tag = {};
-      auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
-      std::vector<std::byte> msg_vec(msg.begin(), msg.end());
-
-      if (!MAC::verify(key, msg_vec, tag)) {
-        Base::free(buf);
-        return;
-      }
-    }
-
-
-    if (pkt_type != Control::Type::MAC &&
-        pkt_type != Control::Type::DELAY_RESP &&
-        pkt_type != Control::Type::LATE_SYNC &&
-        !Base::_nav.is_in_range({ coord_x, coord_y })) {
-      Base::free(buf);
-      return;
-    }
-
-    if (pkt_type == Control::Type::MAC ||
-        pkt_type == Control::Type::DELAY_RESP ||
-        pkt_type == Control::Type::LATE_SYNC) {
-      auto quadrant_rsu =
-          Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y });
-      auto quadrant =
-          Base::_nav.get_topology().get_quadrant_id(Base::_nav.get_location());
-      if (quadrant_rsu != quadrant) {
-        Base::free(buf);
-        return;
-      }
-    }
-
     SysID sysID = pkt->header()->dest.getSysID();
     if (sysID != Base::_sysID && sysID != Base::BROADCAST_SID) {
       Base::_rsnic.free(buf);
@@ -105,6 +68,41 @@ protected:
 
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != Base::_sysID) {
+      if (pkt_type != Control::Type::DELAY_RESP && pkt_type != Control::Type::LATE_SYNC && pkt->header()->tag != MAC::Tag{}) {
+        MAC::Key key = _key_keeper.getKey(
+            Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y }));
+  
+        MAC::Tag tag = pkt->header()->tag;
+        pkt->header()->tag = {};
+        auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
+        std::vector<std::byte> msg_vec(msg.begin(), msg.end());
+  
+        if (!MAC::verify(key, msg_vec, tag)) {
+          Base::free(buf);
+          return;
+        }
+      }
+
+      if (pkt_type != Control::Type::MAC &&
+          pkt_type != Control::Type::DELAY_RESP &&
+          pkt_type != Control::Type::LATE_SYNC &&
+          !Base::_nav.is_in_range({ coord_x, coord_y })) {
+        Base::free(buf);
+        return;
+      }
+  
+      if (pkt_type == Control::Type::MAC ||
+          pkt_type == Control::Type::DELAY_RESP ||
+          pkt_type == Control::Type::LATE_SYNC) {
+        auto quadrant_rsu =
+            Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y });
+        auto quadrant =
+            Base::_nav.get_topology().get_quadrant_id(Base::_nav.get_location());
+        if (quadrant_rsu != quadrant) {
+          Base::free(buf);
+          return;
+        }
+      }
       if (pkt_type == Control::Type::DELAY_RESP ||
           pkt_type == Control::Type::LATE_SYNC) {
         Base::_sync_engine.handlePTP(recv_timestamp, pkt->header()->timestamp,
