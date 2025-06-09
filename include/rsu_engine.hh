@@ -57,8 +57,6 @@ public:
           _shared_data->entries[indx] =
               MacKeyEntry(_id, MAC::generate_random_key());
         }
-        // Espera todos os processos RSU chegarem aqui
-        pthread_barrier_wait(&_shared_data->barrier);
         // Se for a thread escolhida, adiciona no contador de iterações
         if (_shared_data->choosen_rsu == _protocol->getSysID()) {
           _shared_data->counter = (_shared_data->counter + 1) % renew_mac_int;
