@@ -14,9 +14,9 @@ int main() {
     // Verifica getters mínimos (size e range)
     auto sz = topo.get_size();
     assert(sz.first == size.first && sz.second == size.second);
-    std::cout << "Size OK: (" << sz.first << "," << sz.second << ")";
+    std::cout << "Size OK: (" << sz.first << "," << sz.second << ")" << std::endl;
     assert(std::abs(topo.get_range() - rsu_range) < 1e-9);
-    std::cout << "Range OK: " << topo.get_range() << "";
+    std::cout << "Range OK: " << topo.get_range() << std::endl;
 
     // === Teste de pontos interiores ===\n";
     int cols = sz.first;
