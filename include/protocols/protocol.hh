@@ -48,14 +48,23 @@ protected:
               Buffer *buf) {
     uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
     Packet *pkt = buf->data()->template data<Packet>();
-    if (pkt->header()->tag != MAC::Tag{}) {
-      // TODO: Pegar a chave do quadrante do remetente da mensagem e verificar
-      // MAC.
-      // MAC::verify(...)
-    }
-
     double coord_x = pkt->header()->coord_x;
     double coord_y = pkt->header()->coord_y;
+    if (pkt->header()->tag != MAC::Tag{}) {
+      MAC::Key key = _key_keeper.getKey(
+          Base::_nav->get_topology().get_quadrant_id({ coord_x, coord_y }));
+
+      MAC::Tag tag = pkt->header()->tag;
+      pkt->header()->tag = {};
+      auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
+      std::vector<std::byte> msg_vec(msg.begin(), msg.end());
+
+      if (!MAC::verify(key, msg_vec, tag)) {
+        Base::free(buf);
+        return;
+      }
+    }
+
     if (!Base::_nav->is_in_range({ coord_x, coord_y })) {
       Base::free(buf);
       return;
@@ -158,8 +167,9 @@ protected:
     if (data != nullptr) {
       std::memcpy(pkt->template data<char>(), data, size);
     }
-    // TODO Conhecer quadrante atual para requisitar chave secreta de KeyKeeper.
-    MAC::Key key{};
+
+    MAC::Key key = _key_keeper.getKey(
+        Base::_nav->get_topology().get_quadrant_id({ x, y }));
     auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
     std::vector<std::byte> msg_vec(msg.begin(), msg.end());
     auto tag = MAC::compute(key, msg_vec);

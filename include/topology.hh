@@ -16,7 +16,6 @@ public:
             { _size.first * 2 * _rsu_range, _size.second * 2 * _rsu_range }) {
   }
 
-  // TODO: Verificar se o cálculo está correto nos testes.
   int get_quadrant_id(Coordinate coord) {
     auto [x, y] = coord;
 
