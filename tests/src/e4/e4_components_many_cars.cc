@@ -1,5 +1,6 @@
 #include "car.hh"
 #include "utils.hh"
+#include "map.hh"
 
 #include <array>
 #include <cassert>
@@ -32,8 +33,10 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
+
+  Map *map = new Map(1, 1);
 
   auto parent_pid = getpid();
 
@@ -138,6 +141,7 @@ int main() {
     for (int i = 0; i < NUM_CARS; ++i) {
       wait(nullptr);
     }
+    delete map;
   }
 
   return 0;
