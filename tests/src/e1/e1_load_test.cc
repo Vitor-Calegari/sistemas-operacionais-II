@@ -44,7 +44,7 @@ int main() {
 
   pid_t parentPID = getpid();
 
-  Map map(1, 1);
+  Map *map = new Map(1, 1);
   for (int i = 0; i < num_communicators; i++) {
     pid_t pid = fork();
     if (pid < 0) {
@@ -53,7 +53,7 @@ int main() {
     }
     if (pid == 0) {
       // Código do processo-filho
-      Topology topo = map.getTopology();
+      Topology topo = map->getTopology();
       NavigatorCommon::Coordinate point(0, 0);
       Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(),
                                              { point }, topo, 10, 0);
@@ -80,7 +80,7 @@ int main() {
   }
 
   // Processo pai - Cria seu próprio comunicador
-  Topology topo = map.getTopology();
+  Topology topo = map->getTopology();
   NavigatorCommon::Coordinate point(0, 0);
   Protocol &prot =
       Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
@@ -119,11 +119,12 @@ int main() {
   std::cout << "Mensagens recebidas: " << std::dec << received_msg_count
             << std::endl;
 
-  map.finalizeRSU();
   // Processo pai aguarda todos os filhos finalizarem
   int status;
-  while (wait(&status) > 0)
-    ;
+  for (int i = 0; i < num_communicators; i++) {
+    wait(&status);
+  }
+  delete map;
 
   std::cout << "Teste de carga concluído" << std::endl;
 
