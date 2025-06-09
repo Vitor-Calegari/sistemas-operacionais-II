@@ -68,7 +68,12 @@ protected:
 
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != Base::_sysID) {
-      if (pkt_type != Control::Type::DELAY_RESP && pkt_type != Control::Type::LATE_SYNC && pkt->header()->tag != MAC::Tag{}) {
+
+      // Se não é uma mensagem de RSU, verifica MAC
+      if (pkt_type != Control::Type::DELAY_RESP &&
+          pkt_type != Control::Type::LATE_SYNC &&
+          pkt_type != Control::Type::MAC &&
+          pkt->header()->tag != MAC::Tag{}) {
         MAC::Key key = _key_keeper.getKey(
             Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y }));
   
@@ -83,6 +88,7 @@ protected:
         }
       }
 
+      // Se não é uma mensagem de uma RSU, trata com o range do carro
       if (pkt_type != Control::Type::MAC &&
           pkt_type != Control::Type::DELAY_RESP &&
           pkt_type != Control::Type::LATE_SYNC &&
@@ -91,6 +97,7 @@ protected:
         return;
       }
   
+      // Se é uma mensagem da RSU, trata com o range da RSU
       if (pkt_type == Control::Type::MAC ||
           pkt_type == Control::Type::DELAY_RESP ||
           pkt_type == Control::Type::LATE_SYNC) {
@@ -103,6 +110,8 @@ protected:
           return;
         }
       }
+
+      // Se é uma mensagem PTP, trata PTP
       if (pkt_type == Control::Type::DELAY_RESP ||
           pkt_type == Control::Type::LATE_SYNC) {
         Base::_sync_engine.handlePTP(recv_timestamp, pkt->header()->timestamp,
@@ -110,6 +119,7 @@ protected:
                                      *pkt->template data<int64_t>());
       }
 
+      // Se é uma mensagem de chaves MAC, armazena chaves MAC
       if (pkt_type == Control::Type::MAC) {
         std::vector<MacKeyEntry> keys;
 
@@ -131,6 +141,7 @@ protected:
         _key_keeper.setKeys(keys);
       }
 
+      // Se é uma mensagem de controle, libera buffer
       if (pkt_type == Control::Type::ANNOUNCE ||
           pkt_type == Control::Type::DELAY_RESP ||
           pkt_type == Control::Type::LATE_SYNC ||
