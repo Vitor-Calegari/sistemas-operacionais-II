@@ -1,6 +1,8 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
+#include "navigator.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
@@ -26,7 +28,7 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
@@ -42,6 +44,7 @@ int main() {
 
   pid_t parentPID = getpid();
 
+  Map map(1, 1);
   for (int i = 0; i < num_communicators; i++) {
     pid_t pid = fork();
     if (pid < 0) {
@@ -50,7 +53,10 @@ int main() {
     }
     if (pid == 0) {
       // Código do processo-filho
-      auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+      Topology topo = map.getTopology();
+      NavigatorCommon::Coordinate point(0, 0);
+      Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(),
+                                             { point }, topo, 10, 0);
 
       Communicator communicator(&prot, i);
 
@@ -74,7 +80,10 @@ int main() {
   }
 
   // Processo pai - Cria seu próprio comunicador
-  auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+  Topology topo = map.getTopology();
+  NavigatorCommon::Coordinate point(0, 0);
+  Protocol &prot =
+      Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
   Communicator communicator(&prot, 9999);
   Message msg(MESSAGE_SIZE);
 
@@ -110,6 +119,7 @@ int main() {
   std::cout << "Mensagens recebidas: " << std::dec << received_msg_count
             << std::endl;
 
+  map.finalizeRSU();
   // Processo pai aguarda todos os filhos finalizarem
   int status;
   while (wait(&status) > 0)
