@@ -54,16 +54,6 @@ MAC::Tag compute(const MAC::Key &key, const std::vector<std::byte> &message) {
 
   EVP_MAC_CTX_free(ctx);
   EVP_MAC_free(mac);
-
-// #ifdef DEBUG_MAC
-  std::cout << "Key: ";
-  for (auto b : key) std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(std::to_integer<unsigned char>(b)) << " ";
-  std::cout << std::endl;
-  std::cout << "Tag: ";
-  for (auto b : tag) std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(std::to_integer<unsigned char>(b)) << " ";
-  std::cout << std::endl;
-// #endif
-
   return tag;
 }
 
