@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
   int send;
   int parentPID = 0;
-  Map map(1, 1);
+  Map *map = new Map(1, 1);
   if (argc < 2) {
     // Novo processo será o sender.
     parentPID = getpid();
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
   using Coordinate = NavigatorCommon::Coordinate;
 
 
-  Topology topo = map.getTopology();
+  Topology topo = map->getTopology();
   Coordinate point(0, 0);
   Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
 
@@ -88,6 +88,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "Receiver ended" << std::endl;
   
-  map.finalizeRSU();
+  map->finalizeRSU();
+  delete map;
   return 0;
 }
