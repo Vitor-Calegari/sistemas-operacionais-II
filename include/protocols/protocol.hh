@@ -73,8 +73,8 @@ protected:
       if (pkt_type != Control::Type::DELAY_RESP &&
           pkt_type != Control::Type::LATE_SYNC &&
           pkt_type != Control::Type::MAC) {
-        MAC::Key key = _key_keeper.getKey(
-            Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y }));
+        int q_id = Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y });
+        MAC::Key key = _key_keeper.getKey(q_id);
   
         MAC::Tag tag = pkt->header()->tag;
         #ifdef DEBUG_MAC
@@ -139,7 +139,6 @@ protected:
 
       // Se é uma mensagem de chaves MAC, armazena chaves MAC
       if (pkt_type == Control::Type::MAC) {
-        std::cout << "Got mac keys" << std::endl;
         std::vector<MacKeyEntry> keys;
 
         auto data = pkt->template data<std::byte>();
@@ -149,7 +148,9 @@ protected:
           bool is_fully_zeroed = true;
           for (size_t j = 0; j < key_bytes.size(); ++j) {
             key_bytes[j] = data[sizeof(MacKeyEntry) * i + j];
-            is_fully_zeroed |= (key_bytes[j] != std::byte(0));
+            if (key_bytes[j] != std::byte(0)) {
+              is_fully_zeroed = false;
+            }
           }
 
           if (!is_fully_zeroed) {
