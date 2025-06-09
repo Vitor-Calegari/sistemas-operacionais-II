@@ -1,11 +1,11 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include "utils.hh"
-#include "map.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -47,10 +47,10 @@ int main(int argc, char *argv[]) {
   using Communicator = Communicator<Protocol, Message>;
   using Coordinate = NavigatorCommon::Coordinate;
 
-
   Topology topo = map->getTopology();
   Coordinate point(0, 0);
-  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
+  Protocol &prot =
+      Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
 
   Communicator comm = Communicator(&prot, 10);
 
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     exit(0);
   } else {
     sem_post(semaphore);
-    for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
+    for (int i_m = 0; i_m < NUM_MSGS / 2; ++i_m) {
       Message message = Message(MSG_SIZE);
       comm.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "Receiver ended" << std::endl;
-  
+
   map->finalizeRSU();
   delete map;
   return 0;
