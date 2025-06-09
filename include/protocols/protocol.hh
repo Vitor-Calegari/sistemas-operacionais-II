@@ -1,6 +1,7 @@
 #ifndef PROTOCOL_HH
 #define PROTOCOL_HH
 
+#include "control.hh"
 #include "key_keeper.hh"
 #include "mac.hh"
 #include "mac_structs.hh"
@@ -65,9 +66,24 @@ protected:
       }
     }
 
-    if (!Base::_nav->is_in_range({ coord_x, coord_y })) {
+    Control::Type pkt_type = pkt->header()->ctrl.getType();
+
+    if (pkt_type != Control::Type::MAC &&
+        !Base::_nav->is_in_range({ coord_x, coord_y })) {
       Base::free(buf);
       return;
+    }
+
+    if (pkt_type == Control::Type::MAC) {
+      auto quadrant_rsu =
+          Base::_nav->get_topology().get_quadrant_id({ coord_x, coord_y });
+      auto quadrant = Base::_nav->get_topology().get_quadrant_id(
+          Base::_nav->get_location());
+
+      if (quadrant_rsu != quadrant) {
+        Base::free(buf);
+        return;
+      }
     }
 
     SysID sysID = pkt->header()->dest.getSysID();
@@ -78,14 +94,14 @@ protected:
 
     // Se a mensagem veio da nic de sockets, tratar PTP
     if (pkt->header()->origin.getSysID() != Base::_sysID) {
-      if (pkt->header()->ctrl.getType() == Control::Type::DELAY_RESP ||
-          pkt->header()->ctrl.getType() == Control::Type::LATE_SYNC) {
-        Base::_sync_engine.handlePTP(
-            recv_timestamp, pkt->header()->timestamp, pkt->header()->origin,
-            pkt->header()->ctrl.getType(), *pkt->template data<int64_t>());
+      if (pkt_type == Control::Type::DELAY_RESP ||
+          pkt_type == Control::Type::LATE_SYNC) {
+        Base::_sync_engine.handlePTP(recv_timestamp, pkt->header()->timestamp,
+                                     pkt->header()->origin, pkt_type,
+                                     *pkt->template data<int64_t>());
       }
 
-      if (pkt->header()->ctrl.getType() == Control::Type::MAC) {
+      if (pkt_type == Control::Type::MAC) {
         std::vector<MacKeyEntry> keys;
 
         auto data = pkt->template data<std::byte>();
@@ -106,10 +122,10 @@ protected:
         _key_keeper.setKeys(keys);
       }
 
-      if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE ||
-          pkt->header()->ctrl.getType() == Control::Type::DELAY_RESP ||
-          pkt->header()->ctrl.getType() == Control::Type::LATE_SYNC ||
-          pkt->header()->ctrl.getType() == Control::Type::MAC) {
+      if (pkt_type == Control::Type::ANNOUNCE ||
+          pkt_type == Control::Type::DELAY_RESP ||
+          pkt_type == Control::Type::LATE_SYNC ||
+          pkt_type == Control::Type::MAC) {
         Base::free(buf);
         return;
       }
