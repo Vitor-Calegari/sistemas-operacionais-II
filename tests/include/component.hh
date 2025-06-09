@@ -35,7 +35,7 @@ public:
   }
   CommunicatorC::Address addr() { return _comm.addr(); }
 
-private:
+public:
   CommunicatorC _comm;
 };
 

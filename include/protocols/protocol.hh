@@ -72,17 +72,35 @@ protected:
       // Se não é uma mensagem de RSU, verifica MAC
       if (pkt_type != Control::Type::DELAY_RESP &&
           pkt_type != Control::Type::LATE_SYNC &&
-          pkt_type != Control::Type::MAC &&
-          pkt->header()->tag != MAC::Tag{}) {
+          pkt_type != Control::Type::MAC) {
         MAC::Key key = _key_keeper.getKey(
             Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y }));
   
         MAC::Tag tag = pkt->header()->tag;
+        #ifdef DEBUG_MAC
+                std::cout << "Message Tag: ";
+                for (const auto byte : tag) {
+                  std::cout << std::hex << static_cast<int>(byte) << " ";
+                }
+                std::cout << std::endl;
+        #endif
         pkt->header()->tag = {};
         auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
         std::vector<std::byte> msg_vec(msg.begin(), msg.end());
+        #ifdef DEBUG_MAC
+                auto exp_tag = MAC::compute(key, msg_vec);
+                std::cout << "Expected Tag: ";
+                for (const auto byte : exp_tag) {
+                  std::cout << std::hex << static_cast<int>(byte) << " ";
+                }
+                std::cout << std::endl;
+        #endif
+        
   
         if (!MAC::verify(key, msg_vec, tag)) {
+#ifdef DEBUG_MAC
+        std::cout << "Message dropped" << std::endl;
+#endif
           Base::free(buf);
           return;
         }
@@ -121,6 +139,7 @@ protected:
 
       // Se é uma mensagem de chaves MAC, armazena chaves MAC
       if (pkt_type == Control::Type::MAC) {
+        std::cout << "Got mac keys" << std::endl;
         std::vector<MacKeyEntry> keys;
 
         auto data = pkt->template data<std::byte>();
@@ -210,6 +229,9 @@ protected:
     auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
     std::vector<std::byte> msg_vec(msg.begin(), msg.end());
     auto tag = MAC::compute(key, msg_vec);
+#ifdef DEBUG_MAC
+    tag = MAC::Tag{};
+#endif
     pkt->header()->tag = tag;
   }
 
