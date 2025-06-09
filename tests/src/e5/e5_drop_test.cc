@@ -49,7 +49,9 @@ int main() {
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   sem_init(recv_ready, 1, 0); // Inicialmente bloqueado
-
+  
+  pid_t *pid_recv = static_cast<pid_t *>(mmap(NULL, sizeof(pid_t), PROT_READ | PROT_WRITE, 
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   Map *map = new Map(1, 1);
 
   constexpr SmartUnit Farad(
@@ -67,7 +69,11 @@ int main() {
     } else if (i == 1) {
       auto ret = fork();
       subscriber = ret == 0;
-      if (subscriber) break;
+      if (subscriber) {
+        break;
+      } else {
+        *pid_recv = ret;
+      }
     }
   }
 
@@ -80,15 +86,15 @@ int main() {
       sem_wait(recv_ready);
       Message msg =
           Message(comp._comm.addr(),
-                  Protocol::Address(car.prot.getNICPAddr(), Protocol::BROADCAST_SID,
-                                    Protocol::BROADCAST),
+                  Protocol::Address(car.prot.getNICPAddr(), *pid_recv,
+                                    10),
                   MESSAGE_SIZE);
       memset(msg.data(), 0, MESSAGE_SIZE);
 
       for (size_t j = 0; j < MESSAGE_SIZE; j++) {
         msg.data()[j] = std::byte(randint(0, 255));
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      std::this_thread::sleep_for(std::chrono::milliseconds(2000));
       comp.send(&msg);
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
       comp.send(&msg);

@@ -72,37 +72,45 @@ protected:
       // Se não é uma mensagem de RSU, verifica MAC
       if (pkt_type != Control::Type::DELAY_RESP &&
           pkt_type != Control::Type::LATE_SYNC &&
-          pkt_type != Control::Type::MAC) {
+          pkt_type != Control::Type::MAC && received_first_keys) {
         int q_id = Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y });
         MAC::Key key = _key_keeper.getKey(q_id);
   
         MAC::Tag tag = pkt->header()->tag;
-        #ifdef DEBUG_MAC
-                std::cout << "Message Tag: ";
-                for (const auto byte : tag) {
-                  std::cout << std::hex << static_cast<int>(byte) << " ";
-                }
-                std::cout << std::endl;
-        #endif
+#ifdef DEBUG_MAC
+        if (pkt_type == Control::Type::COMMON) {
+          std::cout << "Message Tag: ";
+          for (const auto byte : tag) {
+            std::cout << std::hex << static_cast<int>(byte) << " ";
+          }
+          std::cout << std::endl;
+        }
+#endif
         pkt->header()->tag = {};
         auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
         std::vector<std::byte> msg_vec(msg.begin(), msg.end());
-        #ifdef DEBUG_MAC
-                auto exp_tag = MAC::compute(key, msg_vec);
-                std::cout << "Expected Tag: ";
-                for (const auto byte : exp_tag) {
-                  std::cout << std::hex << static_cast<int>(byte) << " ";
-                }
-                std::cout << std::endl;
-        #endif
+#ifdef DEBUG_MAC
+        if (pkt_type == Control::Type::COMMON) {
+          auto exp_tag = MAC::compute(key, msg_vec);
+          std::cout << "Expected Tag: ";
+          for (const auto byte : exp_tag) {
+            std::cout << std::hex << static_cast<int>(byte) << " ";
+          }
+          std::cout << std::endl;
+        }
+#endif
         
   
         if (!MAC::verify(key, msg_vec, tag)) {
 #ifdef DEBUG_MAC
-        std::cout << "Message dropped" << std::endl;
+        if (pkt_type == Control::Type::COMMON) {
+          std::cout << "Fake drop" << std::endl;
+        }
 #endif
-          Base::free(buf);
-          return;
+#ifndef DEBUG_MAC
+        Base::free(buf);
+        return;
+#endif
         }
       }
 
@@ -159,6 +167,7 @@ protected:
         }
 
         _key_keeper.setKeys(keys);
+        received_first_keys = true;
       }
 
       // Se é uma mensagem de controle, libera buffer
@@ -237,6 +246,7 @@ protected:
   }
 
 private:
+  bool received_first_keys;
   KeyKeeper _key_keeper;
 };
 
