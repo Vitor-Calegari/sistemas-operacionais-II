@@ -43,16 +43,26 @@ public:
         );
         if (shouldEnd == MAP_FAILED) { perror("mmap"); exit(1); }
         *shouldEnd = false;  // inicializa em false
+
+        mutex = static_cast<pthread_mutex_t*>(
+            mmap(NULL, sizeof(pthread_mutex_t),
+                PROT_READ|PROT_WRITE,
+                MAP_SHARED|MAP_ANONYMOUS, -1, 0));
+        
+        cond = static_cast<pthread_cond_t*>(
+            mmap(NULL, sizeof(pthread_cond_t),
+                PROT_READ|PROT_WRITE,
+                MAP_SHARED|MAP_ANONYMOUS, -1, 0));
         // Inicializa mutex da variavel de condição
         pthread_mutexattr_t mutex_cond_attr;
         pthread_mutexattr_init(&mutex_cond_attr);
         pthread_mutexattr_setpshared(&mutex_cond_attr, PTHREAD_PROCESS_SHARED);
-        pthread_mutex_init(&mutex, &mutex_cond_attr);
+        pthread_mutex_init(mutex, &mutex_cond_attr);
         // Inicializa variavel de condição
         pthread_condattr_t cond_attr;
         pthread_condattr_init(&cond_attr);
         pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
-        pthread_cond_init(&cond, &cond_attr);
+        pthread_cond_init(cond, &cond_attr);
 
         rsu_sem =
         static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
@@ -122,14 +132,17 @@ public:
         pthread_mutex_destroy(&shared_data->mutex);
         pthread_barrier_destroy(&shared_data->barrier);
         munmap(shared_data, sizeof(SharedData));
+        munmap(shouldEnd, sizeof(bool));
+        munmap(mutex, sizeof(pthread_mutex_t));
+        munmap(cond, sizeof(pthread_cond_t));
         shm_unlink(SHM_NAME);
     }
 
     void finalizeRSU() {
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(mutex);
         *shouldEnd = true;
-        pthread_cond_broadcast(&cond);
-        pthread_mutex_unlock(&mutex);
+        pthread_cond_broadcast(cond);
+        pthread_mutex_unlock(mutex);
         std::cout << get_timestamp() << " PID " << getpid() << " Should end MAP" << std::endl;
     }
 
@@ -153,11 +166,11 @@ private:
     }
 
     void waitCond() {
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(mutex);
         while (!*shouldEnd) {
-            pthread_cond_wait(&cond, &mutex);
+            pthread_cond_wait(cond, mutex);
         }
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(mutex);
     }
 private:
     int RSUNum;
@@ -165,8 +178,8 @@ private:
     sem_t *rsu_sem;
     sem_t *shared_mem_sem;
     SharedData* shared_data;
-    pthread_cond_t cond;
-    pthread_mutex_t mutex;
+    pthread_cond_t *cond;
+    pthread_mutex_t *mutex;
     int NUM_COLS;
     int NUM_LINES;
     Topology _topo;
