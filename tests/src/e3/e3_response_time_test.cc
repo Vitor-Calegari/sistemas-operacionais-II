@@ -3,6 +3,7 @@
 #include "message.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
+#include "map.hh"
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -15,6 +16,7 @@ constexpr size_t NUM_MESSAGES = 10;
 constexpr uint32_t DEFAULT_PERIOD_US = 5e3;
 
 int main() {
+  Map *map = new Map(1, 1);
   uint32_t period_us = DEFAULT_PERIOD_US;
   constexpr SmartUnit Meter(SmartUnit::SIUnit::M);
 
@@ -58,6 +60,7 @@ int main() {
   sem_post(semaphore);
   int status;
   waitpid(pid, &status, 0);
+  delete map;
 
   double avg_diff = 0.0;
   for (size_t i = 1; i < NUM_MESSAGES; ++i) {

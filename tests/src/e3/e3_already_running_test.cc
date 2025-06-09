@@ -4,6 +4,7 @@
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
+#include "map.hh"
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -23,6 +24,7 @@ int main(int argc, char *argv[]) {
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
+  Map *map = new Map(1, 1);
 
   pid_t pid = fork();
   if (pid == -1) {
@@ -71,5 +73,6 @@ int main(int argc, char *argv[]) {
 
   std::cout << "Teste de resubscribe passou" << std::endl;
 
+  delete map;
   return 0;
 }

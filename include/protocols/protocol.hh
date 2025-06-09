@@ -108,7 +108,6 @@ protected:
         Base::_sync_engine.handlePTP(recv_timestamp, pkt->header()->timestamp,
                                      pkt->header()->origin, pkt_type,
                                      *pkt->template data<int64_t>());
-        std::cout << "Tratado ptp" << std::endl;
       }
 
       if (pkt_type == Control::Type::MAC) {

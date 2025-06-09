@@ -139,8 +139,6 @@ protected:
         _sync_engine(this, isRSU), _nav(points, topology, comm_range, speed) {
     _rsnic.attach(this, PROTO);
     _smnic.attach(this, PROTO);
-    std::cout << get_timestamp() << " Protocol " << _sysID << " ended"
-              << std::endl;
   }
 
 public:

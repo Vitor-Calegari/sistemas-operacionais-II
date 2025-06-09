@@ -8,6 +8,7 @@
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
+#include "map.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
@@ -27,10 +28,11 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
+  Map *map = new Map(1,1);
   std::mutex stdout_mtx;
 
   std::mutex sub_count_mutex;
@@ -115,6 +117,7 @@ int main() {
   for (int i = 0; i < NUM_SUB_THREADS; ++i) {
     sub_threads[i].join();
   }
-
+  
+  delete map;
   return 0;
 }

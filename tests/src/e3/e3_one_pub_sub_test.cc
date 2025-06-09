@@ -9,6 +9,7 @@
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
+#include "map.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -28,6 +29,8 @@ int main(int argc, char *argv[]) {
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
 
+  Map *map = new Map(1, 1);
+
   bool publisher;
   if (argc < 2) {
     // Novo processo será o publisher.
@@ -46,7 +49,7 @@ int main(int argc, char *argv[]) {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
@@ -89,6 +92,6 @@ int main(int argc, char *argv[]) {
     sem_post(semaphore);
     std::cout << "Terminou (subscriber)" << std::endl;
   }
-
+  delete map;
   return 0;
 }

@@ -152,11 +152,11 @@ public:
 
 private:
     int createRSU(int c, int l) {
-        int x_offset = c - NUM_COLS / 2;
-        int y_offset = NUM_LINES / 2 - l;
+        double cell = 2 * RSU_RANGE;
 
-        double x = RSU_RANGE + x_offset * 2 * RSU_RANGE;
-        double y = RSU_RANGE + y_offset * 2 * RSU_RANGE;
+        double x = (c - (NUM_COLS - 1) / 2.0) * cell;
+        double y = ((NUM_LINES - 1) / 2.0 - l) * cell;
+
         Coordinate point(x, y);
 
         [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(c,l), c * (l + 1), {point}, _topo, RSU_RANGE, 0);
