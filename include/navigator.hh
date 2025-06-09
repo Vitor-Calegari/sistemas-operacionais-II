@@ -115,10 +115,6 @@ public:
     }
   }
 
-  ~NavigatorDirected() {
-    std::cout << get_timestamp() << " PID " << getpid() << " Nav terminated"  << std::endl;
-  }
-
   Coordinate get_location() override {
     if (_points.size() < 2 || _speed <= 0) {
       return { _x, _y };

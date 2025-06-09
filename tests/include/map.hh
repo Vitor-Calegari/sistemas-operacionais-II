@@ -34,7 +34,15 @@ public:
 
     static constexpr double RSU_RANGE = 10;  // -10 a 0 a 10
 
-    Map(int n_col, int n_line) : RSUNum(n_col * n_line), shouldEnd(false), NUM_COLS(n_col), NUM_LINES(n_line), _topo({n_col, n_line}, RSU_RANGE){
+    Map(int n_col, int n_line) : RSUNum(n_col * n_line), NUM_COLS(n_col), NUM_LINES(n_line), _topo({n_col, n_line}, RSU_RANGE){
+        
+        shouldEnd = static_cast<bool*>(
+            mmap(NULL, sizeof(bool),
+                 PROT_READ | PROT_WRITE,
+                 MAP_SHARED | MAP_ANONYMOUS, -1, 0)
+        );
+        if (shouldEnd == MAP_FAILED) { perror("mmap"); exit(1); }
+        *shouldEnd = false;  // inicializa em false
         // Inicializa mutex da variavel de condição
         pthread_mutexattr_t mutex_cond_attr;
         pthread_mutexattr_init(&mutex_cond_attr);
@@ -77,11 +85,14 @@ public:
         shared_data->counter = 0;
         shared_data->entries_size_x = n_col;
         shared_data->entries_size_y = n_line;
-    
-    
+
         for (int col = 0; col < n_col; col++) {
             for (int line = 0; line < n_line; line++) {
                 auto ret_rsu = fork();
+                if (ret_rsu < 0) {
+                    std::cerr << "Erro ao criar processo" << std::endl;
+                    exit(1);
+                }
                 if (col == 0 && line == 0) {
                     if (!ret_rsu) {
                         sem_wait(shared_mem_sem);
@@ -116,10 +127,10 @@ public:
 
     void finalizeRSU() {
         pthread_mutex_lock(&mutex);
-        shouldEnd = true;
+        *shouldEnd = true;
         pthread_cond_broadcast(&cond);
         pthread_mutex_unlock(&mutex);
-        
+        std::cout << get_timestamp() << " PID " << getpid() << " Should end MAP" << std::endl;
     }
 
     Topology getTopology() {
@@ -137,19 +148,20 @@ private:
 
         [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(c,l), c * (l + 1), {point}, _topo, RSU_RANGE, 0);
         waitCond();
+        std::cout << get_timestamp() << " RSU " << getpid() << " ending" << std::endl;
         exit(0);
     }
 
     void waitCond() {
         pthread_mutex_lock(&mutex);
-        while (!shouldEnd) {
+        while (!*shouldEnd) {
             pthread_cond_wait(&cond, &mutex);
         }
         pthread_mutex_unlock(&mutex);
     }
 private:
     int RSUNum;
-    bool shouldEnd;
+    bool *shouldEnd;
     sem_t *rsu_sem;
     sem_t *shared_mem_sem;
     SharedData* shared_data;

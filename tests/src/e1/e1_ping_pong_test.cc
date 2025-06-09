@@ -27,6 +27,7 @@ struct msg_struct {
 };
 
 int main() {
+  std::cout << "Main proc is " << getpid() << std::endl;
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
@@ -34,7 +35,33 @@ int main() {
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
   using Coordinate = NavigatorCommon::Coordinate;
-  Map map(1, 1);
+
+  // Inicializa mutex da variavel de condição
+  pthread_mutexattr_t mutex_cond_attr;
+  pthread_mutexattr_init(&mutex_cond_attr);
+  pthread_mutexattr_setpshared(&mutex_cond_attr, PTHREAD_PROCESS_SHARED);
+  pthread_mutex_t mutex;
+  pthread_mutex_init(&mutex, &mutex_cond_attr);
+  // Inicializa variavel de condição
+  pthread_condattr_t cond_attr;
+  pthread_condattr_init(&cond_attr);
+  pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
+  pthread_cond_t cond;
+  pthread_cond_init(&cond, &cond_attr);
+
+  bool *map_ready = static_cast<bool*>(
+    mmap(NULL, sizeof(bool),
+         PROT_READ|PROT_WRITE,
+          MAP_SHARED|MAP_ANONYMOUS, -1, 0));
+  if (map_ready == MAP_FAILED) { perror("mmap"); exit(1); }
+  *map_ready = false;
+
+  Map *map = new Map(1, 1);
+  pthread_mutex_lock(&mutex);
+  *map_ready = true;
+  pthread_cond_broadcast(&cond);
+  pthread_mutex_unlock(&mutex);
+
   // Cria um semaphore compartilhado entre processos
   sem_t *semaphore =
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
@@ -45,7 +72,17 @@ int main() {
   }
   sem_init(semaphore, 1, 0);
 
-  pid_t parentPID = getpid();
+  // Cria um semaphore compartilhado entre processos
+  sem_t *semaphore_send_to_pid =
+      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  if (semaphore_send_to_pid == MAP_FAILED) {
+    std::cerr << "Erro ao criar o semaphore." << std::endl;
+    exit(1);
+  }
+  sem_init(semaphore_send_to_pid, 1, 0);
+
+  pid_t *send_to_pid = new pid_t;
   pid_t pid = fork();
   if (pid < 0) {
     std::cerr << "Erro ao criar processo" << std::endl;
@@ -53,8 +90,14 @@ int main() {
   }
 
   if (pid == 0) {
+    pthread_mutex_lock(&mutex);
+    while (!*map_ready) {
+        pthread_cond_wait(&cond, &mutex);
+    }
+    pthread_mutex_unlock(&mutex);
+    sem_wait(semaphore_send_to_pid);
     // Código do processo-filho
-    Topology topo = map.getTopology();
+    Topology topo = map->getTopology();
     Coordinate point(0, 0);
     Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
 
@@ -64,7 +107,7 @@ int main() {
     sem_wait(semaphore);
 
     Message send_msg(communicator.addr(),
-                     Protocol::Address(prot.getNICPAddr(), parentPID, 11),
+                     Protocol::Address(prot.getNICPAddr(), *send_to_pid, 11),
                      MESSAGE_SIZE);
     struct msg_struct ms;
     ms.counter = 0;
@@ -103,9 +146,23 @@ int main() {
     }
     std::cout << "Inspect ended" << std::endl;
     exit(0); // Conclui com sucesso no processo-filho
-  } else {
-    // Processo Pai
-    Topology topo = map.getTopology();
+  }
+
+  pid = fork();
+  if (pid < 0) {
+    std::cerr << "Erro ao criar processo" << std::endl;
+    exit(1);
+  }
+
+  if (pid == 0) {
+    pthread_mutex_lock(&mutex);
+    while (!*map_ready) {
+        pthread_cond_wait(&cond, &mutex);
+    }
+    pthread_mutex_unlock(&mutex);
+    *send_to_pid = getpid();
+    sem_post(semaphore_send_to_pid);
+    Topology topo = map->getTopology();
     Coordinate point(0, 0);
     Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
     Communicator communicator(&prot, 11);
@@ -132,7 +189,7 @@ int main() {
       reinterpret_cast<struct msg_struct *>(recv_msg.data())->counter++;
 
       Message send_msg(communicator.addr(), *recv_msg.sourceAddr(),
-                       MESSAGE_SIZE);
+                        MESSAGE_SIZE);
       std::memcpy(send_msg.data(), recv_msg.data(), MESSAGE_SIZE);
 
       bool sent = false;
@@ -146,14 +203,16 @@ int main() {
       } while (sent == false);
     }
     std::cout << "Counter ended" << std::endl;
+    exit(0);
   }
 
   // Processo pai aguarda todos os filhos finalizarem
-  map.finalizeRSU();
+  map->finalizeRSU();
   int status;
   while (wait(&status) > 0)
     ;
-
+  delete map;
+  delete send_to_pid;
   std::cout << "Teste ping pong concluído" << std::endl;
 
   // Libera os recursos do semaphore
