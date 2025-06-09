@@ -29,13 +29,14 @@ public:
 
     y /= 2 * _rsu_range;
     y -= double(_size.second) / 2;
+    y = std::abs(y);
 
     int y_int = floor(y);
     if (y_int == _size.second) {
       --y_int;
     }
 
-    return x_int + y_int * _size.second;
+    return x_int + y_int * _size.first;
   }
 
   Size get_size() const {
