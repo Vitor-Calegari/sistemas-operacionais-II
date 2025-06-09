@@ -87,6 +87,7 @@ public:
             _shared_data->entries_size_y, _coord.first, _coord.second);
 
         std::byte data[9 * sizeof(MacKeyEntry)];
+        std::memset(data, 0, sizeof(data));
         for (std::size_t i = 0; i < neighborhood_keys.size(); ++i) {
           auto key = neighborhood_keys[i];
 
