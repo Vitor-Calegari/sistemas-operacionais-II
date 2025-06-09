@@ -34,7 +34,8 @@ public:
   static constexpr int renew_mac_int = 3;
 
 public:
-  RSUEngine(Protocol * protocol, SharedData * shared_data, Coord coord, int id) : _protocol(protocol), _coord(coord), _id(id), _shared_data(shared_data) {
+  RSUEngine(Protocol *protocol, SharedData *shared_data, Coord coord, int id)
+      : _protocol(protocol), _coord(coord), _id(id), _shared_data(shared_data) {
     startKeySenderThread();
   }
 
@@ -52,7 +53,7 @@ public:
         if (_shared_data->counter == 0) {
           // Gerar mac e inserir na minha posição do map
           int indx =
-              (_coord.first * _shared_data->entries_size_x) + _coord.second;
+              _coord.first + (_coord.second * _shared_data->entries_size_x);
           _shared_data->entries[indx] =
               MacKeyEntry(_id, MAC::generate_random_key());
         }
@@ -113,9 +114,9 @@ public:
     }
   }
 
-  std::vector<MacKeyEntry>
-  getNeighborhood(MacKeyEntry *matrix, int rows, int cols,
-                  int targetRow, int targetCol) {
+  std::vector<MacKeyEntry> getNeighborhood(MacKeyEntry *matrix, int rows,
+                                           int cols, int targetRow,
+                                           int targetCol) {
     std::vector<MacKeyEntry> result;
 
     for (int dr = -1; dr <= 1; ++dr) {
