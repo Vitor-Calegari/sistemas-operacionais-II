@@ -31,14 +31,14 @@ public:
     using SharedMemNIC = NIC<SharedEngine<Buffer>>;
     using RSU = RSUProtocol<SocketNIC, SharedMemNIC>;
     using Coordinate = NavigatorCommon::Coordinate;
-    using Dimension = Topology::Dimension;
+    using Size = Topology::Size;
 
     static const double RSU_RANGE = 10;  // -10 a 0 a 10
 
     Map(int n_col, int n_line) : RSUNum(n_col * n_line), shouldEnd(false), NUM_COLS(n_col), NUM_LINES(n_line) {
 
-        Dimension dim(n_col, n_line);
-        _topo = Topology(dim, RSU_RANGE);
+        Size size(n_col, n_line);
+        _topo = Topology(size, RSU_RANGE);
 
         // Inicializa mutex da variavel de condição
         pthread_mutexattr_t mutex_cond_attr;
@@ -128,8 +128,7 @@ private:
         double y = RSU_RANGE + y_offset * 2 * RSU_RANGE;
         Coordinate point(x, y);
 
-        // TODO Passar topologia ao navigator
-        NavigatorDirected nav = NavigatorDirected({point}, 0);
+        NavigatorDirected nav = NavigatorDirected({point}, _topo, RSU_RANGE, 0);
         [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(c,l), c * (l + 1), &nav);
         waitCond();
         exit(0);
