@@ -53,7 +53,7 @@ protected:
   // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
   void update([[maybe_unused]] typename SocketNIC::Observed *obs,
               [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-              Buffer *buf) {
+              Buffer *buf) override {
     uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
     Packet *pkt = buf->data()->template data<Packet>();
     double coord_x = pkt->header()->coord_x;
