@@ -17,13 +17,16 @@ public:
   using BufferC = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<BufferC>>;
   using SharedMemNIC = NIC<SharedEngine<BufferC>>;
-  using ProtocolC = Protocol<SocketNIC, SharedMemNIC>;
+  using ProtocolC = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using ComponentC = Component<ProtocolC>;
   using Port = ComponentC::PortC;
+  using Coordinate = NavigatorDirected::Coordinate;
 
 public:
-  Car(const std::string &label = "", NavigatorCommon *nav)
-      : prot(ProtocolC::getInstance(INTERFACE_NAME, getpid(), nav)), label(label) {
+  Car(const std::string &label = "", const std::vector<Coordinate> &points = {{0, 0}}, Topology topology = Topology({1, 1}, 10),
+    double comm_range = 5, double speed = 1)
+      : prot(ProtocolC::getInstance(INTERFACE_NAME, getpid(), points, topology,
+      comm_range, speed)), label(label) {
   }
 
   ComponentC create_component(Port p) {

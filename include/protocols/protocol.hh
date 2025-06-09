@@ -58,7 +58,9 @@ protected:
     Packet *pkt = buf->data()->template data<Packet>();
     double coord_x = pkt->header()->coord_x;
     double coord_y = pkt->header()->coord_y;
-    if (pkt->header()->tag != MAC::Tag{}) {
+    Control::Type pkt_type = pkt->header()->ctrl.getType();
+
+    if (pkt_type != Control::Type::DELAY_RESP && pkt_type != Control::Type::LATE_SYNC && pkt->header()->tag != MAC::Tag{}) {
       MAC::Key key = _key_keeper.getKey(
           Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y }));
 
@@ -73,20 +75,22 @@ protected:
       }
     }
 
-    Control::Type pkt_type = pkt->header()->ctrl.getType();
 
     if (pkt_type != Control::Type::MAC &&
+        pkt_type != Control::Type::DELAY_RESP &&
+        pkt_type != Control::Type::LATE_SYNC &&
         !Base::_nav.is_in_range({ coord_x, coord_y })) {
       Base::free(buf);
       return;
     }
 
-    if (pkt_type == Control::Type::MAC) {
+    if (pkt_type == Control::Type::MAC ||
+        pkt_type == Control::Type::DELAY_RESP ||
+        pkt_type == Control::Type::LATE_SYNC) {
       auto quadrant_rsu =
           Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y });
       auto quadrant =
           Base::_nav.get_topology().get_quadrant_id(Base::_nav.get_location());
-
       if (quadrant_rsu != quadrant) {
         Base::free(buf);
         return;
@@ -106,6 +110,7 @@ protected:
         Base::_sync_engine.handlePTP(recv_timestamp, pkt->header()->timestamp,
                                      pkt->header()->origin, pkt_type,
                                      *pkt->template data<int64_t>());
+        std::cout << "Tratado ptp" << std::endl;
       }
 
       if (pkt_type == Control::Type::MAC) {

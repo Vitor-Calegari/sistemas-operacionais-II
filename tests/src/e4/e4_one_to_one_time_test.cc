@@ -13,6 +13,7 @@
 #include "smart_unit.hh"
 #include "transducer.hh"
 #include "mac_structs.hh"
+#include "map.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -30,15 +31,12 @@ constexpr int PERIOD_SUBCRIBER = 5e6;
 #define INTERFACE_NAME "lo"
 #endif
 
-const char* SHM_NAME = "/barrier_shm";
-const int NUM_PROCESSES = 1;  // Apenas uma RSU nesse teste
 
 int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
-  using RSU = RSUProtocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
@@ -52,49 +50,7 @@ int main() {
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   sem_init(sub_ready, 1, 0); // Inicialmente bloqueado
 
-  sem_t *rsu_sem =
-      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
-                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
-  sem_init(rsu_sem, 1, 0); // Inicialmente bloqueado
-
-  sem_t *shared_mem_sem =
-      static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
-                                MAP_SHARED | MAP_ANONYMOUS, -1, 0));
-  sem_init(shared_mem_sem, 1, 0); // Inicialmente bloqueado
-
-  // Cria e configura a memória compartilhada
-  int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-  ftruncate(shm_fd, sizeof(SharedData));
-  SharedData* shared_data = (SharedData*) mmap(NULL, sizeof(SharedData), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-
-  // Inicializa mutex 
-  pthread_mutexattr_t mutex_attr;
-  pthread_mutexattr_init(&mutex_attr);
-  pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
-  pthread_mutex_init(&shared_data->mutex, &mutex_attr);
-
-  // Inicializa barreira
-  pthread_barrierattr_t barrier_attr;
-  pthread_barrierattr_init(&barrier_attr);
-  pthread_barrierattr_setpshared(&barrier_attr, PTHREAD_PROCESS_SHARED);
-  pthread_barrier_init(&shared_data->barrier, &barrier_attr, NUM_PROCESSES);
-
-  // Inicializa variaveis de controle para RSU
-  shared_data->counter = 0;
-  shared_data->entries_size_x = 1;
-  shared_data->entries_size_y = 1;
-  
-  auto ret_rsu = fork();
-
-  if (!ret_rsu) {
-    sem_wait(shared_mem_sem);
-    [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(0,0), 0);
-    sem_wait(rsu_sem);
-    return 0;
-  } else {
-    shared_data->choosen_rsu = ret_rsu;
-    sem_post(shared_mem_sem);
-  }
+  Map *map = new Map(1, 1);
 
   constexpr SmartUnit Farad(
     (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
@@ -160,19 +116,9 @@ int main() {
   for (int i = 0; i < 2; i++) {
     wait(&status);
   }
-  sem_post(rsu_sem);
-  for (int i = 0; i < 1; i++) {
-    wait(&status);
-  }
+  delete map;
 
-  pthread_mutex_destroy(&shared_data->mutex);
-  pthread_barrier_destroy(&shared_data->barrier);
-  munmap(shared_data, sizeof(SharedData));
   munmap(pub_ready, sizeof(sem_t));
   munmap(sub_ready, sizeof(sem_t));
-  shm_unlink(SHM_NAME);
-  sem_destroy(pub_ready);
-  sem_destroy(sub_ready);
-
   return 0;
 }
