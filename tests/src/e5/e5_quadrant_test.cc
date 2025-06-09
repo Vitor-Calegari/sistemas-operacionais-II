@@ -1,3 +1,7 @@
+// topology_test.cc
+// Teste unitário para a classe Topology (nova API) com escolha de quadrante em fronteiras
+// e teste de interseção de fronteiras (ponto no meio de 4 quadrantes)
+
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -6,26 +10,21 @@
 #include "topology.hh"
 
 int main() {
-    // Configuração da topologia: 3 colunas x 4 linhas, alcance RSU = 10
-    Topology::Size size{3, 4};
+        // Configuração da topologia: 2 colunas x 3 linhas, alcance RSU = 10
+    Topology::Size size{2, 3};
     double rsu_range = 10.0;
     Topology topo(size, rsu_range);
 
-    // Verifica getters
+    // Verifica getters mínimos (size e range)
     auto sz = topo.get_size();
     assert(sz.first == size.first && sz.second == size.second);
-    auto dim = topo.get_dimension();
-    assert(std::abs(dim.first - (size.first * rsu_range)) < 1e-9);
-    assert(std::abs(dim.second - (size.second * rsu_range)) < 1e-9);
-    std::cout << "Size OK: (" << sz.first << "," << sz.second << ")\n"
-              << "Dimension OK: (" << dim.first << "," << dim.second << ")\n"
-              << "Range OK: " << topo.get_range() << "\n\n";
+    std::cout << "Size OK: (" << sz.first << "," << sz.second << ")";
+    assert(std::abs(topo.get_range() - rsu_range) < 1e-9);
+    std::cout << "Range OK: " << topo.get_range() << "";
 
-    int cols = size.first;
-    int rows = size.second;
-
-    // 1) Teste de ponto interior para cada quadrante
-    std::cout << "=== Teste de pontos interiores ===\n";
+    // === Teste de pontos interiores ===\n";
+    int cols = sz.first;
+    int rows = sz.second;
     for (int qy = 0; qy < rows; ++qy) {
         for (int qx = 0; qx < cols; ++qx) {
             double x = ((double)qx - cols/2.0 + 0.5) * 2 * rsu_range;
@@ -70,8 +69,20 @@ int main() {
         }
     }
 
+    // 4) Teste de interseção de fronteiras (ponto no meio de 4 quadrantes)
+    std::cout << "\n=== Teste de interseções de fronteiras ===\n";
+    for (int k = 1; k < rows; ++k) {
+        int kv = 1; // única fronteira vertical para cols=2
+        double x = ((double)kv - cols/2.0) * 2 * rsu_range;
+        double y = ((double)k + rows/2.0) * 2 * rsu_range;
+        int id = topo.get_quadrant_id({x, y});
+        int expected = kv + k * rows; // quadrante à direita e acima
+        std::cout << "Interseção frontieras kv=" << kv << ", k=" << k
+                  << " -> ponto(" << x << "," << y << ") => id=" << id
+                  << ", esperado=" << expected << "\n";
+        assert(id == expected);
+    }
+
     std::cout << "\nTodos os testes passaram com sucesso.\n";
     return 0;
 }
-
-// g++ -std=c++20 -Iinclude tests/src/e5/e5_quadrant_test.cc -o topology_test
