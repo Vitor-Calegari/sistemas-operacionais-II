@@ -53,7 +53,7 @@ protected:
     Packet *pkt = buf->data()->template data<Packet>();
     SysID sysID = pkt->header()->dest.getSysID();
 
-#ifdef DEBUG_TIMESTAMP
+#ifdef DEBUG_TIMESTAMP_2
     std::cout << get_timestamp() << " I’m RSU " << getpid() << " I received a";
     if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
       std::cout << " ANNOUNCE message " << std::endl;
