@@ -2,6 +2,7 @@
 #define NAVIGATOR_HH
 
 #include "topology.hh"
+#include "utils.hh"
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -112,6 +113,10 @@ public:
         calc_line_segment();
       }
     }
+  }
+
+  ~NavigatorDirected() {
+    std::cout << get_timestamp() << " PID " << getpid() << " Nav terminated"  << std::endl;
   }
 
   Coordinate get_location() override {

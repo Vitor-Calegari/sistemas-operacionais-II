@@ -46,7 +46,8 @@ public:
   Control *getControl() {
     return &_ctrl;
   }
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
   double *getCoordX() {
     return &_coord_x;
   }
@@ -54,8 +55,7 @@ public:
   double *getCoordY() {
     return &_coord_y;
   }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+
   uint64_t *timestamp() {
     return &_timestamp;
   }

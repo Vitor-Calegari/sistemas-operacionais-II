@@ -4,6 +4,7 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "map.hh"
 #include <cstdlib>
 #include <iostream>
 #include <semaphore.h>
@@ -29,9 +30,11 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
+  using Coordinate = NavigatorCommon::Coordinate;
+  Map map(1, 1);
   // Cria um semaphore compartilhado entre processos
   sem_t *semaphore =
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
@@ -51,7 +54,9 @@ int main() {
 
   if (pid == 0) {
     // Código do processo-filho
-    auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+    Topology topo = map.getTopology();
+    Coordinate point(0, 0);
+    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
 
     Communicator communicator(&prot, 10);
 
@@ -96,10 +101,13 @@ int main() {
         exit(1);
       }
     }
+    std::cout << "Inspect ended" << std::endl;
     exit(0); // Conclui com sucesso no processo-filho
   } else {
     // Processo Pai
-    auto &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+    Topology topo = map.getTopology();
+    Coordinate point(0, 0);
+    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
     Communicator communicator(&prot, 11);
 
     Message send_msg(MESSAGE_SIZE);
@@ -137,9 +145,11 @@ int main() {
         }
       } while (sent == false);
     }
+    std::cout << "Counter ended" << std::endl;
   }
 
   // Processo pai aguarda todos os filhos finalizarem
+  map.finalizeRSU();
   int status;
   while (wait(&status) > 0)
     ;

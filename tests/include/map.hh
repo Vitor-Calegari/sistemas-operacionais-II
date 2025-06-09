@@ -26,20 +26,15 @@ const char* SHM_NAME = "/barrier_shm";
 
 class Map {
 public:
-    using Buffer = Buffer<Ethernet::Frame>;
-    using SocketNIC = NIC<Engine<Buffer>>;
-    using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-    using RSU = RSUProtocol<SocketNIC, SharedMemNIC>;
+    using SocketNIC = NIC<Engine<Buffer<Ethernet::Frame>>>;
+    using SharedMemNIC = NIC<SharedEngine<Buffer<Ethernet::Frame>>>;
+    using RSU = RSUProtocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
     using Coordinate = NavigatorCommon::Coordinate;
     using Size = Topology::Size;
 
-    static const double RSU_RANGE = 10;  // -10 a 0 a 10
+    static constexpr double RSU_RANGE = 10;  // -10 a 0 a 10
 
-    Map(int n_col, int n_line) : RSUNum(n_col * n_line), shouldEnd(false), NUM_COLS(n_col), NUM_LINES(n_line) {
-
-        Size size(n_col, n_line);
-        _topo = Topology(size, RSU_RANGE);
-
+    Map(int n_col, int n_line) : RSUNum(n_col * n_line), shouldEnd(false), NUM_COLS(n_col), NUM_LINES(n_line), _topo({n_col, n_line}, RSU_RANGE){
         // Inicializa mutex da variavel de condição
         pthread_mutexattr_t mutex_cond_attr;
         pthread_mutexattr_init(&mutex_cond_attr);
@@ -119,6 +114,18 @@ public:
         shm_unlink(SHM_NAME);
     }
 
+    void finalizeRSU() {
+        pthread_mutex_lock(&mutex);
+        shouldEnd = true;
+        pthread_cond_broadcast(&cond);
+        pthread_mutex_unlock(&mutex);
+        
+    }
+
+    Topology getTopology() {
+        return _topo;
+    }
+
 private:
     int createRSU(int c, int l) {
         int x_offset = c - NUM_COLS / 2;
@@ -128,8 +135,7 @@ private:
         double y = RSU_RANGE + y_offset * 2 * RSU_RANGE;
         Coordinate point(x, y);
 
-        NavigatorDirected nav = NavigatorDirected({point}, _topo, RSU_RANGE, 0);
-        [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(c,l), c * (l + 1), &nav);
+        [[maybe_unused]] RSU &rsu_p = RSU::getInstance(INTERFACE_NAME, getpid(), shared_data, std::make_pair(c,l), c * (l + 1), {point}, _topo, RSU_RANGE, 0);
         waitCond();
         exit(0);
     }
@@ -139,13 +145,6 @@ private:
         while (!shouldEnd) {
             pthread_cond_wait(&cond, &mutex);
         }
-        pthread_mutex_unlock(&mutex);
-    }
-
-    void finalizeRSU() {
-        pthread_mutex_lock(&mutex);
-        shouldEnd = true;
-        pthread_cond_broadcast(&cond);
         pthread_mutex_unlock(&mutex);
     }
 private:

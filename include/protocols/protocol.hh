@@ -9,21 +9,22 @@
 #include <bit>
 #include <cstddef>
 
-template <typename SocketNIC, typename SharedMemNIC>
-class Protocol : public ProtocolCommom<SocketNIC, SharedMemNIC> {
+template <typename SocketNIC, typename SharedMemNIC, typename Navigator>
+class Protocol : public ProtocolCommom<SocketNIC, SharedMemNIC, Navigator> {
 public:
-  using Base = ProtocolCommom<SocketNIC, SharedMemNIC>;
+  using Base = ProtocolCommom<SocketNIC, SharedMemNIC, Navigator>;
   using Packet = Base::Packet;
   using SysID = Base::SysID;
   using Address = Base::Address;
   using Port = Base::Port;
   using SyncEngineP = Base::SyncEngineP;
   using Buffer = Base::Buffer;
+  using Coordinate = Navigator::Coordinate;
 
 public:
   static Protocol &getInstance(const char *interface_name, SysID sysID,
-                               NavigatorCommon *nav) {
-    static Protocol instance(interface_name, sysID, nav);
+    const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1) {
+    static Protocol instance(interface_name, sysID, points, topology, comm_range, speed);
 
     return instance;
   }
@@ -37,8 +38,8 @@ public:
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
-  Protocol(const char *interface_name, SysID sysID, NavigatorCommon *nav)
-      : Base(interface_name, sysID, false, nav) {
+  Protocol(const char *interface_name, SysID sysID, const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1)
+      : Base(interface_name, sysID, false, points, topology, comm_range, speed) {
   }
 
   // Método update: chamado pela NIC quando um frame é recebido.
@@ -52,7 +53,7 @@ protected:
     double coord_y = pkt->header()->coord_y;
     if (pkt->header()->tag != MAC::Tag{}) {
       MAC::Key key = _key_keeper.getKey(
-          Base::_nav->get_topology().get_quadrant_id({ coord_x, coord_y }));
+          Base::_nav.get_topology().get_quadrant_id({ coord_x, coord_y }));
 
       MAC::Tag tag = pkt->header()->tag;
       pkt->header()->tag = {};
@@ -65,7 +66,7 @@ protected:
       }
     }
 
-    if (!Base::_nav->is_in_range({ coord_x, coord_y })) {
+    if (!Base::_nav.is_in_range({ coord_x, coord_y })) {
       Base::free(buf);
       return;
     }
@@ -157,7 +158,7 @@ protected:
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
 
-    auto [x, y] = Base::_nav->get_location();
+    auto [x, y] = Base::_nav.get_location();
     pkt->header()->coord_x = x;
     pkt->header()->coord_y = y;
 
@@ -169,7 +170,7 @@ protected:
     }
 
     MAC::Key key = _key_keeper.getKey(
-        Base::_nav->get_topology().get_quadrant_id({ x, y }));
+        Base::_nav.get_topology().get_quadrant_id({ x, y }));
     auto msg = std::bit_cast<std::array<std::byte, sizeof(Packet)>>(*pkt);
     std::vector<std::byte> msg_vec(msg.begin(), msg.end());
     auto tag = MAC::compute(key, msg_vec);

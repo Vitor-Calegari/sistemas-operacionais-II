@@ -5,6 +5,7 @@
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include "utils.hh"
+#include "map.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -25,6 +26,7 @@ int main(int argc, char *argv[]) {
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
   int send;
   int parentPID = 0;
+  Map map(1, 1);
   if (argc < 2) {
     // Novo processo será o sender.
     parentPID = getpid();
@@ -40,11 +42,15 @@ int main(int argc, char *argv[]) {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
+  using Coordinate = NavigatorCommon::Coordinate;
 
-  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+
+  Topology topo = map.getTopology();
+  Coordinate point(0, 0);
+  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
 
   Communicator comm = Communicator(&prot, 10);
 
@@ -65,6 +71,8 @@ int main(int argc, char *argv[]) {
         i++;
       }
     }
+    std::cout << "Send ended" << std::endl;
+    exit(0);
   } else {
     sem_post(semaphore);
     for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
@@ -78,5 +86,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  std::cout << "Receiver ended" << std::endl;
+  
+  map.finalizeRSU();
   return 0;
 }

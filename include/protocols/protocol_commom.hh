@@ -11,17 +11,17 @@
 #include <netinet/in.h>
 
 #ifdef DEBUG
-#include <iostream>
+#include "utils.hh"
 #endif
 
-template <typename SocketNIC, typename SharedMemNIC>
+template <typename SocketNIC, typename SharedMemNIC, typename Navigator>
 class ProtocolCommom
     : public Concurrent_Observed<typename SocketNIC::BufferNIC, unsigned short>,
       private SocketNIC::Observer {
 public:
   inline static const typename SocketNIC::Protocol_Number PROTO = htons(0x88B5);
 
-  typedef SyncEngine<ProtocolCommom<SocketNIC, SharedMemNIC>> SyncEngineP;
+  typedef SyncEngine<ProtocolCommom<SocketNIC, SharedMemNIC, Navigator>> SyncEngineP;
   typedef typename SocketNIC::Header NICHeader;
   typedef typename SocketNIC::BufferNIC Buffer;
   typedef typename SocketNIC::Address Physical_Address;
@@ -30,6 +30,7 @@ public:
 
   typedef Conditional_Data_Observer<Buffer, Port> Observer;
   typedef Concurrent_Observed<Buffer, Port> Observed;
+  using Coordinate = Navigator::Coordinate;
 
   static const Port BROADCAST = 0xFFFF;
   static const SysID BROADCAST_SID = 0;
@@ -115,9 +116,8 @@ public:
   } __attribute__((packed));
 
   static ProtocolCommom &getInstance(const char *interface_name, SysID sysID,
-                                     bool isRSU, NavigatorCommon *nav) {
-    static ProtocolCommom instance(interface_name, sysID, isRSU, nav);
-
+                                     bool isRSU, const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1) {
+    static ProtocolCommom instance(interface_name, sysID, isRSU, points, topology, comm_range, speed);
     return instance;
   }
 
@@ -128,11 +128,12 @@ protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
   ProtocolCommom(const char *interface_name, SysID sysID, bool isRSU,
-                 NavigatorCommon *nav)
+    const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1)
       : _rsnic(interface_name), _smnic(interface_name), _sysID(sysID),
-        _sync_engine(this, isRSU), _nav(nav) {
+        _sync_engine(this, isRSU), _nav(points, topology, comm_range, speed) {
     _rsnic.attach(this, PROTO);
     _smnic.attach(this, PROTO);
+    std::cout << get_timestamp() << " Protocol " << _sysID << " ended"<< std::endl;
   }
 
 public:
@@ -272,7 +273,7 @@ protected:
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
 
-    auto [x, y] = _nav->get_location();
+    auto [x, y] = _nav.get_location();
     pkt->header()->coord_x = x;
     pkt->header()->coord_y = y;
 
@@ -354,7 +355,7 @@ protected:
   SharedMemNIC _smnic;
   SysID _sysID;
   SyncEngineP _sync_engine;
-  NavigatorCommon *_nav;
+  Navigator _nav;
 };
 
 #endif // PROTOCOL_COMMOM_HH

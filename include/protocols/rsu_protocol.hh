@@ -5,25 +5,26 @@
 #include "protocol_commom.hh"
 #include "rsu_engine.hh"
 
-template <typename SocketNIC, typename SharedMemNIC>
-class RSUProtocol : public ProtocolCommom<SocketNIC, SharedMemNIC> {
+template <typename SocketNIC, typename SharedMemNIC, typename Navigator>
+class RSUProtocol : public ProtocolCommom<SocketNIC, SharedMemNIC, Navigator> {
 public:
-  using Base = ProtocolCommom<SocketNIC, SharedMemNIC>;
+  using Base = ProtocolCommom<SocketNIC, SharedMemNIC, Navigator>;
   using Packet = Base::Packet;
   using SysID = Base::SysID;
   using Address = Base::Address;
   using Port = Base::Port;
   using SyncEngineP = Base::SyncEngineP;
   using Buffer = Base::Buffer;
-  using RSUEngineP = RSUEngine<RSUProtocol<SocketNIC, SharedMemNIC>>;
+  using RSUEngineP = RSUEngine<RSUProtocol<SocketNIC, SharedMemNIC, Navigator>>;
   using Coord = RSUEngineP::Coord;
+  using Coordinate = Navigator::Coordinate;
 
 public:
   static RSUProtocol &getInstance(const char *interface_name, SysID sysID,
                                   SharedData *shared_data, Coord coord, int id,
-                                  NavigatorCommon *nav) {
+                                  const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1) {
     static RSUProtocol instance(interface_name, sysID, shared_data, coord, id,
-                                nav);
+      points, topology, comm_range, speed);
     return instance;
   }
 
@@ -37,8 +38,8 @@ protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
   RSUProtocol(const char *interface_name, SysID sysID, SharedData *shared_data,
-              Coord coord, int id, NavigatorCommon *nav)
-      : Base(interface_name, sysID, true, nav),
+              Coord coord, int id, const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1)
+      : Base(interface_name, sysID, true,points,  topology, comm_range, speed),
         _crypto_engine(this, shared_data, coord, id) {
   }
 

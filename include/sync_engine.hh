@@ -182,7 +182,6 @@ private:
         std::this_thread::sleep_until(next_wakeup_t);
         if (!_announce_thread_running)
           break;
-        
       }
     });
   }

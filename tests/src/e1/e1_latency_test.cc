@@ -4,6 +4,7 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "map.hh"
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -16,6 +17,7 @@
 
 using namespace std;
 using namespace std::chrono;
+using Coordinate = NavigatorCommon::Coordinate;
 
 const int num_messages_per_comm = 1000;
 const size_t MESSAGE_SIZE = 256;
@@ -36,7 +38,7 @@ int main() {
     exit(1);
   }
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
-
+  Map map(1, 1);
   pid_t parentPID = getpid();
   pid_t pid = fork();
   if (pid < 0) {
@@ -47,13 +49,15 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
 
   if (pid == 0) {
     // Processo-filho: envia mensagens
-    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+    Topology topo = map.getTopology();
+    Coordinate point(0, 0);
+    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
     Communicator communicator(&prot, 10);
 
     // Aguarda liberação do semaphore pelo pai
@@ -81,7 +85,9 @@ int main() {
     exit(0);
   } else {
     // Processo pai: recebe mensagens
-    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+    Topology topo = map.getTopology();
+    Coordinate point(0, 0);
+    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
     Communicator communicator(&prot, 11);
 
     long long total_latency_us = 0;
@@ -124,6 +130,7 @@ int main() {
     }
 
     // Aguarda o término do filho
+    map.finalizeRSU();
     int status;
     wait(&status);
 

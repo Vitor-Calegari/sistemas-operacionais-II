@@ -6,6 +6,7 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "navigator.hh"
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -21,8 +22,8 @@ public:
   using Port = ComponentC::PortC;
 
 public:
-  Car(const std::string &label = "")
-      : prot(ProtocolC::getInstance(INTERFACE_NAME, getpid())), label(label) {
+  Car(const std::string &label = "", NavigatorCommon *nav)
+      : prot(ProtocolC::getInstance(INTERFACE_NAME, getpid(), nav)), label(label) {
   }
 
   ComponentC create_component(Port p) {
