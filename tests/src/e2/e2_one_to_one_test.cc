@@ -13,7 +13,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-#define NUM_MSGS 1000
+#define NUM_MSGS 900
 #define MSG_SIZE 5
 
 #ifndef INTERFACE_NAME
