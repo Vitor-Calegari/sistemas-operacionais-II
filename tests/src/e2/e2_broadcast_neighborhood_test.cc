@@ -1,6 +1,8 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
+#include "navigator.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
@@ -29,9 +31,11 @@ int main() {
   using Buffer = Buffer<Ethernet::Frame>;
   using SocketNIC = NIC<Engine<Buffer>>;
   using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;
+
+  Map *map = new Map(1, 1);
 
   std::counting_semaphore<NUM_RECV_THREADS> *sem_receivers =
       static_cast<std::counting_semaphore<NUM_RECV_THREADS> *>(
@@ -51,7 +55,11 @@ int main() {
     }
     if (pid == 0) {
       // Código do processo-filho
-      auto &prot2 = Protocol::getInstance(INTERFACE_NAME, getpid());
+      Topology topo = map->getTopology();
+      NavigatorCommon::Coordinate point(0, 0);
+      Protocol &prot2 = Protocol::getInstance(INTERFACE_NAME, getpid(),
+                                              { point }, topo, 10, 0);
+
       Communicator communicator(&prot2, i);
 
       sem_receivers->release();
@@ -78,7 +86,10 @@ int main() {
     }
   }
 
-  Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid());
+  Topology topo = map->getTopology();
+  NavigatorCommon::Coordinate point(0, 0);
+  Protocol &prot =
+      Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
   auto send_task = [&](const int thread_id) {
     Communicator communicator(&prot, thread_id);
 
@@ -129,6 +140,9 @@ int main() {
   munmap(stdout_mtx, sizeof *stdout_mtx);
 
   std::cout << "Broadcast test finished!" << std::endl;
+
+  map->finalizeRSU();
+  delete map;
 
   _exit(0);
 }
