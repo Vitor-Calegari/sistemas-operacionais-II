@@ -22,9 +22,11 @@ public:
 public:
   static RSUProtocol &getInstance(const char *interface_name, SysID sysID,
                                   SharedData *shared_data, Coord coord, int id,
-                                  const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1) {
+                                  const std::vector<Coordinate> &points,
+                                  Topology topology, double comm_range,
+                                  double speed = 1) {
     static RSUProtocol instance(interface_name, sysID, shared_data, coord, id,
-      points, topology, comm_range, speed);
+                                points, topology, comm_range, speed);
     return instance;
   }
 
@@ -32,15 +34,17 @@ public:
   void operator=(RSUProtocol const &) = delete;
 
   ~RSUProtocol() {
-    std::cout << get_timestamp() << " RSU Protocol " << Base::_sysID << " ended"<< std::endl;
+    std::cout << get_timestamp() << " RSU Protocol " << Base::_sysID << " ended"
+              << std::endl;
   }
 
 protected:
   // Construtor: associa o protocolo à NIC e registra-se como observador do
   // protocolo PROTO
   RSUProtocol(const char *interface_name, SysID sysID, SharedData *shared_data,
-              Coord coord, int id, const std::vector<Coordinate> &points, Topology topology, double comm_range, double speed = 1)
-      : Base(interface_name, sysID, true,points,  topology, comm_range, speed),
+              Coord coord, int id, const std::vector<Coordinate> &points,
+              Topology topology, double comm_range, double speed = 1)
+      : Base(interface_name, sysID, true, points, topology, comm_range, speed),
         _crypto_engine(this, shared_data, coord, id) {
   }
 
@@ -48,7 +52,7 @@ protected:
   // Agora com 3 parâmetros: o Observed, o protocolo e o buffer.
   void update([[maybe_unused]] typename SocketNIC::Observed *obs,
               [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-              Buffer *buf) {
+              Buffer *buf) override {
     uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
     Packet *pkt = buf->data()->template data<Packet>();
     SysID sysID = pkt->header()->dest.getSysID();
