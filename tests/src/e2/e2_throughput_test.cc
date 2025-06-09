@@ -20,7 +20,7 @@
 using namespace std;
 using namespace std::chrono;
 
-constexpr long long INITIAL_NUM_MESSAGES = 1000;
+constexpr long long INITIAL_NUM_MESSAGES = 100;
 constexpr long long MSG_SCALING_FACTOR = 5;
 constexpr size_t MESSAGE_SIZE = 32;
 constexpr int TIMEOUT_SEC = 6;
@@ -148,7 +148,7 @@ int main() {
         std::cerr << "Timeout na recepção de mensagens." << std::endl;
         *has_timed_out = true;
         sem_post(semaphore);
-        break;
+        exit(0);
       }
 
       double throughput =

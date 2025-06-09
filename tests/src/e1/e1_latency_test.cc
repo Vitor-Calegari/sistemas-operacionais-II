@@ -1,10 +1,10 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "map.hh"
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -57,7 +57,8 @@ int main() {
     // Processo-filho: envia mensagens
     Topology topo = map.getTopology();
     Coordinate point(0, 0);
-    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
+    Protocol &prot =
+        Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
     Communicator communicator(&prot, 10);
 
     // Aguarda liberação do semaphore pelo pai
@@ -87,7 +88,8 @@ int main() {
     // Processo pai: recebe mensagens
     Topology topo = map.getTopology();
     Coordinate point(0, 0);
-    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
+    Protocol &prot =
+        Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
     Communicator communicator(&prot, 11);
 
     long long total_latency_us = 0;

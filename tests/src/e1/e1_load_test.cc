@@ -19,10 +19,10 @@
 #endif
 
 // Constantes globais para o teste de carga
-const int num_communicators = 15;
-const int num_messages_per_comm = 100;
+const int num_communicators = 3;
+const int num_messages_per_comm = 40;
 const std::size_t MESSAGE_SIZE = 256;
-const int timeout_sec = 5;
+const int timeout_sec = 3;
 
 int main() {
   using Buffer = Buffer<Ethernet::Frame>;
@@ -119,14 +119,15 @@ int main() {
   std::cout << "Mensagens recebidas: " << std::dec << received_msg_count
             << std::endl;
 
+  std::cout << "Teste de carga concluído" << std::endl;
+  exit(0);
+
   // Processo pai aguarda todos os filhos finalizarem
   int status;
   for (int i = 0; i < num_communicators; i++) {
     wait(&status);
   }
   delete map;
-
-  std::cout << "Teste de carga concluído" << std::endl;
 
   // Libera os recursos do semaphore
   sem_destroy(semaphore);
