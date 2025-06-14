@@ -47,8 +47,25 @@ public:
   }
 
   bool send(Message *message) {
-    return _channel->send(*message->sourceAddr(), *message->destAddr(), *message->getControl(),
-                          message->data(), message->size()) > 0;
+    return _channel->send(*message->sourceAddr(), *message->destAddr(),
+                          *message->getControl(), message->data(),
+                          message->size()) > 0;
+  }
+
+  void get_timestamp(Message *message) {
+    auto timestamp = message->timestamp();
+
+    *timestamp = _channel->getTimestamp();
+  }
+
+  void get_location(Message *message) {
+    auto coord_x = message->getCoordX;
+    auto coord_y = message->getCoordY;
+
+    auto [x, y] = _channel->getLocation();
+
+    *coord_x = x;
+    *coord_y = y;
   }
 
   bool receive(Message *message) {

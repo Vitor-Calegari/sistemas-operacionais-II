@@ -172,6 +172,14 @@ public:
     return _sysID;
   }
 
+  int64_t getTimestamp() const {
+    return _sync_engine.getTimestamp();
+  }
+
+  Navigator::Coordinate getLocation() {
+    return _nav.get_location();
+  }
+
   Address peekOrigin(Buffer *buf) {
     LitePacket *pkt = buf->data()->template data<LitePacket>();
     return pkt->header()->origin;
