@@ -75,31 +75,37 @@ public:
     Port _port;
   } __attribute__((packed));
 
-  // Cabeçalho do pacote do protocolo (pode ser estendido com timestamp, tipo,
-  // etc.)
-  class Header {
+  class LiteHeader {
   public:
-    Header()
-        : origin(Address()), dest(Address()), ctrl(0), coord_x(0), coord_y(0),
-          timestamp(0), payloadSize(0), tag{} {
+    LiteHeader() : origin(Address()), dest(Address()), ctrl(0), payloadSize(0) {
     }
     Address origin;
     Address dest;
     Control ctrl;
+    std::size_t payloadSize;
+  } __attribute__((packed));
+
+  class FullHeader : public LiteHeader {
+  public:
+    FullHeader() : coord_x(0), coord_y(0), timestamp(0), tag{} {
+    }
     double coord_x;
     double coord_y;
     uint64_t timestamp;
-    std::size_t payloadSize;
     MAC::Tag tag;
   } __attribute__((packed));
 
   // MTU disponível para o payload: espaço total do buffer menos o tamanho do
   // Header
-  inline static const unsigned int MTU = SocketNIC::MTU - sizeof(Header);
+  inline static const unsigned int MTU = SocketNIC::MTU - sizeof(FullHeader);
   typedef unsigned char Data[MTU];
 
   // Pacote do protocolo: composto pelo Header e o Payload
+  template <typename Header>
   class Packet : public Header {
+  public:
+    inline static const unsigned int MTU = SocketNIC::MTU - sizeof(Header);
+    typedef unsigned char Data[MTU];
   public:
     Packet() {
       std::memset(_data, 0, sizeof(_data));
@@ -115,6 +121,9 @@ public:
   private:
     Data _data;
   } __attribute__((packed));
+
+  using LitePacket = Packet<LiteHeader>;
+  using FullPacket = Packet<FullHeader>;
 
   static ProtocolCommom &getInstance(const char *interface_name, SysID sysID,
                                      bool isRSU,
@@ -164,17 +173,12 @@ public:
   }
 
   Address peekOrigin(Buffer *buf) {
-    Packet *pkt = buf->data()->template data<Packet>();
+    LitePacket *pkt = buf->data()->template data<LitePacket>();
     return pkt->header()->origin;
   }
 
-  unsigned char *peekData(Buffer *buf) {
-    Packet *pkt = buf->data()->template data<Packet>();
-    return pkt->template data<unsigned char>();
-  }
-
-  bool peekOriginSysID(Buffer *buf) {
-    Packet *pkt = buf->data()->template data<Packet>();
+  SysID peekOriginSysID(Buffer *buf) {
+    LitePacket *pkt = buf->data()->template data<LitePacket>();
     return pkt->header()->origin.getSysID();
   }
 
@@ -192,20 +196,6 @@ public:
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, Control &ctrl, void *data = nullptr,
            unsigned int size = 0, uint64_t recv_timestamp = 0) {
-    auto sendWithNIC = [&](auto &nic) -> int {
-      Buffer *buf = nic.alloc(sizeof(Header) + size, 1);
-      if (buf == nullptr)
-        return -1;
-      ctrl.setSynchronized(_sync_engine.getSynced());
-      ctrl.setNeedSync(_sync_engine.getNeedSync());
-      fillBuffer(buf, from, to, ctrl, data, size);
-      if (recv_timestamp) {
-        buf->data()->template data<Packet>()->header()->timestamp =
-            recv_timestamp;
-      }
-      return nic.send(buf);
-    };
-
     // Broadcast: send through both NICs
     if (to.getSysID() == BROADCAST_SID) {
       int ret_smnic = -1;
@@ -215,10 +205,10 @@ public:
           ctrl.getType() == Control::Type::DELAY_RESP ||
           ctrl.getType() == Control::Type::LATE_SYNC ||
           ctrl.getType() == Control::Type::MAC) {
-        ret_rsnic = sendWithNIC(_rsnic);
+        ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
       } else {
-        ret_rsnic = sendWithNIC(_rsnic);
-        ret_smnic = sendWithNIC(_smnic);
+        ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
+        ret_smnic = sendSharedMem(from, to, ctrl, data, size);
       }
       if (ret_smnic == -1 && ret_rsnic == -1)
         return -1;
@@ -226,8 +216,8 @@ public:
     }
 
     // Regular send: choose appropriate NIC
-    return (to.getSysID() == _sysID) ? sendWithNIC(_smnic)
-                                     : sendWithNIC(_rsnic);
+    return (to.getSysID() == _sysID) ? sendSharedMem(from, to, ctrl, data, size)
+                                     : sendSocket(from, to, ctrl, data, size, recv_timestamp);
   }
 
   // Recebe uma mensagem:
@@ -235,25 +225,41 @@ public:
   int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
               double *coord_x, double *_coord_y, uint64_t *timestamp,
               MAC::Tag *tag, void *data, unsigned int size) {
+    int received_bytes = 0;
     SysID originSysID = peekOriginSysID(buf);
-    auto receiveFrom = [this, from, to, ctrl, coord_x, _coord_y, timestamp, tag,
-                        data, size](auto &nic, Buffer *buf) {
-      Packet pkt = Packet();
-      nic.receive(buf, &pkt, MTU + sizeof(Header));
-      int bytes = fillRecv(pkt, from, to, ctrl, coord_x, _coord_y, timestamp,
-                           tag, data, size);
-      nic.free(buf);
-      return bytes;
-    };
-
-    int actual_received_bytes = (originSysID == _sysID)
-                                    ? receiveFrom(_smnic, buf)
-                                    : receiveFrom(_rsnic, buf);
-    return actual_received_bytes;
+    if (originSysID == _sysID) {
+      LitePacket *pkt = buf->data()->template data<LitePacket>();
+      received_bytes = fillRecvLiteMsg(pkt, from, to, ctrl, data, size);
+      _smnic.free(buf);
+    } else {
+      FullPacket *pkt = buf->data()->template data<FullPacket>();
+      received_bytes = fillRecvFullMsg(pkt, from, to, ctrl, coord_x, _coord_y, timestamp, tag,
+                          data, size);
+      _rsnic.free(buf);
+    }
+    return received_bytes;
   }
 
   void *unmarshal(Buffer *buf) {
-    return buf->data()->template data<Packet>();
+    SysID originSysID = peekOriginSysID(buf);
+    if (originSysID == _sysID) {
+      return buf->data()->template data<LitePacket>();
+    } else {
+      return buf->data()->template data<FullPacket>();
+    }
+  }
+
+  Control::Type getPType(Buffer *buf) {
+    return buf->data()->template data<LitePacket>()->ctrl.getType();
+  }
+
+  char *peekPacketData(Buffer *buf) {
+    SysID originSysID = peekOriginSysID(buf);
+    if (originSysID == _sysID) {
+      return buf->data()->template data<LitePacket>()->template data<char>();
+    } else {
+      return buf->data()->template data<FullPacket>()->template data<char>();
+    }
   }
 
   bool amILeader() const {
@@ -264,96 +270,97 @@ public:
                       [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
                       [[maybe_unused]] Buffer *buf) {};
 
+private:
+  int sendSocket(Address &from, Address &to, Control &ctrl, void *data = nullptr,
+    unsigned int size = 0, uint64_t recv_timestamp = 0) {
+    Buffer *buf = _rsnic.alloc(sizeof(FullHeader) + size, 1);
+    if (buf == nullptr)
+      return -1;
+    ctrl.setSynchronized(_sync_engine.getSynced());
+    ctrl.setNeedSync(_sync_engine.getNeedSync());
+    fillFullPacket(buf, from, to, ctrl, data, size);
+    if (recv_timestamp) {
+      buf->data()->template data<FullPacket>()->header()->timestamp =
+          recv_timestamp;
+    }
+    return _rsnic.send(buf);
+  }
+
+  int sendSharedMem(Address &from, Address &to, Control &ctrl, void *data = nullptr,
+    unsigned int size = 0) {
+    Buffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
+    if (buf == nullptr)
+      return -1;
+    fillLitePacket(buf, from, to, ctrl, data, size);
+    return _smnic.send(buf);
+  }
+
 protected:
-  virtual void fillBuffer(Buffer *buf, Address &from, Address &to,
-                          Control &ctrl, void *data = nullptr,
-                          unsigned int size = 0) {
-    // Estrutura do frame ethernet todo:
-    // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
+  void fillLiteHeader(Buffer *buf, Address &from, Address &to, Control &ctrl, unsigned int size = 0) {
     buf->data()->src = from.getPAddr();
     buf->data()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
     buf->data()->prot = PROTO;
     // Payload do Ethernet::Frame é o Protocol::Packet
-    Packet *pkt = buf->data()->template data<Packet>();
+    LitePacket *pkt = buf->data()->template data<LitePacket>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
+    pkt->header()->payloadSize = size;
+  }
 
+  virtual void fillLitePacket(Buffer *buf, Address &from, Address &to,
+                              Control &ctrl, void *data = nullptr,
+                              unsigned int size = 0) {
+    fillLiteHeader(buf, from, to, ctrl, size);
+    buf->setSize(sizeof(NICHeader) + sizeof(LiteHeader) + size);
+    if (data != nullptr) {
+      LitePacket *pkt = buf->data()->template data<LitePacket>();
+      std::memcpy(pkt->template data<char>(), data, size);
+    }
+  }
+
+  virtual void fillFullPacket(Buffer *buf, Address &from, Address &to,
+                              Control &ctrl, void *data = nullptr,
+                              unsigned int size = 0) {
+    fillLiteHeader(buf, from, to, ctrl, size);
+    buf->setSize(sizeof(NICHeader) + sizeof(FullHeader) + size);
+    FullPacket *pkt = buf->data()->template data<FullPacket>();
     auto [x, y] = _nav.get_location();
     pkt->header()->coord_x = x;
     pkt->header()->coord_y = y;
-
     pkt->header()->timestamp = _sync_engine.getTimestamp();
-    pkt->header()->payloadSize = size;
-    buf->setSize(sizeof(NICHeader) + sizeof(Header) + size);
     if (data != nullptr) {
       std::memcpy(pkt->template data<char>(), data, size);
     }
-#ifdef DEBUG
-    std::cout
-        << "*************************Protocol Packet*************************"
-        << std::endl;
-    std::cout << std::dec << std::endl;
-    std::cout << "Packet content: " << std::endl;
-    std::cout << "Origin Address: ";
-    for (int i = 0; i < 6; ++i) {
-      std::cout << std::hex << std::uppercase
-                << (int)pkt->header()->origin.getPAddr().mac[i];
-      if (i < 5)
-        std::cout << ":";
-    }
-    std::cout << ", SysID: " << std::dec << pkt->header()->origin.getSysID()
-              << ", Port: " << pkt->header()->origin.getPort() << std::endl;
-
-    std::cout << "Destination Address: ";
-    for (int i = 0; i < 6; ++i) {
-      std::cout << std::hex << std::uppercase
-                << (int)pkt->header()->dest.getPAddr().mac[i];
-      if (i < 5)
-        std::cout << ":";
-    }
-    std::cout << ", SysID: " << std::dec << pkt->header()->dest.getSysID()
-              << ", Port: " << pkt->header()->dest.getPort() << std::endl;
-    std::cout << "Payload Size: " << pkt->header()->payloadSize << std::endl;
-    char hex_chars[] = "0123456789ABCDEF";
-    char buffer[3]; // Two hex digits and a null terminator
-    buffer[2] = '\0';
-
-    std::cout << "Payload Data: ";
-    for (unsigned int i = 0; i < size; ++i) {
-      unsigned char byte = pkt->template data<char>()[i];
-      buffer[0] = hex_chars[(byte >> 4) & 0xF];
-      buffer[1] = hex_chars[byte & 0xF];
-      std::cout << buffer << " ";
-    }
-    std::cout << std::endl;
-
-    std::cout << "Full Packet Data: ";
-    unsigned char *packetBytes = reinterpret_cast<unsigned char *>(pkt);
-    for (unsigned int i = 0; i < sizeof(Header) + size; ++i) {
-      unsigned char byte = packetBytes[i];
-      buffer[0] = hex_chars[(byte >> 4) & 0xF];
-      buffer[1] = hex_chars[byte & 0xF];
-      std::cout << buffer << " ";
-    }
-    std::cout << std::endl;
-#endif
   }
 
-  int fillRecv(Packet &pkt, Address *from, Address *to, Control *ctrl,
-               double *coord_x, double *coord_y, uint64_t *timestamp,
-               MAC::Tag *tag, void *data, unsigned int size) {
-    *from = pkt.header()->origin;
-    *to = pkt.header()->dest;
-    *ctrl = pkt.header()->ctrl;
-    *coord_x = pkt.header()->coord_x;
-    *coord_y = pkt.header()->coord_y;
-    *timestamp = pkt.header()->timestamp;
-    unsigned int message_data_size = pkt.header()->payloadSize;
-    std::memcpy(tag, &pkt.header()->tag, tag->size());
+  int fillRecvLiteMsg(LitePacket *pkt, Address *from, Address *to, Control *ctrl,
+                      void *data, unsigned int size) {
+    *from = pkt->header()->origin;
+    *to = pkt->header()->dest;
+    *ctrl = pkt->header()->ctrl;
+    // Header pequeno não tem coords, timestamp e mac
+    unsigned int message_data_size = pkt->header()->payloadSize;
     unsigned int actual_received_bytes =
         size > message_data_size ? message_data_size : size;
-    std::memcpy(data, pkt.template data<char>(), actual_received_bytes);
+    std::memcpy(data, pkt->template data<char>(), actual_received_bytes);
+    return actual_received_bytes;
+  }
+
+  int fillRecvFullMsg(FullPacket *pkt, Address *from, Address *to, Control *ctrl,
+    double *coord_x, double *coord_y, uint64_t *timestamp,
+    MAC::Tag *tag, void *data, unsigned int size) {
+    *from = pkt->header()->origin;
+    *to = pkt->header()->dest;
+    *ctrl = pkt->header()->ctrl;
+    *coord_x = pkt->header()->coord_x;
+    *coord_y = pkt->header()->coord_y;
+    *timestamp = pkt->header()->timestamp;
+    unsigned int message_data_size = pkt->header()->payloadSize;
+    std::memcpy(tag, &pkt->header()->tag, tag->size());
+    unsigned int actual_received_bytes =
+        size > message_data_size ? message_data_size : size;
+    std::memcpy(data, pkt->template data<char>(), actual_received_bytes);
     return actual_received_bytes;
   }
 

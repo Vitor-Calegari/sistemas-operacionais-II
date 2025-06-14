@@ -9,7 +9,8 @@ template <typename SocketNIC, typename SharedMemNIC, typename Navigator>
 class RSUProtocol : public ProtocolCommom<SocketNIC, SharedMemNIC, Navigator> {
 public:
   using Base = ProtocolCommom<SocketNIC, SharedMemNIC, Navigator>;
-  using Packet = Base::Packet;
+  using LitePacket = Base::LitePacket;
+  using FullPacket = Base::FullPacket;
   using SysID = Base::SysID;
   using Address = Base::Address;
   using Port = Base::Port;
@@ -53,61 +54,8 @@ protected:
   void update([[maybe_unused]] typename SocketNIC::Observed *obs,
               [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
               Buffer *buf) override {
-    uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
-    Packet *pkt = buf->data()->template data<Packet>();
-    SysID sysID = pkt->header()->dest.getSysID();
-
-#ifdef DEBUG_TIMESTAMP_2
-    std::cout << get_timestamp() << " I’m RSU " << getpid() << " I received a";
-    if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
-      std::cout << " ANNOUNCE message " << std::endl;
-    } else {
-      std::cout << " OUTRO message " << std::endl;
-    }
-#endif
-
-    if (sysID != Base::_sysID && sysID != Base::BROADCAST_SID) {
-      Base::_rsnic.free(buf);
-      return;
-    }
-
-    if (pkt->header()->ctrl.getType() == Control::Type::DELAY_RESP ||
-        pkt->header()->ctrl.getType() == Control::Type::LATE_SYNC ||
-        pkt->header()->ctrl.getType() == Control::Type::MAC) {
-      Base::free(buf);
-      return;
-    }
-
-    // Se a mensagem veio da nic de sockets, tratar PTP
-    if (pkt->header()->origin.getSysID() != Base::_sysID) {
-      // Se não está sincronizado, enviar mensagens para carro sincronizar
-      if (pkt->header()->ctrl.needSync()) {
-        Address myaddr = Base::getAddr();
-        Control ctrl(Control::Type::DELAY_RESP);
-        int64_t timestamp_relate_to = pkt->header()->timestamp;
-        // Delay Resp
-        Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to, 8,
-                   recv_timestamp);
-        // Late Sync
-        ctrl.setType(Control::Type::LATE_SYNC);
-        Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to,
-                   8);
-      }
-#ifdef DEBUG_TIMESTAMP
-      else {
-        std::cout << get_timestamp() << " I’m RSU " << getpid()
-                  << " car already synced " << std::endl;
-      }
-#endif
-      if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
-        Base::free(buf);
-        return;
-      }
-    }
-
-    auto handlePacket = [this](auto &nic, Buffer *buf, Packet *pkt) {
-      Port port = pkt->header()->dest.getPort();
-      if (pkt->header()->dest.getPort() == Base::BROADCAST) {
+    auto handlePacket = [this](auto &nic, Buffer *buf, Port port) {
+      if (port == Base::BROADCAST) {
         std::vector<Port> allComPorts = Base::Observed::getObservsCond();
         Buffer *broadcastBuf;
         for (auto port : allComPorts) {
@@ -126,10 +74,64 @@ protected:
       }
     };
 
-    if (pkt->header()->origin.getSysID() == Base::_sysID) {
-      handlePacket(Base::_smnic, buf, pkt);
+    uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
+    LitePacket *lite_pkt = buf->data()->template data<LitePacket>();
+    SysID originSysId = lite_pkt->header()->origin.getSysID();
+    SysID destSysId = lite_pkt->header()->dest.getSysID();
+    Port port = lite_pkt->header()->dest.getPort();
+
+#ifdef DEBUG_TIMESTAMP_2
+    std::cout << get_timestamp() << " I’m RSU " << getpid() << " I received a";
+    if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
+      std::cout << " ANNOUNCE message " << std::endl;
     } else {
-      handlePacket(Base::_rsnic, buf, pkt);
+      std::cout << " OUTRO message " << std::endl;
+    }
+#endif
+
+    if (originSysId != Base::_sysID) {
+      FullPacket *pkt = buf->data()->template data<FullPacket>();
+      if (destSysId != Base::_sysID && destSysId != Base::BROADCAST_SID) {
+        Base::_rsnic.free(buf);
+        return;
+      }
+  
+      if (pkt->header()->ctrl.getType() == Control::Type::DELAY_RESP ||
+          pkt->header()->ctrl.getType() == Control::Type::LATE_SYNC ||
+          pkt->header()->ctrl.getType() == Control::Type::MAC) {
+        Base::free(buf);
+        return;
+      }
+  
+      // Se a mensagem veio da nic de sockets, tratar PTP
+      if (pkt->header()->origin.getSysID() != Base::_sysID) {
+        // Se não está sincronizado, enviar mensagens para carro sincronizar
+        if (pkt->header()->ctrl.needSync()) {
+          Address myaddr = Base::getAddr();
+          Control ctrl(Control::Type::DELAY_RESP);
+          int64_t timestamp_relate_to = pkt->header()->timestamp;
+          // Delay Resp
+          Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to, 8,
+                     recv_timestamp);
+          // Late Sync
+          ctrl.setType(Control::Type::LATE_SYNC);
+          Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to,
+                     8);
+        }
+#ifdef DEBUG_TIMESTAMP
+        else {
+          std::cout << get_timestamp() << " I’m RSU " << getpid()
+                    << " car already synced " << std::endl;
+        }
+#endif
+        if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
+          Base::free(buf);
+          return;
+        }
+      }
+      handlePacket(Base::_rsnic, buf, port);
+    } else {
+      handlePacket(Base::_smnic, buf, port);
     }
   }
 

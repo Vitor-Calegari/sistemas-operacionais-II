@@ -99,13 +99,10 @@ public:
   void update([[maybe_unused]]
               typename Communicator::CommObserver::Observing_Condition c,
               typename Communicator::CommObserver::Observed_Data *buf) {
-    Message *msg = (Message *)Base::_communicator->peek_msg(buf);
-
     // Obtem origem
-    Address origin = *msg->sourceAddr();
+    Address origin = Base::_communicator->peek_msg_origin_addr(buf);
     // Obtem periodo
-    typename Base::SubPacket *sub_pkt =
-        msg->template data<typename Base::SubPacket>();
+    typename Base::SubPacket *sub_pkt = (typename Base::SubPacket *)Base::_communicator->peek_msg_data(buf);
     uint32_t new_period = sub_pkt->period;
 
     // Adiciona novo subscriber

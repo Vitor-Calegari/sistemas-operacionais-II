@@ -66,8 +66,12 @@ public:
     return size > 0;
   }
 
-  void *peek_msg(Buffer *buf) {
-    return _channel->unmarshal(buf);
+  Address peek_msg_origin_addr(Buffer *buf) {
+    return _channel->peekOrigin(buf);
+  }
+
+  char *peek_msg_data(Buffer *buf) {
+    return _channel->peekPacketData(buf);
   }
 
   void free(Buffer *buf) {
@@ -76,13 +80,13 @@ public:
 
 private:
   void update(typename Channel::Observer::Observing_Condition c, Buffer *buf) {
-    Message *msg = (Message *)_channel->unmarshal(buf);
-    if (msg->getControl()->getType() == Control::Type::COMMON) {
+    Control::Type type = _channel->getPType(buf);
+    if (type == Control::Type::COMMON) {
       // Releases the thread waiting for data.
       Observer::update(c, buf);
     } else {
-      Condition::Data *cond_data = msg->template data<Condition::Data>();
-      bool isPub = msg->getControl()->getType() == Control::Type::PUBLISH;
+      Condition::Data *cond_data = (Condition::Data *)peek_msg_data(buf);
+      bool isPub = type == Control::Type::PUBLISH;
       Condition cond = Condition(isPub, cond_data->unit, cond_data->period);
       if (!this->notify(cond, buf)) {
         _channel->free(buf);

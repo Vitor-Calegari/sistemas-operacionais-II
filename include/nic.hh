@@ -152,11 +152,6 @@ public:
     return _statistics;
   }
 
-  int receive(BufferNIC *buf, void *data, unsigned int size) {
-    std::memcpy(data, buf->data()->template data<char>(), size);
-    return buf->size() - Ethernet::HEADER_SIZE;
-  }
-
   // Método membro que processa o sinal (chamado pelo handler estático)
   void handle_signal() {
     int bytes_received = 0;
