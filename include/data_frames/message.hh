@@ -64,11 +64,6 @@ public:
     return std::bit_cast<T *>(&_data);
   }
 
-  virtual double *getCoordX() = 0;
-  virtual double *getCoordY() = 0;
-  virtual uint64_t *timestamp() = 0;
-  virtual MAC::Tag *tag() = 0;
-
 private:
   Addr _source_addr;
   Addr _dest_addr;
@@ -136,23 +131,6 @@ public:
   }
 
   ~IntraMessage() = default;
-
-  // TODO! Retornar algo nos campos abaixo.
-  double *getCoordX() {
-    return {};
-  }
-
-  double *getCoordY() {
-    return {};
-  }
-
-  uint64_t *timestamp() {
-    return {};
-  }
-
-  MAC::Tag *tag() {
-    return {};
-  }
 } __attribute__((packed));
 
 #endif
