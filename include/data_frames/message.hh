@@ -2,7 +2,6 @@
 #define MESSAGE_HH
 
 #include "control.hh"
-#include "mac.hh"
 #include <algorithm>
 #include <bit>
 #include <cstddef>
@@ -104,15 +103,10 @@ public:
   }
 #pragma GCC diagnostic pop
 
-  MAC::Tag *tag() {
-    return &_tag;
-  }
-
 private:
   double _coord_x;
   double _coord_y;
   uint64_t _timestamp;
-  MAC::Tag _tag{};
 } __attribute__((packed));
 
 template <typename Addr>

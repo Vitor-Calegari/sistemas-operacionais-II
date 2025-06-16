@@ -78,7 +78,7 @@ public:
     int size = _channel->receive(
         buf, message->sourceAddr(), message->destAddr(), message->getControl(),
         message->getCoordX(), message->getCoordY(), message->timestamp(),
-        message->tag(), message->data(), message->size());
+        message->data(), message->size());
     message->setSize(size);
     return size > 0;
   }
