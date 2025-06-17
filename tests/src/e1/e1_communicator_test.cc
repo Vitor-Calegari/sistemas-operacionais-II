@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
   using Coordinate = NavigatorCommon::Coordinate;
 
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     while (i < NUM_MSGS) {
       Message message = Message(
           comm.addr(), Protocol::Address(prot.getNICPAddr(), parentPID, 10),
-          MSG_SIZE);
+          MSG_SIZE, Control(Control::Type::COMMON), &prot);
       std::cout << "Sending (" << std::dec << i << "): ";
       for (size_t i = 0; i < message.size(); i++) {
         message.data()[i] = std::byte(randint(0, 255));

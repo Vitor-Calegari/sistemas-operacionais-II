@@ -15,7 +15,7 @@ template <typename DataWrapper>
 class SharedEngine {
 public:
   using FrameClass = DataWrapper;
-
+  using Frame = FrameClass::Frame;
 public:
   // Construtor: Cria e configura o socket raw.
   SharedEngine(const char *interface_name) : _interface_name(interface_name) {
@@ -71,8 +71,8 @@ public:
       buffer_sem.acquire();
       if (unm_buf.find(thread_id) != unm_buf.end()) {
         buf_temp = &unm_buf[thread_id];
-        std::memcpy(buf->data<FrameClass::Frame>(),
-                    buf_temp->data<FrameClass::Frame>(), buf_temp->size());
+        std::memcpy(buf->data<Frame>(),
+                    buf_temp->data<Frame>(), buf_temp->size());
         buf->setSize(buf_temp->size());
         ret = buf->size();
         unm_buf.erase(thread_id);

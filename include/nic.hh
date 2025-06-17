@@ -114,7 +114,7 @@ public:
   void free(Buffer *buf) {
     if (!buf)
       return;
-    buf->data()->clear();
+    buf->template data<typename NICFrameClass::Frame>()->clear();
     buf->mark_free(); // Marca como livre e reseta o tamanho
   }
 
@@ -183,7 +183,7 @@ public:
         // Pacote recebido!
         _statistics.rx_packets++;
         _statistics.rx_bytes += bytes_received;
-        bool notified = this->notify(buf->data()->prot, buf);
+        bool notified = this->notify(buf->template data<typename NICFrameClass::Frame>()->prot, buf);
 #ifdef DEBUG
         std::cout << "NIC::handle_signal: "
                   << (notified ? "Protocol Notificado"

@@ -72,7 +72,7 @@ public:
     Port getPort() const {
       return _port;
     }
-    Port setPort(Port p) const {
+    void setPort(Port p) {
       _port = p;
     }
 
@@ -223,6 +223,8 @@ public:
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, Control &ctrl, void *data = nullptr,
            unsigned int size = 0, uint64_t recv_timestamp = 0) {
+    Port from_port = from.getPort();
+    Port to_port = to.getPort();
     // Broadcast: send through both NICs
     if (to.getSysID() == BROADCAST_SID) {
       int ret_smnic = -1;
@@ -235,7 +237,7 @@ public:
         ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
       } else {
         ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
-        ret_smnic = sendSharedMem(from.getPort(), to.getPort(), ctrl, data, size);
+        ret_smnic = sendSharedMem(from_port, to_port, ctrl, data, size);
       }
       if (ret_smnic == -1 && ret_rsnic == -1)
         return -1;
@@ -244,7 +246,7 @@ public:
 
     // Regular send: choose appropriate NIC
     return (to.getSysID() == _sysID)
-               ? sendSharedMem(from.getPort(), to.getPort(), ctrl, data, size)
+               ? sendSharedMem(from_port, to_port, ctrl, data, size)
                : sendSocket(from, to, ctrl, data, size, recv_timestamp);
   }
 
@@ -315,9 +317,6 @@ private:
       if (buf->type() == Buffer::EthernetFrame) {
         buf->template data<SocketFrame>()->template data<FullPacket>()->header()->timestamp =
           recv_timestamp;
-      } else {
-        buf->template data<SharedMFrame>()->template data<LitePacket>()->header()->timestamp =
-          recv_timestamp;
       }
     }
     return _rsnic.send(buf);
@@ -374,9 +373,9 @@ protected:
   int fillRecvLiteMsg(LitePacket *pkt, Address *from, Address *to,
                       Control *ctrl, void *data, unsigned int size) {
     *from = getAddr();
-    *from.setPort(pkt->header()->origin);
+    from->setPort(pkt->header()->origin);
     *to = getAddr();
-    *to.setPort(pkt->header()->dest);
+    to->setPort(pkt->header()->dest);
     *ctrl = pkt->header()->ctrl;
     // Header pequeno não tem coords e timestamp
     unsigned int message_data_size = pkt->header()->payloadSize;

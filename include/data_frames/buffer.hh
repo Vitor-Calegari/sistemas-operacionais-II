@@ -9,7 +9,7 @@ public:
 
   enum BufferType { EthernetFrame, SharedMemFrame };
 
-  Buffer(BufferType buf_type)
+  Buffer(BufferType buf_type = EthernetFrame)
       : _type(buf_type), _size(0), _max_size(0), _in_use(false) {
   }
 

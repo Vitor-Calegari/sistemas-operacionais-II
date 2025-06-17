@@ -20,7 +20,6 @@ public:
   using Address = Base::Address;
   using Port = Base::Port;
   using SyncEngineP = Base::SyncEngineP;
-  using Buffer = Base::Buffer;
   using Coordinate = Navigator::Coordinate;
 
 public:
@@ -64,9 +63,9 @@ protected:
           if (broadcastBuf == nullptr)
             continue;
           if (buf->type() == Buffer::EthernetFrame) {
-            std::memcpy(broadcastBuf->template data<Base::SocketFrame>(), buf->template data<FullPacket>(), buf->size());
+            std::memcpy(broadcastBuf->template data<char>(), buf->template data<FullPacket>(), buf->size());
           } else {
-            std::memcpy(broadcastBuf->template data<Base::SharedMFrame>(), buf->template data<LitePacket>(), buf->size());
+            std::memcpy(broadcastBuf->template data<char>(), buf->template data<LitePacket>(), buf->size());
           }
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {
@@ -82,8 +81,7 @@ protected:
     uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
 
     if (buf->type() == Buffer::EthernetFrame) {
-      FullPacket *pkt = buf->template data<Base::SocketFrame>()->template data<FullPacket>();
-      SysID originSysId = pkt->header()->origin.getSysID();
+      FullPacket *pkt = buf->template data<typename Base::SocketFrame>()->template data<FullPacket>();
       SysID destSysId = pkt->header()->dest.getSysID();
       Port port = pkt->header()->dest.getPort();
       double coord_x = pkt->header()->coord_x;
@@ -201,7 +199,7 @@ protected:
 
       handlePacket(Base::_rsnic, buf, port);
     } else {
-      LitePacket *lite_pkt = buf->template data<Base::SharedMFrame>()->template data<LitePacket>();
+      LitePacket *lite_pkt = buf->template data<typename Base::SharedMFrame>()->template data<LitePacket>();
       Port port = lite_pkt->header()->dest;
       handlePacket(Base::_smnic, buf, port);
     }
@@ -212,11 +210,11 @@ protected:
                   void *data = nullptr, unsigned int size = 0) override {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
-    buf->template data<Base::SocketFrame>()->src = from.getPAddr();
-    buf->template data<Base::SocketFrame>()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
-    buf->template data<Base::SocketFrame>()->prot = Base::PROTO;
+    buf->template data<typename Base::SocketFrame>()->src = from.getPAddr();
+    buf->template data<typename Base::SocketFrame>()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
+    buf->template data<typename Base::SocketFrame>()->prot = Base::PROTO;
     // Payload do Ethernet::Frame é o Protocol::Packet
-    FullPacket *pkt = buf->template data<Base::SocketFrame>()->template data<FullPacket>();
+    FullPacket *pkt = buf->template data<typename Base::SocketFrame>()->template data<FullPacket>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
@@ -227,7 +225,7 @@ protected:
 
     pkt->header()->timestamp = Base::_sync_engine.getTimestamp();
     pkt->header()->payloadSize = size;
-    buf->setSize(sizeof(typename Base::NICHeader) +
+    buf->setSize(sizeof(typename Base::SocketNICHeader) +
                  sizeof(typename Base::FullHeader) + size);
     if (data != nullptr) {
       std::memcpy(pkt->template data<char>(), data, size);

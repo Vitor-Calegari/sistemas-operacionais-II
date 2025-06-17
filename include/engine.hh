@@ -29,6 +29,7 @@ template <typename DataWrapper>
 class Engine {
 public:
   using FrameClass = DataWrapper;
+  using Frame = FrameClass::Frame;
 public:
   // Construtor: Cria e configura o socket raw.
   Engine(const char *interface_name)
@@ -138,7 +139,7 @@ public:
   //   (sockaddr_ll).
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
-  int send(BufferE *buf) {
+  int send(Buffer *buf) {
     if (!buf)
       return -1; // Validação básica
 
@@ -148,9 +149,9 @@ public:
     sadr_ll.sll_family = AF_PACKET;
     sadr_ll.sll_ifindex = _interface_index;
     sadr_ll.sll_halen = ETH_ALEN;
-    std::memcpy(sadr_ll.sll_addr, buf->data()->dst.mac, ETH_ALEN);
+    std::memcpy(sadr_ll.sll_addr, buf->template data<Frame>()->dst.mac, ETH_ALEN);
 
-    int send_len = sendto(_self->_socket_raw, buf->data(), buf->size(), 0,
+    int send_len = sendto(_self->_socket_raw, buf->template data<Frame>(), buf->size(), 0,
                           (const sockaddr *)&sadr_ll, sizeof(sadr_ll));
     if (send_len < 0) {
 #ifdef DEBUG
@@ -198,11 +199,11 @@ public:
   // Returns:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
-  int receive(BufferE *buf) {
+  int receive(Buffer *buf) {
     struct sockaddr_ll sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
 
-    int buflen = recvfrom(_self->_socket_raw, buf->data(), buf->maxSize(), 0,
+    int buflen = recvfrom(_self->_socket_raw, buf->template data<Frame>(), buf->maxSize(), 0,
                           (struct sockaddr *)&sender_addr,
                           (socklen_t *)&sender_addr_len);
     if (buflen < 0) {

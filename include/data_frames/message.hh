@@ -54,7 +54,10 @@ public:
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
   double *getCoordX() {
     if (std::isnan(_coord_x)) {
-      std::tie(_coord_x, _coord_y) = _prot->getLocation();
+      double coord_x, coord_y;
+      std::tie(coord_x, coord_y) = _prot->getLocation();
+      _coord_x = coord_x;
+      _coord_y = coord_y;
     }
 
     return &_coord_x;
@@ -62,13 +65,16 @@ public:
 
   double *getCoordY() {
     if (std::isnan(_coord_y)) {
-      std::tie(_coord_x, _coord_y) = _prot->getLocation();
+      double coord_x, coord_y;
+      std::tie(coord_x, coord_y) = _prot->getLocation();
+      _coord_x = coord_x;
+      _coord_y = coord_y;
     }
 
     return &_coord_y;
   }
 
-  int64_t *timestamp() {
+  uint64_t *timestamp() {
     return &_timestamp;
   }
 #pragma GCC diagnostic pop
@@ -97,7 +103,7 @@ private:
   Control _ctrl;
   double _coord_x = std::numeric_limits<double>::quiet_NaN();
   double _coord_y = std::numeric_limits<double>::quiet_NaN();
-  int64_t _timestamp;
+  uint64_t _timestamp;
   std::size_t _payload_size;
   std::byte *_data;
 } __attribute__((packed));

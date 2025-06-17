@@ -5,6 +5,7 @@
 #include "concurrent_observer.hh"
 #include "cond.hh"
 #include "control.hh"
+#include "buffer.hh"
 #include <iostream>
 
 template <typename Channel, typename Message>
@@ -23,7 +24,6 @@ public:
   typedef Concurrent_Observed<typename Channel::Observer::Observed_Data,
                               Condition>
       CommObserver;
-  typedef typename Channel::Buffer Buffer;
   typedef typename Channel::Address Address;
   typedef typename Channel::Port Port;
   typedef Message CommMessage;
