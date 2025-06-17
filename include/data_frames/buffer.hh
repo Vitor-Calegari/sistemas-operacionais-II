@@ -2,6 +2,7 @@
 #define BUFFER_HH
 
 #include <cstddef>
+#include <cstdint>
 class Buffer {
 public:
   static constexpr size_t BUFFER_SIZE = 1514;
@@ -46,6 +47,14 @@ public:
     _max_size = maxSize;
   }
 
+  int64_t get_receive_time() const {
+    return _receive_time;
+  }
+
+  void set_receive_time(int64_t rec_time) {
+    _receive_time = rec_time;
+  }
+
   // Retorna a capacidade máxima do buffer (em bytes).
   int maxSize() {
     return _max_size;
@@ -76,6 +85,7 @@ private:
   int _max_size; // Capacidade máxima do buffer
   bool _in_use;  // Flag para gerenciamento em um pool de buffers
   std::byte _data[BUFFER_SIZE];
+  int64_t _receive_time;
 };
 
 #endif

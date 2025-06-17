@@ -4,29 +4,34 @@
 #include "control.hh"
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <tuple>
 
-template <typename Addr>
-class MessageCommon {
+template <typename Addr, typename Protocol>
+class Message {
 public:
-  MessageCommon(Addr src, Addr dst, std::size_t payload_size,
-                Control ctrl = Control(Control::Type::COMMON))
-      : _source_addr(src), _dest_addr(dst), _ctrl(ctrl),
-        _payload_size(payload_size) {
+  Message(Addr src, Addr dst, std::size_t payload_size,
+          Control ctrl = Control(Control::Type::COMMON),
+          Protocol *prot = nullptr)
+      : _prot(prot), _source_addr(src), _dest_addr(dst), _ctrl(ctrl),
+        _timestamp(0), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
-  MessageCommon(std::size_t payload_size,
-                Control ctrl = Control(Control::Type::COMMON))
-      : _source_addr(Addr()), _dest_addr(Addr()), _ctrl(ctrl),
-        _payload_size(payload_size) {
+  Message(std::size_t payload_size,
+          Control ctrl = Control(Control::Type::COMMON),
+          Protocol *prot = nullptr)
+      : _prot(prot), _source_addr(Addr()), _dest_addr(Addr()), _ctrl(ctrl),
+        _timestamp(0), _payload_size(payload_size) {
     _data = new std::byte[_payload_size];
     std::fill(_data, _data + _payload_size, std::byte(0));
   }
 
-  virtual ~MessageCommon() {
+  ~Message() {
     delete[] _data;
   }
 
@@ -45,6 +50,28 @@ public:
   Control *getControl() {
     return &_ctrl;
   }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+  double *getCoordX() {
+    if (std::isnan(_coord_x)) {
+      std::tie(_coord_x, _coord_y) = _prot->getLocation();
+    }
+
+    return &_coord_x;
+  }
+
+  double *getCoordY() {
+    if (std::isnan(_coord_y)) {
+      std::tie(_coord_x, _coord_y) = _prot->getLocation();
+    }
+
+    return &_coord_y;
+  }
+
+  int64_t *timestamp() {
+    return &_timestamp;
+  }
+#pragma GCC diagnostic pop
 
   void setSize(std::size_t new_size) {
     _payload_size = new_size;
@@ -64,67 +91,15 @@ public:
   }
 
 private:
+  Protocol *_prot;
   Addr _source_addr;
   Addr _dest_addr;
   Control _ctrl;
+  double _coord_x = std::numeric_limits<double>::quiet_NaN();
+  double _coord_y = std::numeric_limits<double>::quiet_NaN();
+  int64_t _timestamp;
   std::size_t _payload_size;
   std::byte *_data;
-} __attribute__((packed));
-
-template <typename Addr>
-class Message : public MessageCommon<Addr> {
-public:
-  using Base = MessageCommon<Addr>;
-
-  Message(Addr src, Addr dst, std::size_t payload_size,
-          Control ctrl = Control(Control::Type::COMMON))
-      : Base(src, dst, payload_size, ctrl), _timestamp(0) {
-  }
-
-  Message(std::size_t payload_size,
-          Control ctrl = Control(Control::Type::COMMON))
-      : Base(payload_size, ctrl), _timestamp(0) {
-  }
-
-  ~Message() = default;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
-  double *getCoordX() {
-    return &_coord_x;
-  }
-
-  double *getCoordY() {
-    return &_coord_y;
-  }
-
-  uint64_t *timestamp() {
-    return &_timestamp;
-  }
-#pragma GCC diagnostic pop
-
-private:
-  double _coord_x;
-  double _coord_y;
-  uint64_t _timestamp;
-} __attribute__((packed));
-
-template <typename Addr>
-class IntraMessage : public MessageCommon<Addr> {
-public:
-  using Base = MessageCommon<Addr>;
-
-  IntraMessage(Addr src, Addr dst, std::size_t payload_size,
-               Control ctrl = Control(Control::Type::COMMON))
-      : Base(src, dst, payload_size, ctrl) {
-  }
-
-  IntraMessage(std::size_t payload_size,
-               Control ctrl = Control(Control::Type::COMMON))
-      : Base(payload_size, ctrl) {
-  }
-
-  ~IntraMessage() = default;
 } __attribute__((packed));
 
 #endif

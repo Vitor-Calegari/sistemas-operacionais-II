@@ -4,9 +4,6 @@
 #include "buffer.hh"
 #include "ethernet.hh"
 #include <string>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
 
 std::string ethernet_header(Ethernet::Frame *buffer);
 
@@ -14,9 +11,9 @@ std::string payload(Ethernet::Frame *buffer, int buflen);
 
 std::string pBuflen(int buflen);
 
-void printEthToFile(FILE *log_txt, Buffer<Ethernet> *buffer);
+void printEthToFile(FILE *log_txt, Buffer *buffer);
 
-void printEth(Buffer<Ethernet> *buffer);
+void printEth(Buffer *buffer);
 
 int randint(int p, int r);
 
