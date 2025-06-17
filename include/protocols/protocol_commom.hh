@@ -23,8 +23,11 @@ public:
 
   typedef SyncEngine<ProtocolCommom<SocketNIC, SharedMemNIC, Navigator>>
       SyncEngineP;
-  typedef typename SocketNIC::Header NICHeader;
+  typedef typename SocketNIC::Header SocketNICHeader;
+  typedef typename SharedMemNIC::Header SharedMemNICHeader;
+  // TODO FAZER COM QUE BUFFER SEJA SOCKETNICBUFFER, RESOLVER OBSERVADORES
   typedef typename SocketNIC::BufferNIC Buffer;
+  typedef typename SharedMemNIC::BufferNIC SharedMemBuffer;
   typedef typename SocketNIC::Address Physical_Address;
   typedef pid_t SysID;
   typedef unsigned short Port;
@@ -68,6 +71,9 @@ public:
     Port getPort() const {
       return _port;
     }
+    Port setPort(Port p) const {
+      _port = p;
+    }
 
   private:
     Physical_Address _paddr;
@@ -77,18 +83,22 @@ public:
 
   class LiteHeader {
   public:
-    LiteHeader() : origin(Address()), dest(Address()), ctrl(0), payloadSize(0) {
+    LiteHeader() : origin(0), dest(0), ctrl(0), payloadSize(0) {
+    }
+    Port origin;
+    Port dest;
+    Control ctrl;
+    std::size_t payloadSize;
+  } __attribute__((packed));
+
+  class FullHeader {
+  public:
+    FullHeader() : origin(Address()), dest(Address()), ctrl(0), payloadSize(0), coord_x(0), coord_y(0), timestamp(0), tag{} {
     }
     Address origin;
     Address dest;
     Control ctrl;
     std::size_t payloadSize;
-  } __attribute__((packed));
-
-  class FullHeader : public LiteHeader {
-  public:
-    FullHeader() : coord_x(0), coord_y(0), timestamp(0), tag{} {
-    }
     double coord_x;
     double coord_y;
     uint64_t timestamp;
@@ -182,16 +192,19 @@ public:
   }
 
   Address peekOrigin(Buffer *buf) {
+    // TODO Obter origem de acordo com o tipo de Buffer/Pacote
     LitePacket *pkt = buf->data()->template data<LitePacket>();
     return pkt->header()->origin;
   }
 
   SysID peekOriginSysID(Buffer *buf) {
+    // TODO Obter sysid de acordo com o tipo de Buffer/Pacote
     LitePacket *pkt = buf->data()->template data<LitePacket>();
     return pkt->header()->origin.getSysID();
   }
 
   void free(Buffer *buf) {
+    // TODO Free de acordo com o tipo de buffer
     SysID originSysID = peekOriginSysID(buf);
     if (originSysID == _sysID) {
       _smnic.free(buf);
@@ -217,7 +230,7 @@ public:
         ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
       } else {
         ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
-        ret_smnic = sendSharedMem(from, to, ctrl, data, size);
+        ret_smnic = sendSharedMem(from.getPort(), to.getPort(), ctrl, data, size);
       }
       if (ret_smnic == -1 && ret_rsnic == -1)
         return -1;
@@ -226,20 +239,23 @@ public:
 
     // Regular send: choose appropriate NIC
     return (to.getSysID() == _sysID)
-               ? sendSharedMem(from, to, ctrl, data, size)
+               ? sendSharedMem(from.getPort(), to.getPort(), ctrl, data, size)
                : sendSocket(from, to, ctrl, data, size, recv_timestamp);
   }
 
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
+  // TODO UTILIZAR BUFFER GENERICO NO PARAMETRO
   int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
               double *coord_x, double *_coord_y, uint64_t *timestamp,
               void *data, unsigned int size) {
     int received_bytes = 0;
     SysID originSysID = peekOriginSysID(buf);
+    // TODO Tipar buffer corretamente
     if (originSysID == _sysID) {
       LitePacket *pkt = buf->data()->template data<LitePacket>();
       received_bytes = fillRecvLiteMsg(pkt, from, to, ctrl, data, size);
+      // TODO INCLUIR TIMESTAMP DE RECEBIMENTO QUE O BUFFER DEVE CONTER COMO TIMESTAMP DE ENVIO DA MENSAGEM
       _smnic.free(buf);
     } else {
       FullPacket *pkt = buf->data()->template data<FullPacket>();
@@ -251,6 +267,7 @@ public:
   }
 
   void *unmarshal(Buffer *buf) {
+    // TODO Unmarshal de acordo com o tipo de buffer
     SysID originSysID = peekOriginSysID(buf);
     if (originSysID == _sysID) {
       return buf->data()->template data<LitePacket>();
@@ -260,10 +277,12 @@ public:
   }
 
   Control::Type getPType(Buffer *buf) {
+    // TODO Type de acordo com o tipo de buffer
     return buf->data()->template data<LitePacket>()->ctrl.getType();
   }
 
   char *peekPacketData(Buffer *buf) {
+    // TODO Obter DATA de acordo com o tipo de buffer
     SysID originSysID = peekOriginSysID(buf);
     if (originSysID == _sysID) {
       return buf->data()->template data<LitePacket>()->template data<char>();
@@ -278,12 +297,13 @@ public:
 
   virtual void update([[maybe_unused]] typename SocketNIC::Observed *obs,
                       [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-                      [[maybe_unused]] Buffer *buf) {};
+                      [[maybe_unused]] Buffer *buf) {};  // TODO DEVE SER O BUFFER GENERICO
 
 private:
   int sendSocket(Address &from, Address &to, Control &ctrl,
                  void *data = nullptr, unsigned int size = 0,
                  uint64_t recv_timestamp = 0) {
+    // TODO UTILIZAR SOCKETNICBUFFER
     Buffer *buf = _rsnic.alloc(sizeof(FullHeader) + size, 1);
     if (buf == nullptr)
       return -1;
@@ -297,9 +317,9 @@ private:
     return _rsnic.send(buf);
   }
 
-  int sendSharedMem(Address &from, Address &to, Control &ctrl,
+  int sendSharedMem(Port &from, Port &to, Control &ctrl,
                     void *data = nullptr, unsigned int size = 0) {
-    Buffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
+    SharedMemBuffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
     if (buf == nullptr)
       return -1;
     fillLitePacket(buf, from, to, ctrl, data, size);
@@ -307,10 +327,10 @@ private:
   }
 
 protected:
-  void fillLiteHeader(Buffer *buf, Address &from, Address &to, Control &ctrl,
-                      unsigned int size = 0) {
-    buf->data()->src = from.getPAddr();
-    buf->data()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
+  virtual void fillLitePacket(SharedMemBuffer *buf, Port &from, Port &to,
+                              Control &ctrl, void *data = nullptr,
+                              unsigned int size = 0) {
+    // Frame de sharedmem não tem MAC
     buf->data()->prot = PROTO;
     // Payload do Ethernet::Frame é o Protocol::Packet
     LitePacket *pkt = buf->data()->template data<LitePacket>();
@@ -318,25 +338,26 @@ protected:
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
     pkt->header()->payloadSize = size;
-  }
-
-  virtual void fillLitePacket(Buffer *buf, Address &from, Address &to,
-                              Control &ctrl, void *data = nullptr,
-                              unsigned int size = 0) {
-    fillLiteHeader(buf, from, to, ctrl, size);
-    buf->setSize(sizeof(NICHeader) + sizeof(LiteHeader) + size);
+    buf->setSize(sizeof(SharedMemNICHeader) + sizeof(LiteHeader) + size);
     if (data != nullptr) {
       LitePacket *pkt = buf->data()->template data<LitePacket>();
       std::memcpy(pkt->template data<char>(), data, size);
     }
   }
 
+  // TODO UTILIZAR SOCKETNICBUFFER
   virtual void fillFullPacket(Buffer *buf, Address &from, Address &to,
                               Control &ctrl, void *data = nullptr,
                               unsigned int size = 0) {
-    fillLiteHeader(buf, from, to, ctrl, size);
-    buf->setSize(sizeof(NICHeader) + sizeof(FullHeader) + size);
+    buf->data()->src = from.getPAddr();
+    buf->data()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
+    buf->data()->prot = PROTO;
     FullPacket *pkt = buf->data()->template data<FullPacket>();
+    pkt->header()->origin = from;
+    pkt->header()->dest = to;
+    pkt->header()->ctrl = ctrl;
+    pkt->header()->payloadSize = size;
+    buf->setSize(sizeof(SocketNICHeader) + sizeof(FullHeader) + size);
     auto [x, y] = _nav.get_location();
     pkt->header()->coord_x = x;
     pkt->header()->coord_y = y;
@@ -348,8 +369,10 @@ protected:
 
   int fillRecvLiteMsg(LitePacket *pkt, Address *from, Address *to,
                       Control *ctrl, void *data, unsigned int size) {
-    *from = pkt->header()->origin;
-    *to = pkt->header()->dest;
+    *from = getAddr();
+    *from.setPort(pkt->header()->origin);
+    *to = getAddr();
+    *to.setPort(pkt->header()->dest);
     *ctrl = pkt->header()->ctrl;
     // Header pequeno não tem coords e timestamp
     unsigned int message_data_size = pkt->header()->payloadSize;
