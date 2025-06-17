@@ -98,7 +98,7 @@ public:
   // MTU disponível para o payload: espaço total do buffer menos o tamanho do
   // Header
   inline static const unsigned int MTU = SocketNIC::MTU - sizeof(FullHeader);
-  typedef unsigned char Data[MTU];
+  typedef std::byte Data[MTU];
 
   // Pacote do protocolo: composto pelo Header e o Payload
   template <typename Header>
@@ -106,6 +106,7 @@ public:
   public:
     inline static const unsigned int MTU = SocketNIC::MTU - sizeof(Header);
     typedef unsigned char Data[MTU];
+
   public:
     Packet() {
       std::memset(_data, 0, sizeof(_data));
@@ -224,15 +225,16 @@ public:
     }
 
     // Regular send: choose appropriate NIC
-    return (to.getSysID() == _sysID) ? sendSharedMem(from, to, ctrl, data, size)
-                                     : sendSocket(from, to, ctrl, data, size, recv_timestamp);
+    return (to.getSysID() == _sysID)
+               ? sendSharedMem(from, to, ctrl, data, size)
+               : sendSocket(from, to, ctrl, data, size, recv_timestamp);
   }
 
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
   int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
               double *coord_x, double *_coord_y, uint64_t *timestamp,
-              MAC::Tag *tag, void *data, unsigned int size) {
+              void *data, unsigned int size) {
     int received_bytes = 0;
     SysID originSysID = peekOriginSysID(buf);
     if (originSysID == _sysID) {
@@ -241,8 +243,8 @@ public:
       _smnic.free(buf);
     } else {
       FullPacket *pkt = buf->data()->template data<FullPacket>();
-      received_bytes = fillRecvFullMsg(pkt, from, to, ctrl, coord_x, _coord_y, timestamp, tag,
-                          data, size);
+      received_bytes = fillRecvFullMsg(pkt, from, to, ctrl, coord_x, _coord_y,
+                                       timestamp, data, size);
       _rsnic.free(buf);
     }
     return received_bytes;
@@ -279,8 +281,9 @@ public:
                       [[maybe_unused]] Buffer *buf) {};
 
 private:
-  int sendSocket(Address &from, Address &to, Control &ctrl, void *data = nullptr,
-    unsigned int size = 0, uint64_t recv_timestamp = 0) {
+  int sendSocket(Address &from, Address &to, Control &ctrl,
+                 void *data = nullptr, unsigned int size = 0,
+                 uint64_t recv_timestamp = 0) {
     Buffer *buf = _rsnic.alloc(sizeof(FullHeader) + size, 1);
     if (buf == nullptr)
       return -1;
@@ -294,8 +297,8 @@ private:
     return _rsnic.send(buf);
   }
 
-  int sendSharedMem(Address &from, Address &to, Control &ctrl, void *data = nullptr,
-    unsigned int size = 0) {
+  int sendSharedMem(Address &from, Address &to, Control &ctrl,
+                    void *data = nullptr, unsigned int size = 0) {
     Buffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
     if (buf == nullptr)
       return -1;
@@ -304,7 +307,8 @@ private:
   }
 
 protected:
-  void fillLiteHeader(Buffer *buf, Address &from, Address &to, Control &ctrl, unsigned int size = 0) {
+  void fillLiteHeader(Buffer *buf, Address &from, Address &to, Control &ctrl,
+                      unsigned int size = 0) {
     buf->data()->src = from.getPAddr();
     buf->data()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
     buf->data()->prot = PROTO;
@@ -342,12 +346,12 @@ protected:
     }
   }
 
-  int fillRecvLiteMsg(LitePacket *pkt, Address *from, Address *to, Control *ctrl,
-                      void *data, unsigned int size) {
+  int fillRecvLiteMsg(LitePacket *pkt, Address *from, Address *to,
+                      Control *ctrl, void *data, unsigned int size) {
     *from = pkt->header()->origin;
     *to = pkt->header()->dest;
     *ctrl = pkt->header()->ctrl;
-    // Header pequeno não tem coords, timestamp e mac
+    // Header pequeno não tem coords e timestamp
     unsigned int message_data_size = pkt->header()->payloadSize;
     unsigned int actual_received_bytes =
         size > message_data_size ? message_data_size : size;
@@ -355,9 +359,9 @@ protected:
     return actual_received_bytes;
   }
 
-  int fillRecvFullMsg(FullPacket *pkt, Address *from, Address *to, Control *ctrl,
-    double *coord_x, double *coord_y, uint64_t *timestamp,
-    MAC::Tag *tag, void *data, unsigned int size) {
+  int fillRecvFullMsg(FullPacket *pkt, Address *from, Address *to,
+                      Control *ctrl, double *coord_x, double *coord_y,
+                      uint64_t *timestamp, void *data, unsigned int size) {
     *from = pkt->header()->origin;
     *to = pkt->header()->dest;
     *ctrl = pkt->header()->ctrl;
@@ -365,7 +369,6 @@ protected:
     *coord_y = pkt->header()->coord_y;
     *timestamp = pkt->header()->timestamp;
     unsigned int message_data_size = pkt->header()->payloadSize;
-    std::memcpy(tag, &pkt->header()->tag, tag->size());
     unsigned int actual_received_bytes =
         size > message_data_size ? message_data_size : size;
     std::memcpy(data, pkt->template data<char>(), actual_received_bytes);
