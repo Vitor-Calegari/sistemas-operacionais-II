@@ -1,6 +1,9 @@
 #include "utils.hh"
+#include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <random>
+#include <sstream>
 #include <unistd.h>
 
 std::string ethernet_header(Ethernet::Frame *buffer) {
@@ -56,22 +59,24 @@ std::string pBuflen(int buflen) {
   return std::string(temp); // Converter para std::string
 }
 
-void printEthToFile(FILE *log_txt, Buffer<Ethernet::Frame> *buffer) {
+void printEthToFile(FILE *log_txt, Buffer *buffer) {
   fprintf(
       log_txt,
       "\n*************************ETH Packet******************************");
-  fprintf(log_txt, "%s", ethernet_header(buffer->data()).c_str());
-  fprintf(log_txt, "%s", payload(buffer->data(), buffer->size()).c_str());
+  fprintf(log_txt, "%s",
+          ethernet_header(buffer->data<Ethernet::Frame>()).c_str());
+  fprintf(log_txt, "%s",
+          payload(buffer->data<Ethernet::Frame>(), buffer->size()).c_str());
   fprintf(log_txt, "%s", pBuflen(buffer->size()).c_str());
   fprintf(log_txt, "***********************************************************"
                    "******\n\n\n");
 }
 
-void printEth(Buffer<Ethernet::Frame> *buffer) {
+void printEth(Buffer *buffer) {
   std::cout
       << "\n*************************ETH Packet******************************";
-  std::cout << ethernet_header(buffer->data()).c_str();
-  std::cout << payload(buffer->data(), buffer->size()).c_str();
+  std::cout << ethernet_header(buffer->data<Ethernet::Frame>()).c_str();
+  std::cout << payload(buffer->data<Ethernet::Frame>(), buffer->size()).c_str();
   std::cout << pBuflen(buffer->size()).c_str();
   std::cout << "***************************************************************"
                "**\n\n\n";
@@ -89,24 +94,30 @@ std::string get_timestamp() {
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::system_clock::to_time_t(now);
   auto tm = std::localtime(&timestamp);
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-  
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()) %
+            1000;
+
   std::stringstream ss;
-  ss << "[" << std::put_time(tm, "%H:%M:%S") << "." 
-     << std::setfill('0') << std::setw(3) << ms.count() << "]";
+  ss << "[" << std::put_time(tm, "%H:%M:%S") << "." << std::setfill('0')
+     << std::setw(3) << ms.count() << "]";
   return ss.str();
 }
 
 void printSyncMsg(bool _needSync, bool _synced, int _announce_iteration) {
   if (_needSync) {
-    std::cout << get_timestamp() << " I’m Car " << getpid() << " I need SYNC, my iteration is " << _announce_iteration << " and I'am ";
+    std::cout << get_timestamp() << " I’m Car " << getpid()
+              << " I need SYNC, my iteration is " << _announce_iteration
+              << " and I'am ";
     if (_synced) {
       std::cout << " synced. " << std::endl;
     } else {
       std::cout << " not synced. " << std::endl;
     }
   } else {
-    std::cout << get_timestamp() << " I’m Car " << getpid() << " I need SYNC, my iteration is " << _announce_iteration << " and I'am ";
+    std::cout << get_timestamp() << " I’m Car " << getpid()
+              << " I need SYNC, my iteration is " << _announce_iteration
+              << " and I'am ";
     if (_synced) {
       std::cout << " synced. " << std::endl;
     } else {
