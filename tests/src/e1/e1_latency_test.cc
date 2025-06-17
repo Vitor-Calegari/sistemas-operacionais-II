@@ -46,9 +46,8 @@ int main() {
     exit(1);
   }
 
-  using Buffer = Buffer<Ethernet::Frame>;
-  using SocketNIC = NIC<Engine<Buffer>>;
-  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using SocketNIC = NIC<Engine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;

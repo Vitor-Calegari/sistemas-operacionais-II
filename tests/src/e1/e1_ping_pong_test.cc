@@ -28,9 +28,8 @@ struct msg_struct {
 
 int main() {
   std::cout << "Main proc is " << getpid() << std::endl;
-  using Buffer = Buffer<Ethernet::Frame>;
-  using SocketNIC = NIC<Engine<Buffer>>;
-  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using SocketNIC = NIC<Engine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;

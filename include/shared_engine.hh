@@ -11,10 +11,12 @@
 
 #include "ethernet.hh"
 
-template <typename Buffer>
+template <typename DataWrapper>
 class SharedEngine {
 public:
-  static const unsigned int BUFFER_SIZE = 1024;
+using BufferE = Buffer<typename DataWrapper::Frame>;
+using FrameClass = DataWrapper;
+public:
 
   // Construtor: Cria e configura o socket raw.
   SharedEngine(const char *interface_name) : _interface_name(interface_name) {
@@ -40,7 +42,7 @@ public:
   //   buf: Ponteiro para o Buffer contendo os dados a serem enviados.
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
-  int send(Buffer *buf) {
+  int send(BufferE *buf) {
     int ret = -1;
     try {
       std::thread::id thread_id = std::this_thread::get_id();
@@ -62,9 +64,9 @@ public:
   // Returns:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
-  int receive(Buffer *buf) {
+  int receive(BufferE *buf) {
     int ret = -1;
-    Buffer *buf_temp = nullptr;
+    BufferE *buf_temp = nullptr;
     try {
       std::thread::id thread_id = std::this_thread::get_id();
       buffer_sem.acquire();
@@ -86,7 +88,7 @@ public:
 
 public:
   const Ethernet::Address &getAddress() {
-    return _address;
+    return Ethernet::ZERO;
   }
 
   template <typename T, void (T::*handle_signal)()>
@@ -105,7 +107,7 @@ public:
 
 private:
   std::binary_semaphore buffer_sem{ 1 };
-  std::unordered_map<std::thread::id, Buffer> unm_buf;
+  std::unordered_map<std::thread::id, BufferE> unm_buf;
 
   template <typename T, void (T::*handle_signal)()>
   static void handlerWrapper(void *obj) {
@@ -113,23 +115,21 @@ private:
     (typedObj->*handle_signal)();
   }
 
-  // Socket é um inteiro pois seu valor representa um file descriptor
   int _interface_index;
   const char *_interface_name;
-  Ethernet::Address _address;
 
   static void *obj;
   static void (*handler)(void *);
   static SharedEngine *_self;
 };
 
-template <typename Buffer>
-SharedEngine<Buffer> *SharedEngine<Buffer>::_self = nullptr;
+template <typename DataWrapper>
+SharedEngine<DataWrapper> *SharedEngine<DataWrapper>::_self = nullptr;
 
-template <typename Buffer>
-void *SharedEngine<Buffer>::obj = nullptr;
+template <typename DataWrapper>
+void *SharedEngine<DataWrapper>::obj = nullptr;
 
-template <typename Buffer>
-void (*SharedEngine<Buffer>::handler)(void *) = nullptr;
+template <typename DataWrapper>
+void (*SharedEngine<DataWrapper>::handler)(void *) = nullptr;
 
 #endif

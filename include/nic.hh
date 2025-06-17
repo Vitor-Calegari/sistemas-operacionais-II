@@ -7,7 +7,6 @@
 #include "buffer.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
-#include "ethernet.hh"
 
 #ifdef DEBUG
 #include "utils.hh"
@@ -17,27 +16,29 @@
 // Ela age como a interface de rede, usando a Engine fornecida para E/S,
 // e notifica observadores (Protocolos) sobre frames recebidos.
 //
-// D (Observed_Data): Buffer<Ethernet::Frame>* - Notifica com ponteiros para
+// D (Observed_Data): Buffer<Engine::FrameClass::Frame>* - Notifica com ponteiros para
 // buffers recebidos.
-// C (Observing_Condition): Ethernet::Protocol - Filtra observadores pelo
+// C (Observing_Condition): Engine::FrameClass::Protocol - Filtra observadores pelo
 // EtherType.
 template <typename Engine>
-class NIC : public Ethernet,
-            public Conditionally_Data_Observed<Buffer<Ethernet::Frame>,
-                                               Ethernet::Protocol>,
+class NIC : public Engine::FrameClass,
+            public Conditionally_Data_Observed<typename Engine::BufferE,
+            typename Engine::FrameClass::Protocol>,
             private Engine {
 public:
   static const unsigned int SEND_BUFFERS = 1024;
   static const unsigned int RECEIVE_BUFFERS = 1024;
 
-  typedef Ethernet::Header Header;
-  typedef Ethernet::Address Address;
-  typedef Ethernet::Protocol Protocol_Number;
-  typedef Conditional_Data_Observer<Buffer<Ethernet::Frame>, Protocol_Number>
+  typedef typename Engine::FrameClass::Statistics Statistics;
+
+  typedef Engine::FrameClass::Header Header;
+  typedef Engine::FrameClass::Address Address;
+  typedef Engine::FrameClass::Protocol Protocol_Number;
+  typedef typename Engine::BufferE BufferNIC;
+  typedef Conditional_Data_Observer<BufferNIC, Protocol_Number>
       Observer;
-  typedef Conditionally_Data_Observed<Buffer<Ethernet::Frame>, Protocol_Number>
+  typedef Conditionally_Data_Observed<BufferNIC, Protocol_Number>
       Observed;
-  typedef Buffer<Ethernet::Frame> BufferNIC;
 
   // Args:
   //   interface_name: Nome da interface de rede (ex: "eth0").
@@ -48,10 +49,10 @@ public:
     // Inicializa pool de buffers ----------------------------------------
     // Cria buffers com a capacidade máxima definida
     for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
-      _send_buffer_pool[i] = BufferNIC(Ethernet::MAX_FRAME_SIZE_NO_FCS);
+      _send_buffer_pool[i] = BufferNIC(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS);
     }
     for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
-      _recv_buffer_pool[i] = BufferNIC(Ethernet::MAX_FRAME_SIZE_NO_FCS);
+      _recv_buffer_pool[i] = BufferNIC(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS);
     }
 
     // Setup Handler -----------------------------------------------------
@@ -70,7 +71,7 @@ public:
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
   BufferNIC *alloc(unsigned int size, int send) {
     std::lock_guard<std::mutex> lock(alloc_mtx);
-    unsigned int maxSize = Ethernet::HEADER_SIZE + size;
+    unsigned int maxSize = Engine::FrameClass::HEADER_SIZE + size;
 
     unsigned int last_used_buffer =
         send ? last_used_send_buffer : last_used_recv_buffer;
@@ -82,14 +83,14 @@ public:
       if (!buffer_pool[i].is_in_use()) {
         last_used_buffer = i;
         buffer_pool[i].mark_in_use();
-        // Mínimo de 60 bytes e máximo de Ethernet::MAX_FRAME_SIZE_NO_FCS
-        // Tamanho minimo do quadro ethernet e 64 bytes, porem nao incluimos fcs
+        // Mínimo de 60 bytes e máximo de Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS
+        // Tamanho minimo do quadro Engine::FrameClass e 64 bytes, porem nao incluimos fcs
         // assim resultando em apenas 60 bytes
         buffer_pool[i].setMaxSize(
-            maxSize < Ethernet::MIN_FRAME_SIZE
-                ? Ethernet::MIN_FRAME_SIZE
-                : (maxSize > Ethernet::MAX_FRAME_SIZE_NO_FCS
-                       ? Ethernet::MAX_FRAME_SIZE_NO_FCS
+            maxSize < Engine::FrameClass::MIN_FRAME_SIZE
+                ? Engine::FrameClass::MIN_FRAME_SIZE
+                : (maxSize > Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS
+                       ? Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS
                        : maxSize));
         return &buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
       }
@@ -114,7 +115,7 @@ public:
 
   // --- Funções da API Principal  ---
 
-  // Envia um frame Ethernet contido em um buffer JÁ ALOCADO E PREENCHIDO pelo
+  // Envia um frame Engine::FrameClass contido em um buffer JÁ ALOCADO E PREENCHIDO pelo
   // chamador. O chamador é responsável pela alocação, ao fim do send o buffer
   // é liberado.
   // Args:
@@ -157,7 +158,7 @@ public:
     int bytes_received = 0;
     do {
       // 1. Alocar um buffer para recepção.
-      BufferNIC *buf = alloc(Ethernet::MAX_FRAME_SIZE_NO_FCS, 0);
+      BufferNIC *buf = alloc(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS, 0);
 
       if (buf == nullptr) {
 #ifdef DEBUG
@@ -177,7 +178,7 @@ public:
         // Pacote recebido!
         _statistics.rx_packets++;
         _statistics.rx_bytes += bytes_received;
-        bool notified = notify(buf->data()->prot, buf);
+        bool notified = this->notify(buf->data()->prot, buf);
 #ifdef DEBUG
         std::cout << "NIC::handle_signal: "
                   << (notified ? "Protocol Notificado"

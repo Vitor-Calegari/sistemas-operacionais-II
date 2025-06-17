@@ -14,9 +14,9 @@ std::string payload(Ethernet::Frame *buffer, int buflen);
 
 std::string pBuflen(int buflen);
 
-void printEthToFile(FILE *log_txt, Buffer<Ethernet::Frame> *buffer);
+void printEthToFile(FILE *log_txt, Buffer<Ethernet> *buffer);
 
-void printEth(Buffer<Ethernet::Frame> *buffer);
+void printEth(Buffer<Ethernet> *buffer);
 
 int randint(int p, int r);
 

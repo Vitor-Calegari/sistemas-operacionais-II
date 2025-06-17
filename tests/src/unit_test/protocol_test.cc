@@ -11,10 +11,9 @@ int main(int argc, char *argv[]) {
   }
   const int send = atoi(argv[1]);
 
-  using Buffer = Buffer<Ethernet::Frame>;
-  using SocketNIC = NIC<Engine<Buffer>>;
-  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
-  using Protocol = Protocol<SocketNIC, SharedMemNIC>;
+  using SocketNIC = NIC<Engine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
 
   SocketNIC rsnic = SocketNIC("lo");
   SharedMemNIC smnic = SharedMemNIC("lo");

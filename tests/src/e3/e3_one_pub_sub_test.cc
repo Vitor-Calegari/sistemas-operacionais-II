@@ -46,9 +46,8 @@ int main(int argc, char *argv[]) {
       (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
       (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
 
-  using Buffer = Buffer<Ethernet::Frame>;
-  using SocketNIC = NIC<Engine<Buffer>>;
-  using SharedMemNIC = NIC<SharedEngine<Buffer>>;
+  using SocketNIC = NIC<Engine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address>;
   using Communicator = Communicator<Protocol, Message>;

@@ -25,9 +25,11 @@
 #include "buffer.hh"
 #include "ethernet.hh"
 
-template <typename Buffer>
+template <typename DataWrapper>
 class Engine {
-
+public:
+  using BufferE = Buffer<typename DataWrapper::Frame>;
+  using FrameClass = DataWrapper;
 public:
   // Construtor: Cria e configura o socket raw.
   Engine(const char *interface_name)
@@ -137,7 +139,7 @@ public:
   //   (sockaddr_ll).
   // Returns:
   //   Número de bytes enviados ou -1 em caso de erro.
-  int send(Buffer *buf) {
+  int send(BufferE *buf) {
     if (!buf)
       return -1; // Validação básica
 
@@ -197,7 +199,7 @@ public:
   // Returns:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
-  int receive(Buffer *buf) {
+  int receive(BufferE *buf) {
     struct sockaddr_ll sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
 
@@ -353,13 +355,13 @@ private:
   pthread_mutex_t _threadStopMutex = PTHREAD_MUTEX_INITIALIZER;
 };
 
-template <typename Buffer>
-Engine<Buffer> *Engine<Buffer>::_self = nullptr;
+template <typename DataWrapper>
+Engine<DataWrapper> *Engine<DataWrapper>::_self = nullptr;
 
-template <typename Buffer>
-void *Engine<Buffer>::obj = nullptr;
+template <typename DataWrapper>
+void *Engine<DataWrapper>::obj = nullptr;
 
-template <typename Buffer>
-void (*Engine<Buffer>::handler)(void *) = nullptr;
+template <typename DataWrapper>
+void (*Engine<DataWrapper>::handler)(void *) = nullptr;
 
 #endif

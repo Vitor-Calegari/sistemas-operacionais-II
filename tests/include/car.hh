@@ -14,9 +14,8 @@
 
 class Car {
 public:
-  using BufferC = Buffer<Ethernet::Frame>;
-  using SocketNIC = NIC<Engine<BufferC>>;
-  using SharedMemNIC = NIC<SharedEngine<BufferC>>;
+  using SocketNIC = NIC<Engine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using ProtocolC = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using ComponentC = Component<ProtocolC>;
   using Port = ComponentC::PortC;

@@ -53,7 +53,7 @@ void print_action(typename SyncEngine::Action action) {
 
 class ProtocolMock {
 public:
-  using BufferEthernet = Buffer<Ethernet::Frame>;
+  using BufferEthernet = Buffer<Ethernet>;
   using SocketNIC = NIC<Engine<BufferEthernet>>;
   using SharedMemNIC = NIC<SharedEngine<BufferEthernet>>;
   using ProtocolNIC = Protocol<SocketNIC, SharedMemNIC>;

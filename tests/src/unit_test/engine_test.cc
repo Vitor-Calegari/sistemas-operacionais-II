@@ -12,13 +12,13 @@
 
 const auto INTERFACE_NAME = "enxf8e43bf0c430";
 
-Engine<Buffer<Ethernet::Frame>> engine = Engine<Buffer<Ethernet::Frame>>(INTERFACE_NAME);
+Engine<Buffer<Ethernet>> engine = Engine<Buffer<Ethernet>>(INTERFACE_NAME);
 
-typedef Buffer<Ethernet::Frame> EthFrame;
+typedef Buffer<Ethernet> EthFrame;
 
 class Handler {
 public:
-  Engine<Buffer<Ethernet::Frame>> * engine;
+  Engine<Buffer<Ethernet>> * engine;
 
   void handle_signal() {
     int recv_len = 0;
