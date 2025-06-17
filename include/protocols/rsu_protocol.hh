@@ -62,7 +62,11 @@ protected:
           broadcastBuf = nic.alloc(buf->size(), 0);
           if (broadcastBuf == nullptr)
             continue;
-          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+          if (buf->type() == Buffer::EthernetFrame) {
+            std::memcpy(broadcastBuf->template data<Base::SocketFrame>(), buf->template data<FullPacket>(), buf->size());
+          } else {
+            std::memcpy(broadcastBuf->template data<Base::SharedMFrame>(), buf->template data<LitePacket>(), buf->size());
+          }
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {
             nic.free(broadcastBuf);

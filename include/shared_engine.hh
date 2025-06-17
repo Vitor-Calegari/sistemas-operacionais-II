@@ -14,7 +14,6 @@
 template <typename DataWrapper>
 class SharedEngine {
 public:
-using BufferE = Buffer<typename DataWrapper::Frame>;
 using FrameClass = DataWrapper;
 public:
 

@@ -63,7 +63,11 @@ protected:
           broadcastBuf = nic.alloc(buf->size(), 0);
           if (broadcastBuf == nullptr)
             continue;
-          std::memcpy(broadcastBuf->data(), buf->data(), buf->size());
+          if (buf->type() == Buffer::EthernetFrame) {
+            std::memcpy(broadcastBuf->template data<Base::SocketFrame>(), buf->template data<FullPacket>(), buf->size());
+          } else {
+            std::memcpy(broadcastBuf->template data<Base::SharedMFrame>(), buf->template data<LitePacket>(), buf->size());
+          }
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {
             nic.free(broadcastBuf);
@@ -77,13 +81,11 @@ protected:
 
     uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
 
-    LitePacket *lite_pkt = buf->data()->template data<LitePacket>();
-    SysID originSysId = lite_pkt->header()->origin.getSysID();
-    SysID destSysId = lite_pkt->header()->dest.getSysID();
-    Port port = lite_pkt->header()->dest.getPort();
-
-    if (originSysId != Base::_sysID) {
-      FullPacket *pkt = buf->data()->template data<FullPacket>();
+    if (buf->type() == Buffer::EthernetFrame) {
+      FullPacket *pkt = buf->template data<Base::SocketFrame>()->template data<FullPacket>();
+      SysID originSysId = pkt->header()->origin.getSysID();
+      SysID destSysId = pkt->header()->dest.getSysID();
+      Port port = pkt->header()->dest.getPort();
       double coord_x = pkt->header()->coord_x;
       double coord_y = pkt->header()->coord_y;
       Control::Type pkt_type = pkt->header()->ctrl.getType();
@@ -199,6 +201,8 @@ protected:
 
       handlePacket(Base::_rsnic, buf, port);
     } else {
+      LitePacket *lite_pkt = buf->template data<Base::SharedMFrame>()->template data<LitePacket>();
+      Port port = lite_pkt->header()->dest;
       handlePacket(Base::_smnic, buf, port);
     }
   }
@@ -208,11 +212,11 @@ protected:
                   void *data = nullptr, unsigned int size = 0) override {
     // Estrutura do frame ethernet todo:
     // [MAC_D, MAC_S, Proto, Payload = [Addr_S, Addr_D, Data_size, Data_P]]
-    buf->data()->src = from.getPAddr();
-    buf->data()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
-    buf->data()->prot = Base::PROTO;
+    buf->template data<Base::SocketFrame>()->src = from.getPAddr();
+    buf->template data<Base::SocketFrame>()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
+    buf->template data<Base::SocketFrame>()->prot = Base::PROTO;
     // Payload do Ethernet::Frame é o Protocol::Packet
-    FullPacket *pkt = buf->data()->template data<FullPacket>();
+    FullPacket *pkt = buf->template data<Base::SocketFrame>()->template data<FullPacket>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;

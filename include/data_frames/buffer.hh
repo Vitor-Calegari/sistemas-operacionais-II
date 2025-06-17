@@ -6,7 +6,7 @@ class Buffer {
 public:
   static constexpr size_t BUFFER_SIZE = 1514;
 
-  enum BufferType { EthernetFrame, LiteFrame };
+  enum BufferType { EthernetFrame, SharedMemFrame };
 
   Buffer(BufferType buf_type)
       : _type(buf_type), _size(0), _max_size(0), _in_use(false) {

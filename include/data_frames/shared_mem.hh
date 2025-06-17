@@ -1,10 +1,10 @@
-#ifndef ETHERNET_HH
-#define ETHERNET_HH
+#ifndef SHARED_MEM_HH
+#define SHARED_MEM_HH
 
 #include <cstring>
 
 // Define a classe Ethernet e seus componentes
-class SharedMemFrame {
+class SharedMem {
 public:
   // Maximum Transmission Unit (MTU) padrão para Ethernet v2.
   // Define o tamanho máximo do payload (dados da camada superior).

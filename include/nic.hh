@@ -22,7 +22,7 @@
 // EtherType.
 template <typename Engine>
 class NIC : public Engine::FrameClass,
-            public Conditionally_Data_Observed<typename Engine::BufferE,
+            public Conditionally_Data_Observed<Buffer,
             typename Engine::FrameClass::Protocol>,
             private Engine {
 public:
@@ -31,13 +31,13 @@ public:
 
   typedef typename Engine::FrameClass::Statistics Statistics;
 
+  typedef Engine::FrameClass NICFrameClass;
   typedef Engine::FrameClass::Header Header;
   typedef Engine::FrameClass::Address Address;
   typedef Engine::FrameClass::Protocol Protocol_Number;
-  typedef typename Engine::BufferE BufferNIC;
-  typedef Conditional_Data_Observer<BufferNIC, Protocol_Number>
+  typedef Conditional_Data_Observer<Buffer, Protocol_Number>
       Observer;
-  typedef Conditionally_Data_Observed<BufferNIC, Protocol_Number>
+  typedef Conditionally_Data_Observed<Buffer, Protocol_Number>
       Observed;
 
   // Args:
@@ -45,14 +45,19 @@ public:
   NIC(const char *interface_name)
       : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1),
         last_used_recv_buffer(RECEIVE_BUFFERS - 1) {
-          
+    Buffer::BufferType buf_type{};
+    if (typeid(NICFrameClass) == typeid(Ethernet)) {
+      buf_type = Buffer::BufferType::EthernetFrame;
+    } else {
+      buf_type = Buffer::BufferType::SharedMemFrame;
+    }
     // Inicializa pool de buffers ----------------------------------------
     // Cria buffers com a capacidade máxima definida
     for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
-      _send_buffer_pool[i] = BufferNIC(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS);
+      _send_buffer_pool[i] = Buffer(buf_type);
     }
     for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
-      _recv_buffer_pool[i] = BufferNIC(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS);
+      _recv_buffer_pool[i] = Buffer(buf_type);
     }
 
     // Setup Handler -----------------------------------------------------
@@ -69,14 +74,14 @@ public:
   // Aloca um buffer do pool interno para envio ou recepção.
   // Retorna: Ponteiro para um Buffer livre, ou nullptr se o pool estiver
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
-  BufferNIC *alloc(unsigned int size, int send) {
+  Buffer *alloc(unsigned int size, int send) {
     std::lock_guard<std::mutex> lock(alloc_mtx);
     unsigned int maxSize = Engine::FrameClass::HEADER_SIZE + size;
 
     unsigned int last_used_buffer =
         send ? last_used_send_buffer : last_used_recv_buffer;
     unsigned int buffer_size_l = send ? SEND_BUFFERS : RECEIVE_BUFFERS;
-    BufferNIC *buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
+    Buffer *buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
 
     for (unsigned int j = 0; j < buffer_size_l; ++j) {
       int i = (last_used_buffer + j) % buffer_size_l;
@@ -106,7 +111,7 @@ public:
   // Args:
   //   buf: Ponteiro para o buffer a ser liberado (deve ter sido obtido via
   //   alloc()).
-  void free(BufferNIC *buf) {
+  void free(Buffer *buf) {
     if (!buf)
       return;
     buf->data()->clear();
@@ -122,7 +127,7 @@ public:
   //   buf: Ponteiro para o buffer contendo o frame a ser enviado.
   // Returns:
   //   Número de bytes enviados pela Engine ou -1 em caso de erro.
-  int send(BufferNIC *buf) {
+  int send(Buffer *buf) {
     int bytes_sent = Engine::send(buf);
 
     if (bytes_sent > 0) {
@@ -158,7 +163,7 @@ public:
     int bytes_received = 0;
     do {
       // 1. Alocar um buffer para recepção.
-      BufferNIC *buf = alloc(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS, 0);
+      Buffer *buf = alloc(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS, 0);
 
       if (buf == nullptr) {
 #ifdef DEBUG
@@ -209,8 +214,8 @@ public:
   Statistics _statistics; // Estatísticas de rede
 
   // Pool de Buffers
-  BufferNIC _send_buffer_pool[SEND_BUFFERS];
-  BufferNIC _recv_buffer_pool[RECEIVE_BUFFERS];
+  Buffer _send_buffer_pool[SEND_BUFFERS];
+  Buffer _recv_buffer_pool[RECEIVE_BUFFERS];
   unsigned int last_used_send_buffer;
   unsigned int last_used_recv_buffer;
 };

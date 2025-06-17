@@ -4,6 +4,7 @@
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
 #include "control.hh"
+#include "buffer.hh"
 #include "mac.hh"
 #include "navigator.hh"
 #include "sync_engine.hh"
@@ -16,7 +17,7 @@
 
 template <typename SocketNIC, typename SharedMemNIC, typename Navigator>
 class ProtocolCommom
-    : public Concurrent_Observed<typename SocketNIC::BufferNIC, unsigned short>,
+    : public Concurrent_Observed<Buffer, unsigned short>,
       private SocketNIC::Observer {
 public:
   inline static const typename SocketNIC::Protocol_Number PROTO = htons(0x88B5);
@@ -25,12 +26,12 @@ public:
       SyncEngineP;
   typedef typename SocketNIC::Header SocketNICHeader;
   typedef typename SharedMemNIC::Header SharedMemNICHeader;
-  // TODO FAZER COM QUE BUFFER SEJA SOCKETNICBUFFER, RESOLVER OBSERVADORES
-  typedef typename SocketNIC::BufferNIC Buffer;
-  typedef typename SharedMemNIC::BufferNIC SharedMemBuffer;
   typedef typename SocketNIC::Address Physical_Address;
   typedef pid_t SysID;
   typedef unsigned short Port;
+
+  typedef typename SocketNIC::NICFrameClass::Frame SocketFrame;
+  typedef typename SharedMemNIC::NICFrameClass::Frame SharedMFrame;
 
   typedef Conditional_Data_Observer<Buffer, Port> Observer;
   typedef Concurrent_Observed<Buffer, Port> Observed;
@@ -192,29 +193,33 @@ public:
   }
 
   Address peekOrigin(Buffer *buf) {
-    // TODO Obter origem de acordo com o tipo de Buffer/Pacote
-    LitePacket *pkt = buf->data()->template data<LitePacket>();
-    return pkt->header()->origin;
+    if (buf->type() == Buffer::EthernetFrame) {
+      return buf->template data<SocketFrame>()->template data<FullPacket>()->header()->origin;
+    } else {
+      Address addr = getAddr();
+      addr.setPort(buf->template data<SocketFrame>()->template data<LitePacket>()->header()->origin);
+      return addr;
+    }
   }
 
   SysID peekOriginSysID(Buffer *buf) {
-    // TODO Obter sysid de acordo com o tipo de Buffer/Pacote
-    LitePacket *pkt = buf->data()->template data<LitePacket>();
-    return pkt->header()->origin.getSysID();
+    if (buf->type() == Buffer::EthernetFrame) {
+      return buf->template data<SocketFrame>()->template data<FullPacket>()->header()->origin.getSysID();
+    } else {
+      return getSysID();
+    }
   }
 
   void free(Buffer *buf) {
-    // TODO Free de acordo com o tipo de buffer
-    SysID originSysID = peekOriginSysID(buf);
-    if (originSysID == _sysID) {
-      _smnic.free(buf);
-    } else {
+    if (buf->type() == Buffer::EthernetFrame) {
       _rsnic.free(buf);
+    } else {
+      _smnic.free(buf);
     }
   }
 
   // Envia uma mensagem:
-  // Aloca um buffer (que é um Ethernet::Frame), interpreta o payload (após o
+  // Aloca um buffer (que é um SocketFrame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, Control &ctrl, void *data = nullptr,
            unsigned int size = 0, uint64_t recv_timestamp = 0) {
@@ -244,50 +249,47 @@ public:
   }
 
   // Recebe uma mensagem:
-  // Aqui, também interpretamos o payload do Ethernet::Frame como um Packet.
-  // TODO UTILIZAR BUFFER GENERICO NO PARAMETRO
+  // Aqui, também interpretamos o payload do SocketFrame como um Packet.
   int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
               double *coord_x, double *_coord_y, uint64_t *timestamp,
               void *data, unsigned int size) {
     int received_bytes = 0;
-    SysID originSysID = peekOriginSysID(buf);
-    // TODO Tipar buffer corretamente
-    if (originSysID == _sysID) {
-      LitePacket *pkt = buf->data()->template data<LitePacket>();
-      received_bytes = fillRecvLiteMsg(pkt, from, to, ctrl, data, size);
-      // TODO INCLUIR TIMESTAMP DE RECEBIMENTO QUE O BUFFER DEVE CONTER COMO TIMESTAMP DE ENVIO DA MENSAGEM
-      _smnic.free(buf);
-    } else {
-      FullPacket *pkt = buf->data()->template data<FullPacket>();
+
+    if (buf->type() == Buffer::EthernetFrame) {
+      FullPacket *pkt = buf->template data<SocketFrame>()->template data<FullPacket>();
       received_bytes = fillRecvFullMsg(pkt, from, to, ctrl, coord_x, _coord_y,
-                                       timestamp, data, size);
+                                        timestamp, data, size);
       _rsnic.free(buf);
+    } else {
+      LitePacket *pkt = buf->template data<SharedMFrame>()->template data<LitePacket>();
+      // TODO INCLUIR TIMESTAMP DE RECEBIMENTO QUE O BUFFER DEVE CONTER COMO TIMESTAMP DE ENVIO DA MENSAGEM
+      received_bytes = fillRecvLiteMsg(pkt, from, to, ctrl, data, size);
+      _smnic.free(buf);
     }
     return received_bytes;
   }
 
   void *unmarshal(Buffer *buf) {
-    // TODO Unmarshal de acordo com o tipo de buffer
-    SysID originSysID = peekOriginSysID(buf);
-    if (originSysID == _sysID) {
-      return buf->data()->template data<LitePacket>();
+    if (buf->type() == Buffer::EthernetFrame) {
+      return buf->template data<SocketFrame>()->template data<FullPacket>();
     } else {
-      return buf->data()->template data<FullPacket>();
+      return buf->template data<SharedMFrame>()->template data<LitePacket>();
     }
   }
 
   Control::Type getPType(Buffer *buf) {
-    // TODO Type de acordo com o tipo de buffer
-    return buf->data()->template data<LitePacket>()->ctrl.getType();
+    if (buf->type() == Buffer::EthernetFrame) {
+      return buf->template data<SocketFrame>()->template data<FullPacket>()->ctrl.getType();
+    } else {
+      return buf->template data<SharedMFrame>()->template data<LitePacket>()->ctrl.getType();
+    }
   }
 
   char *peekPacketData(Buffer *buf) {
-    // TODO Obter DATA de acordo com o tipo de buffer
-    SysID originSysID = peekOriginSysID(buf);
-    if (originSysID == _sysID) {
-      return buf->data()->template data<LitePacket>()->template data<char>();
+    if (buf->type() == Buffer::EthernetFrame) {
+      return buf->template data<SocketFrame>()->template data<FullPacket>()->template data<char>();
     } else {
-      return buf->data()->template data<FullPacket>()->template data<char>();
+      return buf->template data<SharedMFrame>()->template data<LitePacket>()->template data<char>();
     }
   }
 
@@ -297,13 +299,12 @@ public:
 
   virtual void update([[maybe_unused]] typename SocketNIC::Observed *obs,
                       [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
-                      [[maybe_unused]] Buffer *buf) {};  // TODO DEVE SER O BUFFER GENERICO
+                      [[maybe_unused]] Buffer *buf) {};
 
 private:
   int sendSocket(Address &from, Address &to, Control &ctrl,
                  void *data = nullptr, unsigned int size = 0,
                  uint64_t recv_timestamp = 0) {
-    // TODO UTILIZAR SOCKETNICBUFFER
     Buffer *buf = _rsnic.alloc(sizeof(FullHeader) + size, 1);
     if (buf == nullptr)
       return -1;
@@ -311,15 +312,20 @@ private:
     ctrl.setNeedSync(_sync_engine.getNeedSync());
     fillFullPacket(buf, from, to, ctrl, data, size);
     if (recv_timestamp) {
-      buf->data()->template data<FullPacket>()->header()->timestamp =
+      if (buf->type() == Buffer::EthernetFrame) {
+        buf->template data<SocketFrame>()->template data<FullPacket>()->header()->timestamp =
           recv_timestamp;
+      } else {
+        buf->template data<SharedMFrame>()->template data<LitePacket>()->header()->timestamp =
+          recv_timestamp;
+      }
     }
     return _rsnic.send(buf);
   }
 
   int sendSharedMem(Port &from, Port &to, Control &ctrl,
                     void *data = nullptr, unsigned int size = 0) {
-    SharedMemBuffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
+    Buffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
     if (buf == nullptr)
       return -1;
     fillLitePacket(buf, from, to, ctrl, data, size);
@@ -327,32 +333,30 @@ private:
   }
 
 protected:
-  virtual void fillLitePacket(SharedMemBuffer *buf, Port &from, Port &to,
+  virtual void fillLitePacket(Buffer *buf, Port &from, Port &to,
                               Control &ctrl, void *data = nullptr,
                               unsigned int size = 0) {
     // Frame de sharedmem não tem MAC
-    buf->data()->prot = PROTO;
-    // Payload do Ethernet::Frame é o Protocol::Packet
-    LitePacket *pkt = buf->data()->template data<LitePacket>();
+    buf->template data<SharedMFrame>()->prot = PROTO;
+    // Payload do SocketFrame é o Protocol::Packet
+    LitePacket *pkt = buf->template data<SharedMFrame>()->template data<LitePacket>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
     pkt->header()->payloadSize = size;
     buf->setSize(sizeof(SharedMemNICHeader) + sizeof(LiteHeader) + size);
     if (data != nullptr) {
-      LitePacket *pkt = buf->data()->template data<LitePacket>();
       std::memcpy(pkt->template data<char>(), data, size);
     }
   }
 
-  // TODO UTILIZAR SOCKETNICBUFFER
   virtual void fillFullPacket(Buffer *buf, Address &from, Address &to,
                               Control &ctrl, void *data = nullptr,
                               unsigned int size = 0) {
-    buf->data()->src = from.getPAddr();
-    buf->data()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
-    buf->data()->prot = PROTO;
-    FullPacket *pkt = buf->data()->template data<FullPacket>();
+    buf->template data<SocketFrame>()->src = from.getPAddr();
+    buf->template data<SocketFrame>()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
+    buf->template data<SocketFrame>()->prot = PROTO;
+    FullPacket *pkt = buf->template data<SocketFrame>()->template data<FullPacket>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
