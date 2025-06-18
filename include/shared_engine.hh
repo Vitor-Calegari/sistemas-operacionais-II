@@ -46,7 +46,7 @@ public:
     try {
       std::thread::id thread_id = std::this_thread::get_id();
       buffer_sem.acquire();
-      unm_buf[thread_id] = *buf;
+      unm_buf[thread_id] = buf;
       buffer_sem.release();
       _self->handler(_self->obj);
       ret = buf->size();
@@ -63,17 +63,13 @@ public:
   // Returns:
   //   Número de bytes recebidos, 0 se não houver dados (não bloqueante), ou -1
   //   em caso de erro real.
-  int receive(Buffer *buf) {
+  int receive(Buffer *&buf) {
     int ret = -1;
-    Buffer *buf_temp = nullptr;
     try {
       std::thread::id thread_id = std::this_thread::get_id();
       buffer_sem.acquire();
       if (unm_buf.find(thread_id) != unm_buf.end()) {
-        buf_temp = &unm_buf[thread_id];
-        std::memcpy(buf->data<Frame>(),
-                    buf_temp->data<Frame>(), buf_temp->size());
-        buf->setSize(buf_temp->size());
+        buf = unm_buf[thread_id];
         ret = buf->size();
         unm_buf.erase(thread_id);
       } else {
@@ -97,17 +93,9 @@ public:
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
 
-  void stopRecv() {
-    return;
-  }
-
-  void turnRecvOn() {
-    return;
-  }
-
 private:
   std::binary_semaphore buffer_sem{ 1 };
-  std::unordered_map<std::thread::id, Buffer> unm_buf;
+  std::unordered_map<std::thread::id, Buffer*> unm_buf;
 
   template <typename T, void (T::*handle_signal)()>
   static void handlerWrapper(void *obj) {

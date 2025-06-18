@@ -339,7 +339,9 @@ private:
             ->timestamp = recv_timestamp;
       }
     }
-    return _rsnic.send(buf);
+    int ret = _rsnic.send(buf);
+    _rsnic.free(buf);
+    return ret;
   }
 
   int sendSharedMem(Port &from, Port &to, Control &ctrl, void *data = nullptr,

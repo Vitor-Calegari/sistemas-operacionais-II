@@ -44,7 +44,6 @@ public:
   NIC(const char *interface_name, SimulatedClock *clock)
       : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1),
         last_used_recv_buffer(RECEIVE_BUFFERS - 1), _clock(clock) {
-    Buffer::BufferType buf_type{};
     if (typeid(NICFrameClass) == typeid(Ethernet)) {
       buf_type = Buffer::BufferType::EthernetFrame;
     } else {
@@ -140,9 +139,6 @@ public:
       std::cerr << "NIC::send(buf): Engine failed to send packet." << std::endl;
 #endif
     }
-
-    free(buf);
-
     return bytes_sent;
   }
 
@@ -162,14 +158,17 @@ public:
   void handle_signal() {
     int bytes_received = 0;
     do {
-      // 1. Alocar um buffer para recepção.
-      Buffer *buf = alloc(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS, 0);
+      Buffer *buf = nullptr;
+      if (buf_type == Buffer::BufferType::EthernetFrame) {
+        // 1. Alocar um buffer para recepção.
+        buf = alloc(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS, 0);
 
-      if (buf == nullptr) {
+        if (buf == nullptr) {
 #ifdef DEBUG
-        std::cout << "NIC buffer is full" << std::endl;
+          std::cout << "NIC buffer is full" << std::endl;
 #endif
-        break;
+          break;
+        }
       }
 
       // 2. Tentar receber o pacote usando a Engine.
@@ -211,6 +210,7 @@ public:
       }
     } while (bytes_received > 0);
   }
+  Buffer::BufferType buf_type{};
   std::mutex alloc_mtx{};
   // --- Membros ---
   Statistics _statistics; // Estatísticas de rede
