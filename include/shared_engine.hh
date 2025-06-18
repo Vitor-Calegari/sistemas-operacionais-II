@@ -48,8 +48,8 @@ public:
       buffer_sem.acquire();
       unm_buf[thread_id] = buf;
       buffer_sem.release();
-      _self->handler(_self->obj);
       ret = buf->size();
+      _self->handler(_self->obj);
     } catch (const std::exception &e) {
       ret = -1;
     }

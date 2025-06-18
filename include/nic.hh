@@ -173,13 +173,13 @@ public:
 
       // 2. Tentar receber o pacote usando a Engine.
       bytes_received = Engine::receive(buf);
-      buf->set_receive_time(_clock->getTimestamp());
 #ifdef DEBUG
       if (bytes_received > 0) {
         printEth(buf);
       }
 #endif
       if (bytes_received > 0) {
+        buf->set_receive_time(_clock->getTimestamp());
         // Pacote recebido!
         _statistics.rx_packets++;
         _statistics.rx_bytes += bytes_received;
