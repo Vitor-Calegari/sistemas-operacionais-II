@@ -8,6 +8,7 @@
 #include "rsu_protocol.hh"
 #include "shared_engine.hh"
 #include "topology.hh"
+#include "shared_mem.hh"
 #include <csignal>
 #include <cstddef>
 #include <fcntl.h>

@@ -6,6 +6,7 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "shared_mem.hh"
 #include "navigator.hh"
 
 #ifndef INTERFACE_NAME
