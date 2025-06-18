@@ -1,11 +1,12 @@
 #include "car.hh"
-#include "utils.hh"
 #include "map.hh"
 #include "shared_mem.hh"
+#include "utils.hh"
 
 #include <array>
 #include <cassert>
 #include <csignal>
+#include <iomanip>
 #include <iostream>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -20,13 +21,14 @@ constexpr int NUM_MESSAGES_PER_THREAD = 4;
 constexpr int MESSAGE_SIZE = 25;
 
 std::string formatTimestamp(uint64_t timestamp_us) {
-  auto time_point = std::chrono::system_clock::time_point(std::chrono::microseconds(timestamp_us));
+  auto time_point = std::chrono::system_clock::time_point(
+      std::chrono::microseconds(timestamp_us));
   std::time_t time_t = std::chrono::system_clock::to_time_t(time_point);
   std::tm *tm = std::localtime(&time_t);
 
   std::ostringstream oss;
-  oss << std::put_time(tm, "%H:%M:%S") << "."
-      << std::setw(6) << std::setfill('0') << (timestamp_us % 1000000) << " us";
+  oss << std::put_time(tm, "%H:%M:%S") << "." << std::setw(6)
+      << std::setfill('0') << (timestamp_us % 1000000) << " us";
   return oss.str();
 }
 
@@ -81,9 +83,8 @@ int main() {
 
         if (comp.send(&msg)) {
           stdout_lock.lock();
-          std::cout << std::dec << " Proc ("
-                    << getpid() << ") Thread (" << thread_id << "): Sending ("
-                    << j << "): ";
+          std::cout << std::dec << " Proc (" << getpid() << ") Thread ("
+                    << thread_id << "): Sending (" << j << "): ";
           std::cout.flush();
           for (size_t j = 0; j < msg.size(); ++j) {
             std::cout << std::hex << static_cast<int>(msg.data()[j]) << " ";
@@ -113,10 +114,11 @@ int main() {
           exit(1);
         } else {
           stdout_lock.lock();
-          
-          std::cout << std::dec << "[Msg sent at: " << formatTimestamp(*msg.timestamp()) << "] Proc ("
-                    << getpid() << ") Thread (" << thread_id << "): Received ("
-                    << j << "): ";
+
+          std::cout << std::dec
+                    << "[Msg sent at: " << formatTimestamp(*msg.timestamp())
+                    << "] Proc (" << getpid() << ") Thread (" << thread_id
+                    << "): Received (" << j << "): ";
           for (size_t i = 0; i < msg.size(); i++) {
             std::cout << std::hex << static_cast<int>(msg.data()[i]) << " ";
           }

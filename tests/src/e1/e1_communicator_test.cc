@@ -5,8 +5,8 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "utils.hh"
 #include "shared_mem.hh"
+#include "utils.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -76,7 +76,8 @@ int main(int argc, char *argv[]) {
   } else {
     sem_post(semaphore);
     for (int i_m = 0; i_m < NUM_MSGS / 2; ++i_m) {
-      Message message = Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
+      Message message =
+          Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
       comm.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {
