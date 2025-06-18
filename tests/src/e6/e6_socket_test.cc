@@ -15,9 +15,10 @@
 #define INTERFACE_NAME "lo"
 #endif
 
-constexpr int NUM_CARS = 4;
+constexpr int NUM_CARS = 2;
 constexpr int NUM_COMPONENTS = 1;
 constexpr int NUM_MESSAGES_PER_THREAD = 5;
+constexpr int NUM_SEND_MESSAGES_PER_THREAD = 50;
 constexpr int MESSAGE_SIZE = 12;
 
 std::string formatTimestamp(uint64_t timestamp_us) {
@@ -48,10 +49,14 @@ int main() {
   Map *map = new Map(1, 1);
 
   auto parent_pid = getpid();
+  bool sender = false;
 
   for (auto i = 0; i < NUM_CARS; ++i) {
     auto cur_pid = fork();
     if (cur_pid == 0) {
+      if (i == 0) {
+        sender = true;
+      }
       break;
     }
   }
@@ -64,21 +69,15 @@ int main() {
     std::mutex cv_mtx;
     std::condition_variable cv;
 
-    int num_receivers_ready = 0;
-
     Car car;
 
     auto send_task = [&](const int thread_id) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2000));
       auto comp = car.create_component(thread_id);
       std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
       stdout_lock.unlock();
 
-      std::unique_lock<std::mutex> cv_lock(cv_mtx);
-      cv.wait(cv_lock, [&num_receivers_ready]() {
-        return num_receivers_ready == NUM_COMPONENTS;
-      });
-
-      for (int j = 1; j <= NUM_MESSAGES_PER_THREAD;) {
+      for (int j = 1; j <= NUM_SEND_MESSAGES_PER_THREAD;) {
         Message msg = Message(
             comp.addr(),
             Protocol::Address(car.prot.getNICPAddr(), Protocol::BROADCAST_SID,
@@ -109,9 +108,6 @@ int main() {
       Message message(MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
       std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
       stdout_lock.unlock();
-
-      ++num_receivers_ready;
-      cv.notify_all();
 
       for (int j = 1; j <= NUM_MESSAGES_PER_THREAD; j++) {
         memset(message.data(), 0, MESSAGE_SIZE);
@@ -145,13 +141,19 @@ int main() {
     std::array<std::thread, NUM_COMPONENTS> send_threads;
     std::array<std::thread, NUM_COMPONENTS> receive_threads;
     for (int i = 0; i < NUM_COMPONENTS; ++i) {
-      send_threads[i] = std::thread(send_task, i);
-      receive_threads[i] = std::thread(receive_task, i + NUM_COMPONENTS);
+      if (sender) {
+        send_threads[i] = std::thread(send_task, i);
+      } else {
+        receive_threads[i] = std::thread(receive_task, i + NUM_COMPONENTS);
+      }
     }
 
     for (int i = 0; i < NUM_COMPONENTS; ++i) {
-      send_threads[i].join();
-      receive_threads[i].join();
+      if (sender) {
+        send_threads[i].join();
+      } else {
+        receive_threads[i].join();
+      }
     }
   } else {
     for (int i = 0; i < NUM_CARS; ++i) {

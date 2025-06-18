@@ -50,8 +50,7 @@ public:
   Control *getControl() {
     return &_ctrl;
   }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+
   double *getCoordX() {
     if (_prot != nullptr && std::isnan(_coord_x)) {
       double coord_x, coord_y;
@@ -74,10 +73,10 @@ public:
     return &_coord_y;
   }
 
-  uint64_t *timestamp() {
+  int64_t *timestamp() {
     return &_timestamp;
   }
-#pragma GCC diagnostic pop
+
 
   void setSize(std::size_t new_size) {
     _payload_size = new_size;
@@ -103,9 +102,9 @@ private:
   Control _ctrl;
   double _coord_x = std::numeric_limits<double>::quiet_NaN();
   double _coord_y = std::numeric_limits<double>::quiet_NaN();
-  uint64_t _timestamp;
+  int64_t _timestamp;
   std::size_t _payload_size;
   std::byte *_data;
-} __attribute__((packed));
+};
 
 #endif

@@ -66,6 +66,7 @@ protected:
           } else {
             std::memcpy(broadcastBuf->template data<char>(), buf->template data<LitePacket>(), buf->size());
           }
+          broadcastBuf->set_receive_time(buf->get_receive_time());
           broadcastBuf->setSize(buf->size());
           if (!this->notify(port, broadcastBuf)) {
             nic.free(broadcastBuf);

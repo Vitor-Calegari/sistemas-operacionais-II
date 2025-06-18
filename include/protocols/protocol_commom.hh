@@ -103,7 +103,7 @@ public:
     std::size_t payloadSize;
     double coord_x;
     double coord_y;
-    uint64_t timestamp;
+    int64_t timestamp;
     MAC::Tag tag;
   } __attribute__((packed));
 
@@ -230,7 +230,7 @@ public:
   // Aloca um buffer (que é um SocketFrame), interpreta o payload (após o
   // cabeçalho Ethernet) como um Packet, monta o pacote e delega o envio à NIC.
   int send(Address &from, Address &to, Control &ctrl, void *data = nullptr,
-           unsigned int size = 0, uint64_t recv_timestamp = 0) {
+           unsigned int size = 0, int64_t recv_timestamp = 0) {
     Port from_port = from.getPort();
     Port to_port = to.getPort();
     // Broadcast: send through both NICs
@@ -261,7 +261,7 @@ public:
   // Recebe uma mensagem:
   // Aqui, também interpretamos o payload do SocketFrame como um Packet.
   int receive(Buffer *buf, Address *from, Address *to, Control *ctrl,
-              double *coord_x, double *_coord_y, uint64_t *timestamp,
+              double *coord_x, double *_coord_y, int64_t *timestamp,
               void *data, unsigned int size) {
     int received_bytes = 0;
 
@@ -324,7 +324,7 @@ public:
 private:
   int sendSocket(Address &from, Address &to, Control &ctrl,
                  void *data = nullptr, unsigned int size = 0,
-                 uint64_t recv_timestamp = 0) {
+                 int64_t recv_timestamp = 0) {
     Buffer *buf = _rsnic.alloc(sizeof(FullHeader) + size, 1);
     if (buf == nullptr)
       return -1;
@@ -411,7 +411,7 @@ protected:
 
   int fillRecvFullMsg(FullPacket *pkt, Address *from, Address *to,
                       Control *ctrl, double *coord_x, double *coord_y,
-                      uint64_t *timestamp, void *data, unsigned int size) {
+                      int64_t *timestamp, void *data, unsigned int size) {
     *from = pkt->header()->origin;
     *to = pkt->header()->dest;
     *ctrl = pkt->header()->ctrl;
