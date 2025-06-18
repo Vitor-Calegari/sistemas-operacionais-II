@@ -79,11 +79,11 @@ int main() {
       });
 
       for (int j = 1; j <= NUM_MESSAGES_PER_THREAD;) {
-        Message msg =
-            Message(comp.addr(),
-                    Protocol::Address(car.prot.getNICPAddr(), getpid(),
-                                      thread_id + NUM_COMPONENTS),
-                    MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
+        Message msg = Message(
+            comp.addr(),
+            Protocol::Address(car.prot.getNICPAddr(), Protocol::BROADCAST_SID,
+                              Protocol::BROADCAST),
+            MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
         for (size_t j = 0; j < msg.size(); j++) {
           msg.data()[j] = std::byte(randint(0, 255));
         }
