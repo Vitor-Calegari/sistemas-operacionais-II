@@ -77,7 +77,10 @@ public:
 
     // Cria e configura a memória compartilhada
     int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    ftruncate(shm_fd, sizeof(SharedData));
+    if (ftruncate(shm_fd, sizeof(SharedData)) == -1) {
+      perror("ftruncate");
+      exit(1);
+    }
     shared_data =
         (SharedData *)mmap(NULL, sizeof(SharedData), PROT_READ | PROT_WRITE,
                            MAP_SHARED, shm_fd, 0);
@@ -111,9 +114,6 @@ public:
             sem_wait(shared_mem_sem);
             createRSU(col, line); // Processo filho bloqueará aqui, quando for
                                   // desbloqueado, ele morre
-          } else {
-            shared_data->choosen_rsu = ret_rsu;
-            sem_post(shared_mem_sem);
           }
         } else {
           if (!ret_rsu) {
