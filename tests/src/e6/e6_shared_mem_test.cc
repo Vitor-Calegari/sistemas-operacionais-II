@@ -45,10 +45,12 @@ int main() {
   using Communicator = Communicator<Protocol, Message>;
 
   constexpr auto print_addr = [](const Protocol::Address &addr) {
+    std::cout << "Addr(";
     for (auto k : addr.getPAddr().mac) {
       std::cout << int(k) << ' ';
     }
     std::cout << ": " << addr.getSysID() << " : " << addr.getPort();
+    std::cout << ")";
   };
 
   std::mutex stdout_mtx;
@@ -95,9 +97,9 @@ int main() {
       } else {
         stdout_lock.lock();
         std::cout << std::dec << "[Msg sent at "
-                  << formatTimestamp(*message.timestamp()) << " from ("
+                  << formatTimestamp(*message.timestamp()) << " Coords("
                   << *message.getCoordX() << ", " << *message.getCoordY()
-                  << ") - ";
+                  << ") - from ";
         print_addr(*message.sourceAddr());
         std::cout << " to ";
         print_addr(*message.destAddr());
@@ -117,7 +119,7 @@ int main() {
     cond_all_subscribers_done.notify_all();
   };
 
-  std::vector<Car> cars = { Car("Ford"), Car("Honda") };
+  std::vector<Car> cars = { Car("Ford", {{1, 2}}), Car("Honda", {{0, 0}}) };
 
   constexpr SmartUnit Watt(SmartUnit::SIUnit::KG * (SmartUnit::SIUnit::M ^ 2) *
                            (SmartUnit::SIUnit::S ^ 3));
