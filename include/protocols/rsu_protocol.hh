@@ -77,8 +77,6 @@ protected:
       }
     };
 
-    uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
-
 #ifdef DEBUG_TIMESTAMP_2
     std::cout << get_timestamp() << " I’m RSU " << getpid() << " I received a";
     if (pkt->header()->ctrl.getType() == Control::Type::ANNOUNCE) {
@@ -113,7 +111,7 @@ protected:
           int64_t timestamp_relate_to = pkt->header()->timestamp;
           // Delay Resp
           Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to, 8,
-                     recv_timestamp);
+                     buf->get_receive_time());
           // Late Sync
           ctrl.setType(Control::Type::LATE_SYNC);
           Base::send(myaddr, pkt->header()->origin, ctrl, &timestamp_relate_to,

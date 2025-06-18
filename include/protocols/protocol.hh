@@ -78,8 +78,6 @@ protected:
       }
     };
 
-    uint64_t recv_timestamp = Base::_sync_engine.getTimestamp();
-
     if (buf->type() == Buffer::EthernetFrame) {
       FullPacket *pkt = buf->template data<typename Base::SocketFrame>()->template data<FullPacket>();
       SysID destSysId = pkt->header()->dest.getSysID();
@@ -160,7 +158,7 @@ protected:
       // Se é uma mensagem PTP, trata PTP
       if (pkt_type == Control::Type::DELAY_RESP ||
           pkt_type == Control::Type::LATE_SYNC) {
-        Base::_sync_engine.handlePTP(recv_timestamp, pkt->header()->timestamp,
+        Base::_sync_engine.handlePTP(buf->get_receive_time(), pkt->header()->timestamp,
                                       pkt->header()->origin, pkt_type,
                                       *pkt->template data<int64_t>());
       }
