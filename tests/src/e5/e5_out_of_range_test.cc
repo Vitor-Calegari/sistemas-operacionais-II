@@ -38,7 +38,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   sem_t *send_ready =
@@ -90,7 +90,7 @@ int main() {
           Message(comp._comm.addr(),
                   Protocol::Address(car.prot.getNICPAddr(), *pid_recv,
                                     10),
-                  MESSAGE_SIZE);
+                  MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
       memset(msg.data(), 0, MESSAGE_SIZE);
 
       for (size_t j = 0; j < MESSAGE_SIZE; j++) {
@@ -115,7 +115,7 @@ int main() {
       auto future = std::async(std::launch::async, [&]() {
         Message msg =
         Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                    Farad.get_value_size_bytes());
+                    Farad.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
         for (int j = 0; j < NUM_MESSAGES; j++) {
           memset(msg.data(), 0, MESSAGE_SIZE);
           if (!comp.receive(&msg)) {

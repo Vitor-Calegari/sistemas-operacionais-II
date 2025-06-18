@@ -30,7 +30,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   std::mutex mtx;
@@ -59,7 +59,7 @@ int main() {
       Message msg = Message(
           communicator.addr(),
           Protocol::Address(prot.getNICPAddr(), getpid(), Protocol::BROADCAST),
-          MESSAGE_SIZE);
+          MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       memset(msg.data(), 0, MESSAGE_SIZE);
 
       for (size_t j = 0; j < msg.size(); j++) {
@@ -87,7 +87,7 @@ int main() {
     std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
     stdout_lock.unlock();
 
-    Message msg(MESSAGE_SIZE);
+    Message msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
 
     {
       std::lock_guard<std::mutex> lock(mtx);

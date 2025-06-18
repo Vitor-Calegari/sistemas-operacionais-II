@@ -33,7 +33,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
 
   Map *map = new Map(1, 1);
 
@@ -73,7 +73,7 @@ int main() {
             Message(comp.addr(),
                     Protocol::Address(car.prot.getNICPAddr(), getpid(),
                                       thread_id + NUM_COMPONENTS),
-                    MESSAGE_SIZE);
+                    MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
         for (size_t j = 0; j < msg.size(); j++) {
           msg.data()[j] = std::byte(randint(0, 255));
         }
@@ -97,7 +97,7 @@ int main() {
 
     auto receive_task = [&](const int thread_id) {
       auto comp = car.create_component(thread_id);
-      Message msg(MESSAGE_SIZE);
+      Message msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
       std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
       stdout_lock.unlock();
 

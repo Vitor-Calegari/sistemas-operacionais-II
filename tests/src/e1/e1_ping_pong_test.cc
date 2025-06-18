@@ -31,7 +31,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
   using Coordinate = NavigatorCommon::Coordinate;
 
@@ -107,7 +107,7 @@ int main() {
 
     Message send_msg(communicator.addr(),
                      Protocol::Address(prot.getNICPAddr(), *send_to_pid, 11),
-                     MESSAGE_SIZE);
+                     MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
     struct msg_struct ms;
     ms.counter = 0;
     std::memcpy(send_msg.data(), &ms, sizeof(ms));
@@ -125,7 +125,7 @@ int main() {
       } while (sent == false);
 
       // Recebe
-      Message recv_msg(MESSAGE_SIZE);
+      Message recv_msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       if (!communicator.receive(&recv_msg)) {
         std::cout << "Inspect Proc(" << std::dec << getpid()
                   << "): Error sending msg " << i << std::endl;
@@ -166,7 +166,7 @@ int main() {
     Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
     Communicator communicator(&prot, 11);
 
-    Message send_msg(MESSAGE_SIZE);
+    Message send_msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
     struct msg_struct ms;
     ms.counter = 0;
     std::memcpy(send_msg.data(), &ms, sizeof(ms));
@@ -176,7 +176,7 @@ int main() {
     int recvd = 0;
     for (int i = 0; i < num_messages; i++) {
       // Recebe
-      Message recv_msg(MESSAGE_SIZE);
+      Message recv_msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       if (!communicator.receive(&recv_msg)) {
         std::cout << "Counter Proc(" << std::dec << getpid()
                   << "): Error sending msg " << i << std::endl;
@@ -188,7 +188,7 @@ int main() {
       reinterpret_cast<struct msg_struct *>(recv_msg.data())->counter++;
 
       Message send_msg(communicator.addr(), *recv_msg.sourceAddr(),
-                        MESSAGE_SIZE);
+                        MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       std::memcpy(send_msg.data(), recv_msg.data(), MESSAGE_SIZE);
 
       bool sent = false;

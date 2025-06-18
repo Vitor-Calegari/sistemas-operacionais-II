@@ -53,7 +53,7 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
   double *getCoordX() {
-    if (std::isnan(_coord_x)) {
+    if (_prot != nullptr && std::isnan(_coord_x)) {
       double coord_x, coord_y;
       std::tie(coord_x, coord_y) = _prot->getLocation();
       _coord_x = coord_x;
@@ -64,7 +64,7 @@ public:
   }
 
   double *getCoordY() {
-    if (std::isnan(_coord_y)) {
+    if (_prot != nullptr && std::isnan(_coord_y)) {
       double coord_x, coord_y;
       std::tie(coord_x, coord_y) = _prot->getLocation();
       _coord_x = coord_x;

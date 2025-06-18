@@ -46,9 +46,9 @@ int main() {
 
   std::vector<uint64_t> stamps;
   stamps.reserve(NUM_MESSAGES);
-  using Message = Message<Car::ProtocolC::Address>;
+  using Message = Message<Car::ProtocolC::Address, Car::ProtocolC>;
   Message message =
-      Message(8 + Meter.get_value_size_bytes());
+      Message(8 + Meter.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
       message.getControl()->setType(Control::Type::PUBLISH);
 
   for (size_t i = 0; i < NUM_MESSAGES; ++i) {

@@ -6,6 +6,7 @@
 #include "protocol.hh"
 #include "smart_unit.hh"
 #include "utils.hh"
+#include "buffer.hh"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -277,7 +278,6 @@ public:
       typename Communicator::CommObserver::Observed_Data,
       typename Communicator::CommObserver::Observing_Condition>
       Observer;
-  typedef typename Communicator::Buffer Buffer;
   typedef typename Communicator::CommMessage Message;
   typedef typename Communicator::CommChannel Channel;
   typedef typename Communicator::Address Address;

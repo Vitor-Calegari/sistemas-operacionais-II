@@ -43,7 +43,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   Map *map = new Map(1, 1);
@@ -70,7 +70,7 @@ int main() {
       for (int j = 0; j < num_messages_per_comm;) {
         Message msg = Message(
             communicator.addr(),
-            Protocol::Address(prot.getNICPAddr(), getpid(), 2), MESSAGE_SIZE);
+            Protocol::Address(prot.getNICPAddr(), getpid(), 2), MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();
@@ -90,7 +90,7 @@ int main() {
       Communicator communicator(&prot, 2);
       long long total_latency_us = 0;
       int msg_count = 0;
-      Message msg(MESSAGE_SIZE);
+      Message msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       {
         std::lock_guard<std::mutex> lock(mtx);
         comm_waiting++;
@@ -152,7 +152,7 @@ int main() {
       for (int j = 0; j < num_messages_per_comm;) {
         Message msg = Message(
             communicator.addr(),
-            Protocol::Address(prot.getNICPAddr(), parentPID, 11), MESSAGE_SIZE);
+            Protocol::Address(prot.getNICPAddr(), parentPID, 11), MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();
@@ -175,7 +175,7 @@ int main() {
 
     long long total_latency_us = 0;
     int msg_count = 0;
-    Message msg(MESSAGE_SIZE);
+    Message msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
 
     // Libera o semaphore para que o filho inicie o envio
     sem_post(semaphore);

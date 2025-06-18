@@ -28,7 +28,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   // Cria um semaphore compartilhado entre processos
@@ -67,7 +67,7 @@ int main() {
         // Envia mensagens
         Message msg(communicator.addr(),
                     Protocol::Address(prot.getNICPAddr(), parentPID, 9999),
-                    MESSAGE_SIZE);
+                    MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
         if (communicator.send(&msg)) {
           // std::cout << "Proc(" << std::dec << getpid() << "): Sent msg " << j
           //           << std::endl;
@@ -84,7 +84,7 @@ int main() {
   Protocol &prot =
       Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
   Communicator communicator(&prot, 9999);
-  Message msg(MESSAGE_SIZE);
+  Message msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
 
   // Libera o semaphore para que todos os filhos possam prosseguir com os envios
   for (int i = 0; i < num_communicators; i++) {

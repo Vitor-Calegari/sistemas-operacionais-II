@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   Car car = Car();
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      Farad.get_value_size_bytes());
+                      Farad.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
         message.getControl()->setType(Control::Type::PUBLISH);
       smart_data.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";

@@ -31,7 +31,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   Map *map = new Map(1, 1);
@@ -64,7 +64,7 @@ int main() {
       sem_receivers->release();
 
       for (int j = 0; j < NUM_SEND_THREADS * NUM_MESSAGES_PER_THREAD; j++) {
-        Message msg(MESSAGE_SIZE);
+        Message msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot2);
         memset(msg.data(), 0, MESSAGE_SIZE);
         if (!communicator.receive(&msg)) {
           std::cerr << "Erro ao receber mensagem no processo " << getpid()
@@ -97,7 +97,7 @@ int main() {
           Message(communicator.addr(),
                   Protocol::Address(prot.getNICPAddr(), Protocol::BROADCAST_SID,
                                     Protocol::BROADCAST),
-                  MESSAGE_SIZE);
+                  MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       memset(msg.data(), 0, MESSAGE_SIZE);
 
       for (size_t j = 0; j < msg.size(); j++) {

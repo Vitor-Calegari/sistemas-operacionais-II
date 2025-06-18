@@ -28,7 +28,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   Map *map = new Map(1,1);
@@ -67,7 +67,7 @@ int main() {
     for (int j = 1; j <= SUB_NUM_WANTED_MESSAGES * (i + 1); ++j) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                  unit.get_value_size_bytes());
+                  unit.get_value_size_bytes(), Control(Control::Type::COMMON), &car->prot);
       message.getControl()->setType(Control::Type::PUBLISH);
       if (!smart_data.receive(&message)) {
         std::cerr << "Erro ao receber mensagem na thread " << thread_id

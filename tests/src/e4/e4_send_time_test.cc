@@ -12,7 +12,7 @@ int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
 
   Map *map = new Map(1, 1);
   Car car = Car();
@@ -23,7 +23,7 @@ int main() {
   while (i < NUM_MSGS) {
       Message message = Message(
           comp.addr(), Protocol::Address(Ethernet::BROADCAST_ADDRESS, Protocol::BROADCAST_SID, Protocol::BROADCAST),
-          MSG_SIZE);
+          MSG_SIZE, Control(Control::Type::COMMON), &car.prot);
       if (comp.send(&message)) {
           i++;
       }

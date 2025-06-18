@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
-  using Message = Message<Protocol::Address>;
+  using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
 
   sem_t *semaphore =
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
       while (i < NUM_MSGS) {
         Message message = Message(
             comm.addr(), Protocol::Address(prot.getNICPAddr(), parentPID, 10),
-            MSG_SIZE);
+            MSG_SIZE, Control(Control::Type::COMMON), &prot);
         std::cout << "Inter proc: Sending (" << std::dec << i << "): ";
         for (size_t j = 0; j < message.size(); j++) {
           message.data()[j] = std::byte(randint(0, 255));
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
       while (i < NUM_MSGS) {
         Message message = Message(
             comm.addr(), Protocol::Address(prot.getNICPAddr(), getpid(), 2),
-            MSG_SIZE);
+            MSG_SIZE, Control(Control::Type::COMMON), &prot);
         std::cout << "Inner proc: Sending (" << std::dec << i << "): ";
         for (size_t j = 0; j < message.size(); j++) {
           message.data()[j] = std::byte(randint(0, 255));
@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
       receiver_ready = true;
       cv.notify_all();
       for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
-        Message message = Message(MSG_SIZE);
+        Message message = Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
         comm.receive(&message);
         std::cout << "Inner proc: Received (" << std::dec << i_m << "): ";
         for (size_t i = 0; i < message.size(); i++) {
@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
       Communicator comm = Communicator(&prot, 10);
       sem_post(semaphore);
       for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
-        Message message = Message(MSG_SIZE);
+        Message message = Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
         comm.receive(&message);
         std::cout << "Inter proc: Received (" << std::dec << i_m << "): ";
         for (size_t i = 0; i < message.size(); i++) {

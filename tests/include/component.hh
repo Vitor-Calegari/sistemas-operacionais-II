@@ -8,7 +8,7 @@
 template <typename Protocol>
 class Component {
 public:
-  using MessageC = Message<typename Protocol::Address>;
+  using MessageC = Message<typename Protocol::Address, Protocol>;
   using CommunicatorC = Communicator<Protocol, MessageC>;
   using PortC = CommunicatorC::Port;
 

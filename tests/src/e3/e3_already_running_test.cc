@@ -19,7 +19,7 @@ constexpr uint32_t DEFAULT_PERIOD_US = 5e3;
 int main(int argc, char *argv[]) {
   uint32_t period_us = (argc > 1) ? std::stoul(argv[1]) : DEFAULT_PERIOD_US;
   constexpr SmartUnit Meter(SmartUnit::SIUnit::M);
-  using Message = Message<Car::ProtocolC::Address>;
+  using Message = Message<Car::ProtocolC::Address, Car::ProtocolC>;
   sem_t *semaphore =
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 
   for (size_t i = 0; i < MESSAGES_TO_RECEIVE_BY_SUBSCRIBER; ++i) {
     Message message =
-        Message(8 + Meter.get_value_size_bytes());
+        Message(8 + Meter.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
         message.getControl()->setType(Control::Type::PUBLISH);
     if (!sub_sd.receive(&message)) {
       std::cerr << "Subscriber falhou ao receber a mensagem " << i << std::endl;
