@@ -5,6 +5,7 @@
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include "map.hh"
+#include "shared_mem.hh"
 #include <cstdlib>
 #include <iostream>
 #include <semaphore.h>
@@ -29,7 +30,7 @@ struct msg_struct {
 int main() {
   std::cout << "Main proc is " << getpid() << std::endl;
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;

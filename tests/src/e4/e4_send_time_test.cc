@@ -1,5 +1,6 @@
 #include "car.hh"
 #include "map.hh"
+#include "shared_mem.hh"
 
 #define NUM_MSGS 100000
 #define MSG_SIZE 5
@@ -10,7 +11,7 @@
 
 int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
 

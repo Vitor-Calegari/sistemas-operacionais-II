@@ -15,7 +15,7 @@
 class Car {
 public:
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using ProtocolC = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using ComponentC = Component<ProtocolC>;
   using Port = ComponentC::PortC;

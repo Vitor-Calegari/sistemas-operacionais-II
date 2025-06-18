@@ -6,6 +6,7 @@
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include "utils.hh"
+#include "shared_mem.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -40,7 +41,7 @@ int main(int argc, char *argv[]) {
   }
 
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;

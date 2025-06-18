@@ -5,6 +5,7 @@
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include "sync_engine.hh"
+#include "shared_mem.hh"
 // #undef DEBUG_SYNC
 
 #include <iostream>

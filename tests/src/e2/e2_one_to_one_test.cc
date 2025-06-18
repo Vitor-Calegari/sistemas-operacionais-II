@@ -7,6 +7,7 @@
 #include "protocol.hh"
 #include "shared_engine.hh"
 #include "utils.hh"
+#include "shared_mem.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -22,7 +23,7 @@
 
 int main(int argc, char *argv[]) {
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
@@ -31,7 +32,8 @@ int main(int argc, char *argv[]) {
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
-
+  
+  Map *map = new Map(1, 1);
   int send;
   int parentPID = 0;
   if (argc < 2) {
@@ -44,8 +46,6 @@ int main(int argc, char *argv[]) {
   } else {
     send = atoi(argv[1]);
   }
-
-  Map *map = new Map(1, 1);
 
   Topology topo = map->getTopology();
   NavigatorCommon::Coordinate point(0, 0);
@@ -113,6 +113,7 @@ int main(int argc, char *argv[]) {
     inner_process_sender_thread.join();
     inner_process_receiver_thread.join();
     inter_process_sender_thread.join();
+    exit(0);
   } else {
     std::thread inter_receiver_thread([&]() {
       Communicator comm = Communicator(&prot, 10);
@@ -130,12 +131,11 @@ int main(int argc, char *argv[]) {
     inter_receiver_thread.join();
   }
 
-  map->finalizeRSU();
+  delete map;
   if (argc < 2 && !send) {
     int status;
     wait(&status);
   }
-  delete map;
 
   sem_destroy(semaphore);
 

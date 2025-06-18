@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
   const int send = atoi(argv[1]);
 
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
 
   SocketNIC rsnic = SocketNIC("lo");

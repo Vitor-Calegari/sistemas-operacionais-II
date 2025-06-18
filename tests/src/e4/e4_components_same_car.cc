@@ -8,6 +8,7 @@
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
+#include "shared_mem.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
@@ -36,7 +37,7 @@ std::string formatTimestamp(uint64_t timestamp_us) {
 
 int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;

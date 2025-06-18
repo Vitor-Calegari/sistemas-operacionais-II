@@ -9,6 +9,7 @@
 #include "smart_unit.hh"
 #include "transducer.hh"
 #include "map.hh"
+#include "shared_mem.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
@@ -26,7 +27,7 @@ constexpr int NUM_MESSAGES_PER_RECV_THREAD = 18;
 
 int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;

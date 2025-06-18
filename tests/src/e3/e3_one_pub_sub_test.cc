@@ -10,6 +10,7 @@
 #include "smart_unit.hh"
 #include "transducer.hh"
 #include "map.hh"
+#include "shared_mem.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -47,7 +48,7 @@ int main(int argc, char *argv[]) {
       (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
 
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;

@@ -4,6 +4,7 @@
 #include "smart_unit.hh"
 #include "transducer.hh"
 #include "map.hh"
+#include "shared_mem.hh"
 #include <cassert>
 #include <chrono>
 #include <cmath>

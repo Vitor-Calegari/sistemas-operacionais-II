@@ -27,7 +27,7 @@ const char *SHM_NAME = "/barrier_shm";
 class Map {
 public:
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using RSU = RSUProtocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Coordinate = NavigatorCommon::Coordinate;
   using Size = Topology::Size;

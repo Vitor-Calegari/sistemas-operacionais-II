@@ -1,6 +1,7 @@
 #include "car.hh"
 #include "utils.hh"
 #include "map.hh"
+#include "shared_mem.hh"
 
 #include <array>
 #include <cassert>
@@ -31,7 +32,7 @@ std::string formatTimestamp(uint64_t timestamp_us) {
 
 int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
 

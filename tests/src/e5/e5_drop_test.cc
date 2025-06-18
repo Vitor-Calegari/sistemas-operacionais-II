@@ -14,6 +14,7 @@
 #include "transducer.hh"
 #include "mac_structs.hh"
 #include "map.hh"
+#include "shared_mem.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -34,7 +35,7 @@ constexpr int MESSAGE_SIZE = 30;
 
 int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
-  using SharedMemNIC = NIC<SharedEngine<Ethernet>>;
+  using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
   using Communicator = Communicator<Protocol, Message>;
