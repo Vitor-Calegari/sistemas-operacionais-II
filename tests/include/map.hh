@@ -112,7 +112,8 @@ public:
         }
         if (col == 0 && line == 0) {
           if (!ret_rsu) {
-            sem_wait(shared_mem_sem);
+            shared_data->choosen_rsu = getpid();
+            sem_post(shared_mem_sem);
             createRSU(col, line); // Processo filho bloqueará aqui, quando for
                                   // desbloqueado, ele morre
           }
