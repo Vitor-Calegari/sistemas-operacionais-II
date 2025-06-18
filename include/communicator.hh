@@ -1,11 +1,11 @@
 #ifndef COMMUNICATOR_HH
 #define COMMUNICATOR_HH
 
+#include "buffer.hh"
 #include "concurrent_observed.hh"
 #include "concurrent_observer.hh"
 #include "cond.hh"
 #include "control.hh"
-#include "buffer.hh"
 #include <iostream>
 
 template <typename Channel, typename Message>
@@ -50,12 +50,6 @@ public:
     return _channel->send(*message->sourceAddr(), *message->destAddr(),
                           *message->getControl(), message->data(),
                           message->size()) > 0;
-  }
-
-  void get_timestamp(Message *message) {
-    auto timestamp = message->timestamp();
-
-    *timestamp = _channel->getTimestamp();
   }
 
   void get_location(Message *message) {

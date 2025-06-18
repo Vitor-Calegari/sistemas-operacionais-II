@@ -1,10 +1,10 @@
 #ifndef PROTOCOL_COMMOM_HH
 #define PROTOCOL_COMMOM_HH
 
+#include "buffer.hh"
 #include "concurrent_observed.hh"
 #include "conditional_data_observer.hh"
 #include "control.hh"
-#include "buffer.hh"
 #include "mac.hh"
 #include "navigator.hh"
 #include "sync_engine.hh"
@@ -16,9 +16,8 @@
 #endif
 
 template <typename SocketNIC, typename SharedMemNIC, typename Navigator>
-class ProtocolCommom
-    : public Concurrent_Observed<Buffer, unsigned short>,
-      private SocketNIC::Observer {
+class ProtocolCommom : public Concurrent_Observed<Buffer, unsigned short>,
+                       private SocketNIC::Observer {
 public:
   inline static const typename SocketNIC::Protocol_Number PROTO = htons(0x88B5);
 
@@ -94,7 +93,9 @@ public:
 
   class FullHeader {
   public:
-    FullHeader() : origin(Address()), dest(Address()), ctrl(0), payloadSize(0), coord_x(0), coord_y(0), timestamp(0), tag{} {
+    FullHeader()
+        : origin(Address()), dest(Address()), ctrl(0), payloadSize(0),
+          coord_x(0), coord_y(0), timestamp(0), tag{} {
     }
     Address origin;
     Address dest;
@@ -156,8 +157,10 @@ protected:
   ProtocolCommom(const char *interface_name, SysID sysID, bool isRSU,
                  const std::vector<Coordinate> &points, Topology topology,
                  double comm_range, double speed = 1)
-      : _rsnic(interface_name), _smnic(interface_name), _sysID(sysID),
-        _sync_engine(this, isRSU), _nav(points, topology, comm_range, speed) {
+      : _sync_engine(this, isRSU),
+        _rsnic(interface_name, _sync_engine.getClock()),
+        _smnic(interface_name, _sync_engine.getClock()), _sysID(sysID),
+        _nav(points, topology, comm_range, speed) {
     _rsnic.attach(this, PROTO);
     _smnic.attach(this, PROTO);
   }
@@ -184,27 +187,32 @@ public:
     return _sysID;
   }
 
-  int64_t getTimestamp() const {
-    return _sync_engine.getTimestamp();
-  }
-
   Navigator::Coordinate getLocation() {
     return _nav.get_location();
   }
 
   Address peekOrigin(Buffer *buf) {
     if (buf->type() == Buffer::EthernetFrame) {
-      return buf->template data<SocketFrame>()->template data<FullPacket>()->header()->origin;
+      return buf->template data<SocketFrame>()
+          ->template data<FullPacket>()
+          ->header()
+          ->origin;
     } else {
       Address addr = getAddr();
-      addr.setPort(buf->template data<SocketFrame>()->template data<LitePacket>()->header()->origin);
+      addr.setPort(buf->template data<SocketFrame>()
+                       ->template data<LitePacket>()
+                       ->header()
+                       ->origin);
       return addr;
     }
   }
 
   SysID peekOriginSysID(Buffer *buf) {
     if (buf->type() == Buffer::EthernetFrame) {
-      return buf->template data<SocketFrame>()->template data<FullPacket>()->header()->origin.getSysID();
+      return buf->template data<SocketFrame>()
+          ->template data<FullPacket>()
+          ->header()
+          ->origin.getSysID();
     } else {
       return getSysID();
     }
@@ -258,14 +266,16 @@ public:
     int received_bytes = 0;
 
     if (buf->type() == Buffer::EthernetFrame) {
-      FullPacket *pkt = buf->template data<SocketFrame>()->template data<FullPacket>();
+      FullPacket *pkt =
+          buf->template data<SocketFrame>()->template data<FullPacket>();
       received_bytes = fillRecvFullMsg(pkt, from, to, ctrl, coord_x, _coord_y,
-                                        timestamp, data, size);
+                                       timestamp, data, size);
       _rsnic.free(buf);
     } else {
-      LitePacket *pkt = buf->template data<SharedMFrame>()->template data<LitePacket>();
-      // TODO INCLUIR TIMESTAMP DE RECEBIMENTO QUE O BUFFER DEVE CONTER COMO TIMESTAMP DE ENVIO DA MENSAGEM
+      LitePacket *pkt =
+          buf->template data<SharedMFrame>()->template data<LitePacket>();
       received_bytes = fillRecvLiteMsg(pkt, from, to, ctrl, data, size);
+      *timestamp = buf->get_receive_time();
       _smnic.free(buf);
     }
     return received_bytes;
@@ -281,17 +291,25 @@ public:
 
   Control::Type getPType(Buffer *buf) {
     if (buf->type() == Buffer::EthernetFrame) {
-      return buf->template data<SocketFrame>()->template data<FullPacket>()->ctrl.getType();
+      return buf->template data<SocketFrame>()
+          ->template data<FullPacket>()
+          ->ctrl.getType();
     } else {
-      return buf->template data<SharedMFrame>()->template data<LitePacket>()->ctrl.getType();
+      return buf->template data<SharedMFrame>()
+          ->template data<LitePacket>()
+          ->ctrl.getType();
     }
   }
 
   char *peekPacketData(Buffer *buf) {
     if (buf->type() == Buffer::EthernetFrame) {
-      return buf->template data<SocketFrame>()->template data<FullPacket>()->template data<char>();
+      return buf->template data<SocketFrame>()
+          ->template data<FullPacket>()
+          ->template data<char>();
     } else {
-      return buf->template data<SharedMFrame>()->template data<LitePacket>()->template data<char>();
+      return buf->template data<SharedMFrame>()
+          ->template data<LitePacket>()
+          ->template data<char>();
     }
   }
 
@@ -315,15 +333,17 @@ private:
     fillFullPacket(buf, from, to, ctrl, data, size);
     if (recv_timestamp) {
       if (buf->type() == Buffer::EthernetFrame) {
-        buf->template data<SocketFrame>()->template data<FullPacket>()->header()->timestamp =
-          recv_timestamp;
+        buf->template data<SocketFrame>()
+            ->template data<FullPacket>()
+            ->header()
+            ->timestamp = recv_timestamp;
       }
     }
     return _rsnic.send(buf);
   }
 
-  int sendSharedMem(Port &from, Port &to, Control &ctrl,
-                    void *data = nullptr, unsigned int size = 0) {
+  int sendSharedMem(Port &from, Port &to, Control &ctrl, void *data = nullptr,
+                    unsigned int size = 0) {
     Buffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
     if (buf == nullptr)
       return -1;
@@ -332,13 +352,13 @@ private:
   }
 
 protected:
-  virtual void fillLitePacket(Buffer *buf, Port &from, Port &to,
-                              Control &ctrl, void *data = nullptr,
-                              unsigned int size = 0) {
+  virtual void fillLitePacket(Buffer *buf, Port &from, Port &to, Control &ctrl,
+                              void *data = nullptr, unsigned int size = 0) {
     // Frame de sharedmem não tem MAC
     buf->template data<SharedMFrame>()->prot = PROTO;
     // Payload do SocketFrame é o Protocol::Packet
-    LitePacket *pkt = buf->template data<SharedMFrame>()->template data<LitePacket>();
+    LitePacket *pkt =
+        buf->template data<SharedMFrame>()->template data<LitePacket>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
@@ -353,9 +373,11 @@ protected:
                               Control &ctrl, void *data = nullptr,
                               unsigned int size = 0) {
     buf->template data<SocketFrame>()->src = from.getPAddr();
-    buf->template data<SocketFrame>()->dst = SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
+    buf->template data<SocketFrame>()->dst =
+        SocketNIC::BROADCAST_ADDRESS; // Sempre broadcast
     buf->template data<SocketFrame>()->prot = PROTO;
-    FullPacket *pkt = buf->template data<SocketFrame>()->template data<FullPacket>();
+    FullPacket *pkt =
+        buf->template data<SocketFrame>()->template data<FullPacket>();
     pkt->header()->origin = from;
     pkt->header()->dest = to;
     pkt->header()->ctrl = ctrl;
@@ -401,10 +423,10 @@ protected:
     return actual_received_bytes;
   }
 
+  SyncEngineP _sync_engine;
   SocketNIC _rsnic;
   SharedMemNIC _smnic;
   SysID _sysID;
-  SyncEngineP _sync_engine;
   Navigator _nav;
 };
 

@@ -2,11 +2,12 @@
 #define NIC_HH
 
 #include <mutex>
-#include <semaphore>
 
 #include "buffer.hh"
 #include "conditional_data_observer.hh"
 #include "conditionally_data_observed.hh"
+#include "ethernet.hh"
+#include "sync_engine.hh"
 
 #ifdef DEBUG
 #include "utils.hh"
@@ -16,15 +17,15 @@
 // Ela age como a interface de rede, usando a Engine fornecida para E/S,
 // e notifica observadores (Protocolos) sobre frames recebidos.
 //
-// D (Observed_Data): Buffer<Engine::FrameClass::Frame>* - Notifica com ponteiros para
-// buffers recebidos.
-// C (Observing_Condition): Engine::FrameClass::Protocol - Filtra observadores pelo
-// EtherType.
+// D (Observed_Data): Buffer<Engine::FrameClass::Frame>* - Notifica com
+// ponteiros para buffers recebidos. C (Observing_Condition):
+// Engine::FrameClass::Protocol - Filtra observadores pelo EtherType.
 template <typename Engine>
-class NIC : public Engine::FrameClass,
-            public Conditionally_Data_Observed<Buffer,
-            typename Engine::FrameClass::Protocol>,
-            private Engine {
+class NIC
+    : public Engine::FrameClass,
+      public Conditionally_Data_Observed<Buffer,
+                                         typename Engine::FrameClass::Protocol>,
+      private Engine {
 public:
   static const unsigned int SEND_BUFFERS = 1024;
   static const unsigned int RECEIVE_BUFFERS = 1024;
@@ -35,16 +36,14 @@ public:
   typedef Engine::FrameClass::Header Header;
   typedef Engine::FrameClass::Address Address;
   typedef Engine::FrameClass::Protocol Protocol_Number;
-  typedef Conditional_Data_Observer<Buffer, Protocol_Number>
-      Observer;
-  typedef Conditionally_Data_Observed<Buffer, Protocol_Number>
-      Observed;
+  typedef Conditional_Data_Observer<Buffer, Protocol_Number> Observer;
+  typedef Conditionally_Data_Observed<Buffer, Protocol_Number> Observed;
 
   // Args:
   //   interface_name: Nome da interface de rede (ex: "eth0").
-  NIC(const char *interface_name)
+  NIC(const char *interface_name, SimulatedClock *clock)
       : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1),
-        last_used_recv_buffer(RECEIVE_BUFFERS - 1) {
+        last_used_recv_buffer(RECEIVE_BUFFERS - 1), _clock(clock) {
     Buffer::BufferType buf_type{};
     if (typeid(NICFrameClass) == typeid(Ethernet)) {
       buf_type = Buffer::BufferType::EthernetFrame;
@@ -65,7 +64,8 @@ public:
   }
 
   // Destrutor
-  ~NIC() {}
+  ~NIC() {
+  }
 
   // Proibe cópia e atribuição para evitar problemas com ponteiros e estado.
   NIC(const NIC &) = delete;
@@ -88,9 +88,10 @@ public:
       if (!buffer_pool[i].is_in_use()) {
         last_used_buffer = i;
         buffer_pool[i].mark_in_use();
-        // Mínimo de 60 bytes e máximo de Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS
-        // Tamanho minimo do quadro Engine::FrameClass e 64 bytes, porem nao incluimos fcs
-        // assim resultando em apenas 60 bytes
+        // Mínimo de 60 bytes e máximo de
+        // Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS Tamanho minimo do quadro
+        // Engine::FrameClass e 64 bytes, porem nao incluimos fcs assim
+        // resultando em apenas 60 bytes
         buffer_pool[i].setMaxSize(
             maxSize < Engine::FrameClass::MIN_FRAME_SIZE
                 ? Engine::FrameClass::MIN_FRAME_SIZE
@@ -120,10 +121,9 @@ public:
 
   // --- Funções da API Principal  ---
 
-  // Envia um frame Engine::FrameClass contido em um buffer JÁ ALOCADO E PREENCHIDO pelo
-  // chamador. O chamador é responsável pela alocação, ao fim do send o buffer
-  // é liberado.
-  // Args:
+  // Envia um frame Engine::FrameClass contido em um buffer JÁ ALOCADO E
+  // PREENCHIDO pelo chamador. O chamador é responsável pela alocação, ao fim do
+  // send o buffer é liberado. Args:
   //   buf: Ponteiro para o buffer contendo o frame a ser enviado.
   // Returns:
   //   Número de bytes enviados pela Engine ou -1 em caso de erro.
@@ -174,6 +174,7 @@ public:
 
       // 2. Tentar receber o pacote usando a Engine.
       bytes_received = Engine::receive(buf);
+      buf->set_receive_time(_clock->getTimestamp());
 #ifdef DEBUG
       if (bytes_received > 0) {
         printEth(buf);
@@ -183,7 +184,8 @@ public:
         // Pacote recebido!
         _statistics.rx_packets++;
         _statistics.rx_bytes += bytes_received;
-        bool notified = this->notify(buf->template data<typename NICFrameClass::Frame>()->prot, buf);
+        bool notified = this->notify(
+            buf->template data<typename NICFrameClass::Frame>()->prot, buf);
 #ifdef DEBUG
         std::cout << "NIC::handle_signal: "
                   << (notified ? "Protocol Notificado"
@@ -218,6 +220,8 @@ public:
   Buffer _recv_buffer_pool[RECEIVE_BUFFERS];
   unsigned int last_used_send_buffer;
   unsigned int last_used_recv_buffer;
+
+  SimulatedClock *_clock;
 };
 
 #endif // NIC_HH

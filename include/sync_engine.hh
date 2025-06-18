@@ -37,6 +37,12 @@ public:
     return std::chrono::system_clock::now() - std::chrono::microseconds(offset);
   }
 
+  int64_t getTimestamp() const {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               now().time_since_epoch())
+        .count();
+  }
+
 private:
   int64_t offset{};
 };
@@ -57,8 +63,9 @@ public:
 public:
   SyncEngine(Protocol *prot, bool isRSU)
       : _protocol(prot), _announce_period(HALF_LIFE),
-        _announce_thread_running(false), _clock(0), _synced(false), _needSync(true),
-        _announce_iteration(0), _broadcast_already_sent(false), _isRSU(isRSU) {
+        _announce_thread_running(false), _clock(0), _synced(false),
+        _needSync(true), _announce_iteration(0), _broadcast_already_sent(false),
+        _isRSU(isRSU) {
     if (!_isRSU) {
       startAnnounceThread();
     }
@@ -78,7 +85,7 @@ public:
   void handlePTP(int64_t recv_timestamp, int64_t msg_timestamp,
                  Address origin_addr, Control::Type type,
                  int64_t timestamp_related_to) {
-    if (type == DELAY_RESP) { // delay_resp
+    if (type == DELAY_RESP) {            // delay_resp
       if (origin_addr != _master_addr) { // delay_resp de uma RSU diferente
         // Anota delay_req_t e delay_resp_t
         _map_delay_req_delay_resp_t[timestamp_related_to] = msg_timestamp;
@@ -89,8 +96,10 @@ public:
         _map_delay_req_delay_resp_t[timestamp_related_to] = msg_timestamp;
       }
     } else if (type == LATE_SYNC) { // Late Sync
-      // Caso eu não tenha recebido Delay_Resp antes de ter recebido o late sync, retorna
-      if (_map_delay_req_delay_resp_t.find(timestamp_related_to) == _map_delay_req_delay_resp_t.end()) {
+      // Caso eu não tenha recebido Delay_Resp antes de ter recebido o late
+      // sync, retorna
+      if (_map_delay_req_delay_resp_t.find(timestamp_related_to) ==
+          _map_delay_req_delay_resp_t.end()) {
         return;
       }
 
@@ -115,17 +124,15 @@ public:
       _announc_it_mtx.unlock();
       _map_delay_req_delay_resp_t.clear();
 #ifdef DEBUG_TIMESTAMP
-      std::cout << get_timestamp() << " I’m Car " << getpid() << " My offset is " << getClockOffset() << std::endl;
+      std::cout << get_timestamp() << " I’m Car " << getpid()
+                << " My offset is " << getClockOffset() << std::endl;
 #endif
     }
     return;
   }
 
   int64_t getTimestamp() const {
-    std::chrono::time_point<std::chrono::system_clock> now = _clock.now();
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-               now.time_since_epoch())
-        .count();
+    return _clock.getTimestamp();
   }
 
   void setBroadcastAlreadySent(bool already_sent) {
@@ -138,6 +145,10 @@ public:
 
   bool getNeedSync() {
     return _needSync;
+  }
+
+  SimulatedClock *getClock() {
+    return &_clock;
   }
 
   int64_t getClockOffset() const {
