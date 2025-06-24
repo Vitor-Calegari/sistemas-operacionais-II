@@ -65,9 +65,10 @@ int main() {
     sem_wait(semaphore);
     std::cout << "\033[1B\rSent: 0\033[K\033[1A" << std::flush;
     for (int j = 0; j < num_messages_per_comm;) {
-      Message msg = Message(
-          communicator.addr(),
-          Protocol::Address(prot.getNICPAddr(), parentPID, 11), MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
+      Message msg =
+          Message(communicator.addr(),
+                  Protocol::Address(prot.getNICPAddr(), parentPID, 11),
+                  MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       memset(msg.data(), 0, MESSAGE_SIZE);
       // Registra o timestamp no envio
       auto t_send = high_resolution_clock::now();
@@ -132,7 +133,6 @@ int main() {
     }
 
     // Aguarda o término do filho
-    map.finalizeRSU();
     int status;
     wait(&status);
 

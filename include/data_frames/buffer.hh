@@ -84,7 +84,7 @@ private:
   int _size;     // Tamanho atual dos dados válidos
   int _max_size; // Capacidade máxima do buffer
   bool _in_use;  // Flag para gerenciamento em um pool de buffers
-  std::byte _data[BUFFER_SIZE];
+  std::byte _data[BUFFER_SIZE] = {};
   int64_t _receive_time;
 };
 

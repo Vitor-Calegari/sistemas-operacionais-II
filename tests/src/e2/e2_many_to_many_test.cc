@@ -6,8 +6,8 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "utils.hh"
 #include "shared_mem.hh"
+#include "utils.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
@@ -57,10 +57,11 @@ int main() {
     });
 
     for (int j = 1; j <= NUM_MESSAGES_PER_THREAD;) {
-      Message msg = Message(communicator.addr(),
-                            Protocol::Address(prot.getNICPAddr(), getpid(),
-                                              thread_id + NUM_THREADS),
-                            MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
+      Message msg =
+          Message(communicator.addr(),
+                  Protocol::Address(prot.getNICPAddr(), getpid(),
+                                    thread_id + NUM_THREADS),
+                  MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       for (size_t j = 0; j < msg.size(); j++) {
         msg.data()[j] = std::byte(randint(0, 255));
       }
@@ -121,7 +122,6 @@ int main() {
     receive_threads[i].join();
   }
 
-  map->finalizeRSU();
   delete map;
 
   return 0;

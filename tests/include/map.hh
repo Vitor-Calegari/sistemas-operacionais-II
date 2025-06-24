@@ -7,8 +7,8 @@
 #include "nic.hh"
 #include "rsu_protocol.hh"
 #include "shared_engine.hh"
-#include "topology.hh"
 #include "shared_mem.hh"
+#include "topology.hh"
 #include <csignal>
 #include <cstddef>
 #include <fcntl.h>
@@ -19,7 +19,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-const char *SHM_NAME = "/barrier_shm";
+const std::string SHM_NAME = "/barrier_shm";
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -66,18 +66,8 @@ public:
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
     pthread_cond_init(cond, &cond_attr);
 
-    rsu_sem =
-        static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
-                                  MAP_SHARED | MAP_ANONYMOUS, -1, 0));
-    sem_init(rsu_sem, 1, 0); // Inicialmente bloqueado
-
-    shared_mem_sem =
-        static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
-                                  MAP_SHARED | MAP_ANONYMOUS, -1, 0));
-    sem_init(shared_mem_sem, 1, 0); // Inicialmente bloqueado
-
     // Cria e configura a memória compartilhada
-    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    int shm_fd = shm_open(SHM_NAME.c_str(), O_CREAT | O_RDWR, 0666);
     if (ftruncate(shm_fd, sizeof(SharedData)) == -1) {
       perror("ftruncate");
       exit(1);
@@ -113,7 +103,6 @@ public:
         if (col == 0 && line == 0) {
           if (!ret_rsu) {
             shared_data->choosen_rsu = getpid();
-            sem_post(shared_mem_sem);
             createRSU(col, line); // Processo filho bloqueará aqui, quando for
                                   // desbloqueado, ele morre
           }
@@ -138,7 +127,7 @@ public:
     munmap(shouldEnd, sizeof(bool));
     munmap(mutex, sizeof(pthread_mutex_t));
     munmap(cond, sizeof(pthread_cond_t));
-    shm_unlink(SHM_NAME);
+    shm_unlink(SHM_NAME.c_str());
   }
 
   void finalizeRSU() {
@@ -146,6 +135,7 @@ public:
     *shouldEnd = true;
     pthread_cond_broadcast(cond);
     pthread_mutex_unlock(mutex);
+
     std::cout << get_timestamp() << " PID " << getpid() << " Should end MAP"
               << std::endl;
   }
@@ -184,8 +174,6 @@ private:
 private:
   int RSUNum;
   bool *shouldEnd;
-  sem_t *rsu_sem;
-  sem_t *shared_mem_sem;
   SharedData *shared_data;
   pthread_cond_t *cond;
   pthread_mutex_t *mutex;

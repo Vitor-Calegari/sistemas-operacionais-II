@@ -69,9 +69,10 @@ int main() {
       cv.wait(lock,
               [&comm_waiting]() { return comm_waiting == NUM_RECV_THREADS; });
       for (int j = 0; j < num_messages_per_comm;) {
-        Message msg = Message(
-            communicator.addr(),
-            Protocol::Address(prot.getNICPAddr(), getpid(), 2), MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
+        Message msg =
+            Message(communicator.addr(),
+                    Protocol::Address(prot.getNICPAddr(), getpid(), 2),
+                    MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();
@@ -151,9 +152,10 @@ int main() {
       // Aguarda liberação do semaphore pelo pai
       sem_wait(semaphore);
       for (int j = 0; j < num_messages_per_comm;) {
-        Message msg = Message(
-            communicator.addr(),
-            Protocol::Address(prot.getNICPAddr(), parentPID, 11), MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
+        Message msg =
+            Message(communicator.addr(),
+                    Protocol::Address(prot.getNICPAddr(), parentPID, 11),
+                    MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
         memset(msg.data(), 0, MESSAGE_SIZE);
         // Registra o timestamp no envio
         auto t_send = high_resolution_clock::now();
@@ -210,7 +212,6 @@ int main() {
       timeout = true;
     }
 
-    map->finalizeRSU();
     // Aguarda o término do filho
     int status;
     wait(&status);

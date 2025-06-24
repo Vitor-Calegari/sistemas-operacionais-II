@@ -120,7 +120,6 @@ int main() {
             << std::endl;
 
   std::cout << "Teste de carga concluído" << std::endl;
-  exit(0);
 
   // Processo pai aguarda todos os filhos finalizarem
   int status;

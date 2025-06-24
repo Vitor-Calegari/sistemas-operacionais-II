@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     exit(0);
   } else {
     sem_post(semaphore);
-    for (int i_m = 0; i_m < NUM_MSGS / 2; ++i_m) {
+    for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
       Message message =
           Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
       comm.receive(&message);
@@ -89,7 +89,6 @@ int main(int argc, char *argv[]) {
 
   std::cout << "Receiver ended" << std::endl;
 
-  map->finalizeRSU();
   delete map;
   return 0;
 }

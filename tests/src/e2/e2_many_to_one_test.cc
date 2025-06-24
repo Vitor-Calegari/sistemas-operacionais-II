@@ -6,8 +6,8 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "utils.hh"
 #include "shared_mem.hh"
+#include "utils.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
@@ -118,7 +118,6 @@ int main() {
   }
   receive_thread.join();
 
-  map->finalizeRSU();
   delete map;
 
   return 0;

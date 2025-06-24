@@ -160,7 +160,6 @@ int main() {
            << endl;
     }
 
-    map->finalizeRSU();
     // Aguarda o término do filho
     int status;
     wait(&status);

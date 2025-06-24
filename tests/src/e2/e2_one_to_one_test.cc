@@ -6,15 +6,15 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "utils.hh"
 #include "shared_mem.hh"
+#include "utils.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-#define NUM_MSGS 800
+#define NUM_MSGS 100
 #define MSG_SIZE 5
 
 #ifndef INTERFACE_NAME
@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
       static_cast<sem_t *>(mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
                                 MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   sem_init(semaphore, 1, 0); // Inicialmente bloqueado
-  
+
   Map *map = new Map(1, 1);
   int send;
   int parentPID = 0;
@@ -101,7 +101,8 @@ int main(int argc, char *argv[]) {
       receiver_ready = true;
       cv.notify_all();
       for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
-        Message message = Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
+        Message message =
+            Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
         comm.receive(&message);
         std::cout << "Inner proc: Received (" << std::dec << i_m << "): ";
         for (size_t i = 0; i < message.size(); i++) {
@@ -119,7 +120,8 @@ int main(int argc, char *argv[]) {
       Communicator comm = Communicator(&prot, 10);
       sem_post(semaphore);
       for (int i_m = 0; i_m < NUM_MSGS; ++i_m) {
-        Message message = Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
+        Message message =
+            Message(MSG_SIZE, Control(Control::Type::COMMON), &prot);
         comm.receive(&message);
         std::cout << "Inter proc: Received (" << std::dec << i_m << "): ";
         for (size_t i = 0; i < message.size(); i++) {

@@ -30,11 +30,12 @@ class Engine {
 public:
   using FrameClass = DataWrapper;
   using Frame = FrameClass::Frame;
+
 public:
   // Construtor: Cria e configura o socket raw.
   Engine(const char *interface_name)
-      : _interface_name(interface_name), newMessage(false), _thread_running(true),
-        engine_lock(engine_lock_mutex) {
+      : _interface_name(interface_name), newMessage(false),
+        _thread_running(true), engine_lock(engine_lock_mutex) {
     _self = this;
     // AF_PACKET para receber pacotes incluindo cabeçalhos da camada de enlace
     // SOCK_RAW para criar um raw socket
@@ -67,9 +68,10 @@ public:
       exit(1);
     }
 
-    int tam = 8388608;
+    int tam = 50 * 1024 * 1024;
 
-    if (setsockopt(Engine::getSocketFd(), SOL_SOCKET, SO_RCVBUFFORCE, &tam, sizeof(tam)) < 0) {
+    if (setsockopt(Engine::getSocketFd(), SOL_SOCKET, SO_RCVBUFFORCE, &tam,
+                   sizeof(tam)) < 0) {
       perror("setsockopt SO_RCVBUF");
     }
 
@@ -149,10 +151,11 @@ public:
     sadr_ll.sll_family = AF_PACKET;
     sadr_ll.sll_ifindex = _interface_index;
     sadr_ll.sll_halen = ETH_ALEN;
-    std::memcpy(sadr_ll.sll_addr, buf->template data<Frame>()->dst.mac, ETH_ALEN);
+    std::memcpy(sadr_ll.sll_addr, buf->template data<Frame>()->dst.mac,
+                ETH_ALEN);
 
-    int send_len = sendto(_self->_socket_raw, buf->template data<Frame>(), buf->size(), 0,
-                          (const sockaddr *)&sadr_ll, sizeof(sadr_ll));
+    int send_len = sendto(_socket_raw, buf->template data<Frame>(), buf->size(),
+                          0, (const sockaddr *)&sadr_ll, sizeof(sadr_ll));
     if (send_len < 0) {
 #ifdef DEBUG
       printf("error in sending....sendlen=%d....errno=%d\n", send_len, errno);
@@ -203,8 +206,8 @@ public:
     struct sockaddr_ll sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
 
-    int buflen = recvfrom(_self->_socket_raw, buf->template data<Frame>(), buf->maxSize(), 0,
-                          (struct sockaddr *)&sender_addr,
+    int buflen = recvfrom(_self->_socket_raw, buf->template data<Frame>(),
+                          buf->maxSize(), 0, (struct sockaddr *)&sender_addr,
                           (socklen_t *)&sender_addr_len);
     if (buflen < 0) {
       // Erro real ou apenas indicação de não bloqueio?
@@ -257,6 +260,7 @@ public:
     _self->obj = obj;
     _self->handler = &handlerWrapper<T, handle_signal>;
   }
+
 private:
   void stopRecv() {
     pthread_mutex_lock(&_threadStopMutex);

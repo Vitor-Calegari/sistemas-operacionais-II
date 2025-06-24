@@ -6,8 +6,8 @@
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "utils.hh"
 #include "shared_mem.hh"
+#include "utils.hh"
 #include <array>
 #include <cassert>
 #include <condition_variable>
@@ -136,7 +136,6 @@ int main() {
 
   std::cout << "Broadcast test finished!" << std::endl;
 
-  map->finalizeRSU();
   delete map;
 
   return 0;

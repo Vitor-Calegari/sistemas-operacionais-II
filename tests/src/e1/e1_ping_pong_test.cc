@@ -1,10 +1,10 @@
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
-#include "map.hh"
 #include "shared_mem.hh"
 #include <cstdlib>
 #include <iostream>
@@ -49,11 +49,13 @@ int main() {
   pthread_cond_t cond;
   pthread_cond_init(&cond, &cond_attr);
 
-  bool *map_ready = static_cast<bool*>(
-    mmap(NULL, sizeof(bool),
-         PROT_READ|PROT_WRITE,
-          MAP_SHARED|MAP_ANONYMOUS, -1, 0));
-  if (map_ready == MAP_FAILED) { perror("mmap"); exit(1); }
+  bool *map_ready =
+      static_cast<bool *>(mmap(NULL, sizeof(bool), PROT_READ | PROT_WRITE,
+                               MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+  if (map_ready == MAP_FAILED) {
+    perror("mmap");
+    exit(1);
+  }
   *map_ready = false;
 
   Map *map = new Map(1, 1);
@@ -92,14 +94,15 @@ int main() {
   if (pid == 0) {
     pthread_mutex_lock(&mutex);
     while (!*map_ready) {
-        pthread_cond_wait(&cond, &mutex);
+      pthread_cond_wait(&cond, &mutex);
     }
     pthread_mutex_unlock(&mutex);
     sem_wait(semaphore_send_to_pid);
     // Código do processo-filho
     Topology topo = map->getTopology();
     Coordinate point(0, 0);
-    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
+    Protocol &prot =
+        Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
 
     Communicator communicator(&prot, 10);
 
@@ -157,14 +160,15 @@ int main() {
   if (pid == 0) {
     pthread_mutex_lock(&mutex);
     while (!*map_ready) {
-        pthread_cond_wait(&cond, &mutex);
+      pthread_cond_wait(&cond, &mutex);
     }
     pthread_mutex_unlock(&mutex);
     *send_to_pid = getpid();
     sem_post(semaphore_send_to_pid);
     Topology topo = map->getTopology();
     Coordinate point(0, 0);
-    Protocol &prot = Protocol::getInstance(INTERFACE_NAME, getpid(), {point}, topo, 10, 0);
+    Protocol &prot =
+        Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
     Communicator communicator(&prot, 11);
 
     Message send_msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
@@ -189,7 +193,7 @@ int main() {
       reinterpret_cast<struct msg_struct *>(recv_msg.data())->counter++;
 
       Message send_msg(communicator.addr(), *recv_msg.sourceAddr(),
-                        MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
+                       MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       std::memcpy(send_msg.data(), recv_msg.data(), MESSAGE_SIZE);
 
       bool sent = false;
@@ -207,7 +211,6 @@ int main() {
   }
 
   // Processo pai aguarda todos os filhos finalizarem
-  map->finalizeRSU();
   int status;
   while (wait(&status) > 0)
     ;
