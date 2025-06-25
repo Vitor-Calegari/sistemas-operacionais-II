@@ -1,12 +1,13 @@
 #ifndef SMART_DATA_HH
 #define SMART_DATA_HH
 
+#include "buffer.hh"
 #include "concurrent_observer.hh"
+#include "cond.hh"
 #include "ethernet.hh"
 #include "protocol.hh"
 #include "smart_unit.hh"
 #include "utils.hh"
-#include "buffer.hh"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -38,27 +39,11 @@ public:
   inline static const unsigned int MTU = Communicator::MTU - sizeof(Header);
   typedef unsigned char Data[MTU];
 
-  class PubPacket : public Header {
-  public:
-    PubPacket() {
-      std::memset(_data, 0, sizeof(_data));
-    }
-    Header *header() {
-      return this;
-    }
-    template <typename T>
-    T *data() {
-      return reinterpret_cast<T *>(&_data);
-    }
-
-  private:
-    Data _data;
-  } __attribute__((packed));
-
   class SubPacket : public Header {
   public:
-    SubPacket() {
+    SubPacket() : Header(), subType(SubType::Both) {
     }
+    SubType subType;
   } __attribute__((packed));
 
 public:
@@ -103,21 +88,26 @@ public:
     // Obtem origem
     Address origin = Base::_communicator->peek_msg_origin_addr(buf);
     // Obtem periodo
-    typename Base::SubPacket *sub_pkt = (typename Base::SubPacket *)Base::_communicator->peek_msg_data(buf);
+    typename Base::SubPacket *sub_pkt =
+        (typename Base::SubPacket *)Base::_communicator->peek_msg_data(buf);
+
     uint32_t new_period = sub_pkt->period;
+    SubType sub_type = sub_pkt->subType;
 
     // Adiciona novo subscriber
     pthread_mutex_lock(&_subscribersMutex);
     // Check if subscriber already exists
     bool exists = false;
     for (const auto &sub : subscribers) {
-      if (sub.origin == origin && sub.period == new_period) {
+      if (sub.origin == origin && sub.period == new_period &&
+          sub.subType == sub_type) {
         exists = true;
         break;
       }
     }
+
     if (!exists) {
-      subscribers.push_back(Subscriber{ origin, new_period });
+      subscribers.push_back(Subscriber{ origin, new_period, sub_type });
 #ifdef DEBUG_SMD
       std::cout << get_timestamp() << " Publisher " << getpid() << ": Updating"
                 << std::endl;
@@ -137,7 +127,7 @@ public:
 #endif
       period_sem.release();
     }
-    last_resub[Subscriber{ origin, new_period }] =
+    last_resub[Subscriber{ origin, new_period, sub_type }] =
         std::chrono::steady_clock::now();
     pthread_mutex_unlock(&_subscribersMutex);
 
@@ -171,8 +161,8 @@ private:
               last_resub.erase(sub);
               to_remove.push_back(i);
 
-              std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec << sub.period
-                        << std::endl;
+              std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec
+                        << sub.period << std::endl;
             }
           }
           period_sem.acquire();
@@ -204,6 +194,8 @@ private:
           std::cout << std::endl;
 #endif
           auto msg = create_pub_message(data, cur_period);
+
+          // TODO: diferenciar send com base no tipo do subscriber.
           Base::_communicator->send(&msg);
 
           std::this_thread::sleep_until(next_wakeup_t);
@@ -255,6 +247,7 @@ private:
   struct Subscriber {
     Address origin;
     uint32_t period;
+    SubType subType;
     friend bool operator<(const Subscriber &lhs, const Subscriber &rhs) {
       return (lhs.origin < rhs.origin) ||
              (lhs.origin == rhs.origin && lhs.period < rhs.period);
@@ -326,6 +319,7 @@ private:
         (typename Base::SubPacket *)_sub_msg->data();
     pkt->unit = _cond.unit;
     pkt->period = period;
+    pkt->subType = _cond.subType;
 
     initSubThread();
     return;
