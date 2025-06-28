@@ -67,13 +67,14 @@ public:
         std::chrono::_V2::steady_clock::time_point next_wakeup_t =
             std::chrono::steady_clock::now() +
             std::chrono::microseconds(PERIOD);
-        std::this_thread::sleep_until(next_wakeup_t);
-        if (!_key_sender_thread_running)
-          break;
+        std::this_thread::sleep_until(next_wakeup_t);        
         // ------------------------------
 
         // Espera todos os processos RSU chegarem aqui
         pthread_barrier_wait(&_shared_data->barrier);
+
+        if (!_key_sender_thread_running)
+          break;
 
         // Enviar mensagem --------------
         Address myaddr = _protocol->getAddr();
