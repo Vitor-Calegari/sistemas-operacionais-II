@@ -111,8 +111,7 @@ int main() {
     int msg_count = 0;
     Message msg(MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
 
-    bool timeout = false;
-    for (long long num_msgs = INITIAL_NUM_MESSAGES; !timeout;
+    for (long long num_msgs = INITIAL_NUM_MESSAGES;;
          num_msgs *= MSG_SCALING_FACTOR) {
       // Libera o semaphore para que o filho inicie o envio
       sem_post(semaphore);
@@ -148,6 +147,17 @@ int main() {
         std::cerr << "Timeout na recepção de mensagens." << std::endl;
         *has_timed_out = true;
         sem_post(semaphore);
+
+        // Aguarda o término do filho
+        int status;
+        wait(&status);
+        delete map;
+
+        // Libera recursos do semaphore compartilhado
+        sem_destroy(semaphore);
+        munmap(semaphore, sizeof(sem_t));
+        munmap(has_timed_out, sizeof(bool));
+
         exit(0);
       }
 
@@ -159,16 +169,6 @@ int main() {
            << " mensagens/s" << endl
            << endl;
     }
-
-    // Aguarda o término do filho
-    int status;
-    wait(&status);
-    delete map;
-
-    // Libera recursos do semaphore compartilhado
-    sem_destroy(semaphore);
-    munmap(semaphore, sizeof(sem_t));
-    munmap(has_timed_out, sizeof(bool));
   }
 
   return 0;
