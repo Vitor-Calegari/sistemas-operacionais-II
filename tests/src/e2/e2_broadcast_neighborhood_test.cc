@@ -13,7 +13,6 @@
 #include <csignal>
 #include <cstddef>
 #include <iostream>
-#include <mutex>
 #include <semaphore>
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -43,7 +42,7 @@ int main() {
                PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
 
   std::binary_semaphore *stdout_mtx = static_cast<std::binary_semaphore *>(
-      mmap(NULL, sizeof(std::mutex), PROT_READ | PROT_WRITE,
+      mmap(NULL, sizeof(std::binary_semaphore), PROT_READ | PROT_WRITE,
            MAP_SHARED | MAP_ANONYMOUS, -1, 0));
   stdout_mtx->release();
 
@@ -114,6 +113,7 @@ int main() {
         }
         std::cout << std::endl << std::flush;
         stdout_mtx->release();
+
         j++;
       }
     }
@@ -129,8 +129,8 @@ int main() {
   }
 
   int status;
-  while (wait(&status) > 0)
-    ;
+  for (int i = 0; i < NUM_RECV_THREADS; ++i)
+    wait(&status);
 
   for (int i = 0; i < NUM_SEND_THREADS; ++i) {
     send_threads[i].join();
