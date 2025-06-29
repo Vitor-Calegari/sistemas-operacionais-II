@@ -1,10 +1,10 @@
 #include "car.hh"
 #include "cond.hh"
+#include "map.hh"
 #include "message.hh"
+#include "shared_mem.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#include "map.hh"
-#include "shared_mem.hh"
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -30,12 +30,13 @@ int main() {
 
   if (pid == 0) {
     Car car = Car();
-    Transducer<Meter> transd(0, 255);
+    TransducerRandom<Meter> transd(0, 255);
     Condition cond(true, Meter.get_int_unit());
     Car::ComponentC component = car.create_component(1);
     auto pub_comp =
-        component.template register_publisher<Condition, Transducer<Meter>>(
-            &transd, cond);
+        component
+            .template register_publisher<Condition, TransducerRandom<Meter>>(
+                &transd, cond);
     sem_wait(semaphore);
     return 0;
   }
@@ -48,9 +49,9 @@ int main() {
   std::vector<uint64_t> stamps;
   stamps.reserve(NUM_MESSAGES);
   using Message = Message<Car::ProtocolC::Address, Car::ProtocolC>;
-  Message message =
-      Message(8 + Meter.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
-      message.getControl()->setType(Control::Type::PUBLISH);
+  Message message = Message(8 + Meter.get_value_size_bytes(),
+                            Control(Control::Type::COMMON), &car.prot);
+  message.getControl()->setType(Control::Type::PUBLISH);
 
   for (size_t i = 0; i < NUM_MESSAGES; ++i) {
     sub_comp.receive(&message);

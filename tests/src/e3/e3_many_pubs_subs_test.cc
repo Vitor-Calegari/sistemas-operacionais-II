@@ -1,15 +1,15 @@
 #include "car.hh"
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "shared_mem.hh"
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#include "map.hh"
-#include "shared_mem.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
@@ -41,7 +41,7 @@ int main() {
   int num_subscribers_done = 0;
 
   auto publisher_task = [&]<SmartUnit T>(const int thread_id, Car *car,
-                                         Transducer<T> *transducer) {
+                                         TransducerRandom<T> *transducer) {
     auto comp = car->create_component(thread_id);
 
     auto smart_data = comp.register_publisher(
@@ -67,8 +67,9 @@ int main() {
     for (int j = 1; j <= SUB_NUM_WANTED_MESSAGES; ++j) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      unit.get_value_size_bytes(), Control(Control::Type::COMMON), &car->prot);
-        message.getControl()->setType(Control::Type::PUBLISH);
+                      unit.get_value_size_bytes(),
+                  Control(Control::Type::COMMON), &car->prot);
+      message.getControl()->setType(Control::Type::PUBLISH);
       if (!smart_data.receive(&message)) {
         std::cerr << "Erro ao receber mensagem na thread " << thread_id
                   << std::endl;
@@ -108,10 +109,10 @@ int main() {
                                  &cars[i % 2], units[i % 3]);
   }
 
-  auto transd1 = Transducer<Watt>(0, 1000);
-  auto transd2 = Transducer<Farad>(0, 2000);
-  auto transd3 = Transducer<Hertz>(0, 3000);
-  auto transd4 = Transducer<Hertz>(15000, 30000);
+  auto transd1 = TransducerRandom<Watt>(0, 1000);
+  auto transd2 = TransducerRandom<Farad>(0, 2000);
+  auto transd3 = TransducerRandom<Hertz>(0, 3000);
+  auto transd4 = TransducerRandom<Hertz>(15000, 30000);
 
   pub_threads[0] = std::thread(publisher_task, 0, &cars[0], &transd1);
   pub_threads[1] = std::thread(publisher_task, 1, &cars[1], &transd2);

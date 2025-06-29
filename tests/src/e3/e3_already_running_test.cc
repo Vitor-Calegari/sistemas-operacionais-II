@@ -1,11 +1,11 @@
 #include "car.hh"
 #include "cond.hh"
+#include "map.hh"
 #include "message.hh"
+#include "shared_mem.hh"
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#include "map.hh"
-#include "shared_mem.hh"
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -36,13 +36,14 @@ int main(int argc, char *argv[]) {
   if (pid == 0) {
     usleep(PUBLISH_AFTER_PERIOD);
     Car car = Car();
-    Transducer<Meter> transd(0, 255);
+    TransducerRandom<Meter> transd(0, 255);
     Condition cond(true, Meter.get_int_unit(), period_us);
 
     auto component_pub = car.create_component(1);
     auto pub_sd =
-        component_pub.template register_publisher<Condition, Transducer<Meter>>(
-            &transd, cond);
+        component_pub
+            .template register_publisher<Condition, TransducerRandom<Meter>>(
+                &transd, cond);
     std::cout << "Publisher se conectando após " << PUBLISH_AFTER_PERIOD
               << " us..." << std::endl;
     sem_wait(semaphore);
@@ -55,9 +56,9 @@ int main(int argc, char *argv[]) {
   auto sub_sd = component_sub.template subscribe<Condition>(cond_sub);
 
   for (size_t i = 0; i < MESSAGES_TO_RECEIVE_BY_SUBSCRIBER; ++i) {
-    Message message =
-        Message(8 + Meter.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
-        message.getControl()->setType(Control::Type::PUBLISH);
+    Message message = Message(8 + Meter.get_value_size_bytes(),
+                              Control(Control::Type::COMMON), &car.prot);
+    message.getControl()->setType(Control::Type::PUBLISH);
     if (!sub_sd.receive(&message)) {
       std::cerr << "Subscriber falhou ao receber a mensagem " << i << std::endl;
       break;

@@ -1,28 +1,28 @@
 #define DEBUG_TIMESTAMP
-#include "rsu_protocol.hh"
 #include "car.hh"
+#include "rsu_protocol.hh"
 
 #include "communicator.hh"
 #include "cond.hh"
 #include "engine.hh"
+#include "mac_structs.hh"
+#include "map.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "shared_mem.hh"
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#include "mac_structs.hh"
-#include "map.hh"
-#include "shared_mem.hh"
 #include <csignal>
 #include <cstddef>
+#include <fcntl.h>
 #include <iostream>
+#include <pthread.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <pthread.h>
 #undef DEBUG_TIMESTAMP
 
 constexpr int NUM_MESSAGES = 2;
@@ -31,7 +31,6 @@ constexpr int PERIOD_SUBCRIBER = 5e6;
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
 #endif
-
 
 int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
@@ -53,21 +52,23 @@ int main() {
   Map *map = new Map(1, 1);
 
   constexpr SmartUnit Farad(
-    (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
-    (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
+      (SmartUnit::SIUnit::KG ^ -1) * (SmartUnit::SIUnit::M ^ -2) *
+      (SmartUnit::SIUnit::S ^ 4) * (SmartUnit::SIUnit::A ^ 2));
 
   bool publisher;
   bool subscriber;
 
-  for (int i=0; i < 2; i++) {
+  for (int i = 0; i < 2; i++) {
     if (i == 0) {
       auto ret = fork();
       publisher = ret == 0;
-      if (publisher) break;
+      if (publisher)
+        break;
     } else if (i == 1) {
       auto ret = fork();
       subscriber = ret == 0;
-      if (subscriber) break;
+      if (subscriber)
+        break;
     }
   }
 
@@ -76,7 +77,7 @@ int main() {
     Car car = Car();
 
     if (publisher) {
-      Transducer<Farad> transducer(0, 255);
+      TransducerRandom<Farad> transducer(0, 255);
 
       auto comp = car.create_component(10);
       auto smart_data = comp.register_publisher(
@@ -96,12 +97,14 @@ int main() {
       for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
         Message message =
             Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                        Farad.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
-          message.getControl()->setType(Control::Type::PUBLISH);
+                        Farad.get_value_size_bytes(),
+                    Control(Control::Type::COMMON), &car.prot);
+        message.getControl()->setType(Control::Type::PUBLISH);
         smart_data.receive(&message);
         std::cout << "Received (" << std::dec << i_m << "): ";
         for (size_t i = 0; i < message.size(); i++) {
-          std::cout << std::hex << static_cast<int>(message.data()[i]) << std::dec << " ";
+          std::cout << std::hex << static_cast<int>(message.data()[i])
+                    << std::dec << " ";
         }
         std::cout << std::endl;
       }

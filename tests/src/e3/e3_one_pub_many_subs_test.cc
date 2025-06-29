@@ -1,15 +1,15 @@
 #include "car.hh"
 #include "communicator.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "shared_mem.hh"
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#include "map.hh"
-#include "shared_mem.hh"
 #include <array>
 #include <cassert>
 #include <csignal>
@@ -51,7 +51,7 @@ int main() {
     std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
     stdout_lock.unlock();
 
-    Transducer<Watt> transducer(0, 300000);
+    TransducerRandom<Watt> transducer(0, 300000);
     auto smart_data = comp.register_publisher(
         &transducer, Condition(true, Watt.get_int_unit()));
 
@@ -74,8 +74,9 @@ int main() {
     for (int j = 1; j <= NUM_PUB_THREADS * NUM_MESSAGES_PER_RECV_THREAD; j++) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      Watt.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
-        message.getControl()->setType(Control::Type::PUBLISH);
+                      Watt.get_value_size_bytes(),
+                  Control(Control::Type::COMMON), &car.prot);
+      message.getControl()->setType(Control::Type::PUBLISH);
       if (!smart_data.receive(&message)) {
         std::cerr << "Erro ao receber mensagem na thread " << thread_id
                   << std::endl;

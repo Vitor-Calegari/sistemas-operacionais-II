@@ -52,7 +52,7 @@ int main() {
   int num_subscribers_done = 0;
 
   auto publisher_task = [&]<SmartUnit T>(const int thread_id, Car *car,
-                                         Transducer<T> *transducer) {
+                                         TransducerRandom<T> *transducer) {
     auto comp = car->create_component(thread_id);
 
     auto smart_data = comp.register_publisher(
@@ -121,10 +121,10 @@ int main() {
                                  &cars[i % 2], units[i % 3]);
   }
 
-  auto transd1 = Transducer<Watt>(0, 1000);
-  auto transd2 = Transducer<Farad>(0, 2000);
-  auto transd3 = Transducer<Hertz>(0, 3000);
-  auto transd4 = Transducer<Hertz>(15000, 30000);
+  auto transd1 = TransducerRandom<Watt>(0, 1000);
+  auto transd2 = TransducerRandom<Farad>(0, 2000);
+  auto transd3 = TransducerRandom<Hertz>(0, 3000);
+  auto transd4 = TransducerRandom<Hertz>(15000, 30000);
 
   pub_threads[0] = std::thread(publisher_task, 0, &cars[0], &transd1);
   pub_threads[1] = std::thread(publisher_task, 1, &cars[1], &transd2);

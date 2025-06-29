@@ -2,15 +2,15 @@
 #include "communicator.hh"
 #include "cond.hh"
 #include "engine.hh"
+#include "map.hh"
 #include "message.hh"
 #include "nic.hh"
 #include "protocol.hh"
 #include "shared_engine.hh"
+#include "shared_mem.hh"
 #include "smart_data.hh"
 #include "smart_unit.hh"
 #include "transducer.hh"
-#include "map.hh"
-#include "shared_mem.hh"
 #include <csignal>
 #include <cstddef>
 #include <iostream>
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
   Car car = Car();
 
   if (publisher) {
-    Transducer<Farad> transducer(0, 255);
+    TransducerRandom<Farad> transducer(0, 255);
 
     auto comp = car.create_component(10);
     auto smart_data = comp.register_publisher(
@@ -79,8 +79,9 @@ int main(int argc, char *argv[]) {
     for (int i_m = 0; i_m < NUM_MESSAGES; ++i_m) {
       Message message =
           Message(sizeof(SmartData<Communicator, Condition>::Header) +
-                      Farad.get_value_size_bytes(), Control(Control::Type::COMMON), &car.prot);
-        message.getControl()->setType(Control::Type::PUBLISH);
+                      Farad.get_value_size_bytes(),
+                  Control(Control::Type::COMMON), &car.prot);
+      message.getControl()->setType(Control::Type::PUBLISH);
       smart_data.receive(&message);
       std::cout << "Received (" << std::dec << i_m << "): ";
       for (size_t i = 0; i < message.size(); i++) {
