@@ -66,7 +66,8 @@ public:
 
 public:
   static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
-  static constexpr size_t UNIT_SIZE = Transducer::unit.get_value_size_bytes();
+  static constexpr size_t UNIT_SIZE =
+      Transducer::get_unit().get_value_size_bytes();
 
 public:
   SmartData(Communicator *communicator, Transducer *transd, Condition cond,

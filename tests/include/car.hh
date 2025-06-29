@@ -1,6 +1,7 @@
 #ifndef CAR_HH
 #define CAR_HH
 
+#include "cam_transducer.hh"
 #include "component.hh"
 #include "engine.hh"
 #include "navigator.hh"
@@ -9,7 +10,6 @@
 #include "shared_engine.hh"
 #include "shared_mem.hh"
 #include "smart_unit.hh"
-#include "transducer.hh"
 
 #ifndef INTERFACE_NAME
 #define INTERFACE_NAME "lo"
@@ -52,10 +52,7 @@ public:
   using Port = ComponentC::PortC;
   using Coordinate = NavigatorDirected::Coordinate;
 
-  // TODO: colocar unidade certa.
-  static constexpr SmartUnit cam_unit = SmartUnit(SmartUnit::SIUnit::M);
-  // TODO: colocar Transducer certo.
-  using CAMTransducer = TransducerRandom<cam_unit>;
+  static constexpr SmartUnit cam_unit = CAMTransducer::get_unit();
 
 public:
   E7Car(const std::string &label = "",
@@ -67,7 +64,10 @@ public:
         label(label), baseComp(&prot, 1),
         CAM_subs(&baseComp._comm,
                  Condition(false, cam_unit.get_int_unit(), 100000), false),
-        CAM_trand(0, 255),
+
+        // TODO! Inicializar aqui com nome do arquivo CSV.
+        CAM_trand(""),
+
         CAM_prod(&baseComp._comm, &CAM_trand,
                  Condition(true, cam_unit.get_int_unit(), 100000), false) {
   }

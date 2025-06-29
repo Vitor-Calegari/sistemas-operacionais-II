@@ -10,7 +10,7 @@ class TransducerCommon {
 public:
   virtual void get_data(std::byte *data) = 0;
 
-  constexpr SmartUnit get_unit() const {
+  static constexpr SmartUnit get_unit() {
     return Unit;
   }
 };
@@ -19,7 +19,6 @@ template <SmartUnit Unit,
           typename Distribution = std::uniform_int_distribution<uint8_t>>
 class TransducerRandom : public TransducerCommon<Unit> {
 public:
-  static constexpr SmartUnit unit = Unit;
   TransducerRandom(int lower, int upper)
       : _lower(lower), _upper(upper), _rng(_rd()), _dist(_lower, _upper) {
   }
@@ -29,7 +28,6 @@ public:
     for (int i = 0; i < len; ++i) {
       data[i] = static_cast<std::byte>(_dist(_rng));
     }
-    return;
   }
 
 private:

@@ -55,8 +55,8 @@ int main() {
                                          TransducerRandom<T> *transducer) {
     auto comp = car->create_component(thread_id);
 
-    auto smart_data = comp.register_publisher(
-        transducer, Condition(true, transducer->unit.get_int_unit()));
+    auto smart_data =
+        comp.register_publisher(transducer, Condition(true, T.get_int_unit()));
 
     std::unique_lock<std::mutex> cv_lock(sub_count_mutex);
     cond_all_subscribers_done.wait(cv_lock, [&num_subscribers_done]() {
