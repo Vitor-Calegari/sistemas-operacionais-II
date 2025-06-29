@@ -20,13 +20,8 @@
 class SimulatedClock {
 public:
 
-#ifndef SIMULATION_TIMESTAMP
   SimulatedClock(int64_t offset_us = 0) : offset(offset_us) {
   }
-#else
-  SimulatedClock(int64_t offset_us = 0) : offset(SIMULATION_TIMESTAMP + offset_us) {
-  }
-#endif
 
   // Define novo offset
   void setOffset(int64_t offset_us) {
@@ -37,12 +32,17 @@ public:
   int64_t getOffset() const {
     return offset;
   }
-
+#ifndef SIMULATION_TIMESTAMP
   // Retorna tempo atual com offset aplicado
   std::chrono::time_point<std::chrono::system_clock> now() const {
     return std::chrono::system_clock::now() - std::chrono::microseconds(offset);
   }
-
+#else
+  // Retorna tempo atual com offset aplicado
+  std::chrono::time_point<std::chrono::system_clock> now() const {
+    return std::chrono::microseconds(SIMULATION_TIMESTAMP) - std::chrono::microseconds(offset);
+  }
+#endif
   int64_t getTimestamp() const {
     return std::chrono::duration_cast<std::chrono::microseconds>(
                now().time_since_epoch())
