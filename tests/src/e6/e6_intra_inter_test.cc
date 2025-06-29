@@ -63,7 +63,7 @@ int main() {
 
   int parentPID = getpid();
 
-  // Novo processo será o sender.
+  // Novo processo será o sender externo.
   auto ret = fork();
   bool is_sender = ret == 0;
 
@@ -73,7 +73,7 @@ int main() {
       Protocol::getInstance(INTERFACE_NAME, getpid(), { point }, topo, 10, 0);
 
   if (is_sender) {
-    std::thread inter_sender_thread([&]() {
+    std::thread outer_sender_thread([&]() {
       Communicator comm = Communicator(&prot, 10);
 
       sem_wait(semaphore);
@@ -98,7 +98,7 @@ int main() {
       }
     });
 
-    inter_sender_thread.join();
+    outer_sender_thread.join();
     exit(0);
   } else {
     std::mutex cv_mtx;
@@ -174,7 +174,7 @@ int main() {
   }
 
   sem_destroy(semaphore);
-  // munmap(semaphore, sizeof *semaphore);
+  munmap(semaphore, sizeof *semaphore);
   munmap(stdout_mtx, sizeof *stdout_mtx);
 
   return 0;
