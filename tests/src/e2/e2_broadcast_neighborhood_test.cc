@@ -96,7 +96,7 @@ int main() {
     for (int j = 0; j < NUM_MESSAGES_PER_THREAD;) {
       Message msg =
           Message(communicator.addr(),
-                  Protocol::Address(prot.getNICPAddr(), Protocol::BROADCAST_SID,
+                  Protocol::Address(prot.getNICPAddr(), Protocol::UNIVERSAL_BROADCAST,
                                     Protocol::BROADCAST),
                   MESSAGE_SIZE, Control(Control::Type::COMMON), &prot);
       memset(msg.data(), 0, MESSAGE_SIZE);

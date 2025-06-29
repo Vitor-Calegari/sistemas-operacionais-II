@@ -37,7 +37,8 @@ public:
   using Coordinate = Navigator::Coordinate;
 
   static const Port BROADCAST = 0xFFFF;
-  static const SysID BROADCAST_SID = 0;
+  static const SysID EXT_BROADCAST = -2;
+  static const SysID UNIVERSAL_BROADCAST = 0;
 
   // Endereço do protocolo: combinação de endereço físico e porta
   class Address {
@@ -176,8 +177,16 @@ public:
     return Address(getNICPAddr(), getSysID(), 0);
   }
 
-  Address getBroadcastAddr() {
-    return Address(getNICPAddr(), BROADCAST_SID, 0);
+  Address getInnerBroadcastAddr() {
+    return Address(getNICPAddr(), getSysID(), BROADCAST);
+  }
+
+  Address getExtBroadcastAddr() {
+    return Address(getNICPAddr(), EXT_BROADCAST, 0);
+  }
+
+  Address getUniversalBroadcastAddr() {
+    return Address(getNICPAddr(), UNIVERSAL_BROADCAST, 0);
   }
 
   Physical_Address getNICPAddr() {
@@ -234,22 +243,17 @@ public:
     Port from_port = from.getPort();
     Port to_port = to.getPort();
     // Broadcast: send through both NICs
-    if (to.getSysID() == BROADCAST_SID) {
+    if (to.getSysID() == UNIVERSAL_BROADCAST) {
       int ret_smnic = -1;
       int ret_rsnic = -1;
       _sync_engine.setBroadcastAlreadySent(true);
-      if (ctrl.getType() == Control::Type::ANNOUNCE ||
-          ctrl.getType() == Control::Type::DELAY_RESP ||
-          ctrl.getType() == Control::Type::LATE_SYNC ||
-          ctrl.getType() == Control::Type::MAC) {
-        ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
-      } else {
-        ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
-        ret_smnic = sendSharedMem(from_port, to_port, ctrl, data, size);
-      }
+      ret_rsnic = sendSocket(from, to, ctrl, data, size, recv_timestamp);
+      ret_smnic = sendSharedMem(from_port, to_port, ctrl, data, size);
       if (ret_smnic == -1 && ret_rsnic == -1)
         return -1;
       return ret_smnic >= ret_rsnic ? ret_smnic : ret_rsnic;
+    } else if (to.getSysID() == EXT_BROADCAST) {
+      return sendSocket(from, to, ctrl, data, size, recv_timestamp);
     }
 
     // Regular send: choose appropriate NIC

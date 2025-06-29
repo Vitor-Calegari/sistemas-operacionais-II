@@ -87,7 +87,7 @@ protected:
       double coord_y = pkt->header()->coord_y;
       Control::Type pkt_type = pkt->header()->ctrl.getType();
   
-      if (destSysId != Base::_sysID && destSysId != Base::BROADCAST_SID) {
+      if (destSysId != Base::_sysID && destSysId != Base::UNIVERSAL_BROADCAST && destSysId != Base::EXT_BROADCAST) {
         Base::_rsnic.free(buf);
         return;
       }

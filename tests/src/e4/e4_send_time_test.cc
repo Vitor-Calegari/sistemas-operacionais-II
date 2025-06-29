@@ -23,7 +23,7 @@ int main() {
   
   while (i < NUM_MSGS) {
       Message message = Message(
-          comp.addr(), Protocol::Address(Ethernet::BROADCAST_ADDRESS, Protocol::BROADCAST_SID, Protocol::BROADCAST),
+          comp.addr(), Protocol::Address(Ethernet::BROADCAST_ADDRESS, Protocol::UNIVERSAL_BROADCAST, Protocol::BROADCAST),
           MSG_SIZE, Control(Control::Type::COMMON), &car.prot);
       if (comp.send(&message)) {
           i++;

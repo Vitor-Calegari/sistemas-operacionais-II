@@ -80,7 +80,7 @@ int main() {
       for (int j = 1; j <= NUM_SEND_MESSAGES_PER_THREAD;) {
         Message msg = Message(
             comp.addr(),
-            Protocol::Address(car.prot.getNICPAddr(), Protocol::BROADCAST_SID,
+            Protocol::Address(car.prot.getNICPAddr(), Protocol::UNIVERSAL_BROADCAST,
                               Protocol::BROADCAST),
             MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
         for (size_t j = 0; j < msg.size(); j++) {

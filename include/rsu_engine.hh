@@ -78,7 +78,7 @@ public:
 
         // Enviar mensagem --------------
         Address myaddr = _protocol->getAddr();
-        Address broadcast = _protocol->getBroadcastAddr();
+        Address broadcast = _protocol->getExtBroadcastAddr();
         Control ctrl(MAC);
 
         // Obtem as chaves MAC das RSUs adjacentes e envia broadcast

@@ -91,7 +91,7 @@ protected:
       FullPacket *pkt = buf->template data<typename Base::SocketFrame>()->template data<FullPacket>();
       SysID destSysId = pkt->header()->dest.getSysID();
       Port port = pkt->header()->dest.getPort();
-      if (destSysId != Base::_sysID && destSysId != Base::BROADCAST_SID) {
+      if (destSysId != Base::_sysID && destSysId != Base::UNIVERSAL_BROADCAST && destSysId != Base::EXT_BROADCAST) {
         Base::_rsnic.free(buf);
         return;
       }

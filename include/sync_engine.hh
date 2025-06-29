@@ -180,7 +180,7 @@ private:
         if (!_broadcast_already_sent) {
           // Anuncia que está na rede
           Address myaddr = _protocol->getAddr();
-          Address broadcast = _protocol->getBroadcastAddr();
+          Address broadcast = _protocol->getExtBroadcastAddr();
           Control ctrl(ANNOUNCE);
           _protocol->send(myaddr, broadcast, ctrl);
         } else {

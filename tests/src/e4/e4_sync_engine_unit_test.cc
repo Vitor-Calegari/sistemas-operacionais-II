@@ -77,7 +77,7 @@ public:
 
   int send([[maybe_unused]] Address &from, Address &to,
            [[maybe_unused]] Control &ctrl) {
-    if (to.getSysID() == ProtocolNIC::BROADCAST_SID) {
+    if (to.getSysID() == ProtocolNIC::UNIVERSAL_BROADCAST) {
       _sync_engine.setBroadcastAlreadySent(true);
     }
     return 0;

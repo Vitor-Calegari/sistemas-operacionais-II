@@ -218,7 +218,7 @@ private:
         SmartUnit::SIZE_BYTES + PERIOD_SIZE + unit.get_value_size_bytes();
 
     Message msg(Base::_communicator->addr(), // TODO! Arrumar endereço físico.
-                Address(Ethernet::Address(), Channel::BROADCAST_SID,
+                Address(Ethernet::Address(), Channel::UNIVERSAL_BROADCAST,
                         Channel::BROADCAST),
                 msg_size, Control::Type::PUBLISH);
 
@@ -312,7 +312,7 @@ private:
         Base::_communicator->addr(),
         Address(
             Base::_communicator->addr().getPAddr(), // Nao precisa disso aqui
-            Channel::BROADCAST_SID, Channel::BROADCAST),
+            Channel::UNIVERSAL_BROADCAST, Channel::BROADCAST),
         sizeof(typename Base::SubPacket), Control::Type::SUBSCRIBE);
 
     typename Base::SubPacket *pkt =
