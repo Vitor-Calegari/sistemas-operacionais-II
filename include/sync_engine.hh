@@ -19,8 +19,14 @@
 
 class SimulatedClock {
 public:
+
+#ifndef SIMULATION_TIMESTAMP
   SimulatedClock(int64_t offset_us = 0) : offset(offset_us) {
   }
+#else
+  SimulatedClock(int64_t offset_us = 0) : offset(SIMULATION_TIMESTAMP + offset_us) {
+  }
+#endif
 
   // Define novo offset
   void setOffset(int64_t offset_us) {

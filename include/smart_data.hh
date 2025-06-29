@@ -69,9 +69,14 @@ public:
   static constexpr size_t UNIT_SIZE = Transducer::unit.get_value_size_bytes();
 
 public:
-  SmartData(Communicator *communicator, Transducer *transd, Condition cond)
-      : Base(communicator), _transd(transd), _cond(cond) {
+  SmartData(Communicator *communicator, Transducer *transd, Condition cond,
+            bool needExplicitSub = true)
+      : Base(communicator), _transd(transd), _cond(cond),
+        _needExplicitSub(needExplicitSub) {
     Base::_communicator->attach(this, _cond);
+    if (!needExplicitSub) {
+      period = _cond.period;
+    }
     initPubThread();
   }
 
@@ -85,51 +90,53 @@ public:
   void update([[maybe_unused]]
               typename Communicator::CommObserver::Observing_Condition c,
               typename Communicator::CommObserver::Observed_Data *buf) {
-    // Obtem origem
-    Address origin = Base::_communicator->peek_msg_origin_addr(buf);
-    // Obtem periodo
-    typename Base::SubPacket *sub_pkt =
-        (typename Base::SubPacket *)Base::_communicator->peek_msg_data(buf);
+    if (_needExplicitSub) {
+      // Obtem origem
+      Address origin = Base::_communicator->peek_msg_origin_addr(buf);
+      // Obtem periodo
+      typename Base::SubPacket *sub_pkt =
+          (typename Base::SubPacket *)Base::_communicator->peek_msg_data(buf);
 
-    uint32_t new_period = sub_pkt->period;
-    SubType sub_type = sub_pkt->subType;
+      uint32_t new_period = sub_pkt->period;
+      SubType sub_type = sub_pkt->subType;
 
-    // Adiciona novo subscriber
-    pthread_mutex_lock(&_subscribersMutex);
-    // Check if subscriber already exists
-    bool exists = false;
-    for (const auto &sub : subscribers) {
-      if (sub.origin == origin && sub.period == new_period &&
-          sub.subType == sub_type) {
-        exists = true;
-        break;
+      // Adiciona novo subscriber
+      pthread_mutex_lock(&_subscribersMutex);
+      // Check if subscriber already exists
+      bool exists = false;
+      for (const auto &sub : subscribers) {
+        if (sub.origin == origin && sub.period == new_period &&
+            sub.subType == sub_type) {
+          exists = true;
+          break;
+        }
       }
-    }
 
-    if (!exists) {
-      subscribers.push_back(Subscriber{ origin, new_period, sub_type });
+      if (!exists) {
+        subscribers.push_back(Subscriber{ origin, new_period, sub_type });
 #ifdef DEBUG_SMD
-      std::cout << get_timestamp() << " Publisher " << getpid() << ": Updating"
-                << std::endl;
-      std::cout << "Subscriber " << origin << ' ' << new_period << " added"
-                << std::endl;
+        std::cout << get_timestamp() << " Publisher " << getpid()
+                  << ": Updating" << std::endl;
+        std::cout << "Subscriber " << origin << ' ' << new_period << " added"
+                  << std::endl;
 #endif
-      period_sem.acquire();
-      if (period == 0) {
-        period = new_period;
-        has_first_subscriber_sem.release();
-      } else {
-        period = std::gcd(period, new_period);
+        period_sem.acquire();
+        if (period == 0) {
+          period = new_period;
+          has_first_subscriber_sem.release();
+        } else {
+          period = std::gcd(period, new_period);
+        }
+        highest_period = std::max(highest_period, new_period);
+#ifdef DEBUG_SMD
+        std::cout << "New pub period: " << period << std::endl;
+#endif
+        period_sem.release();
       }
-      highest_period = std::max(highest_period, new_period);
-#ifdef DEBUG_SMD
-      std::cout << "New pub period: " << period << std::endl;
-#endif
-      period_sem.release();
+      last_resub[Subscriber{ origin, new_period, sub_type }] =
+          std::chrono::steady_clock::now();
+      pthread_mutex_unlock(&_subscribersMutex);
     }
-    last_resub[Subscriber{ origin, new_period, sub_type }] =
-        std::chrono::steady_clock::now();
-    pthread_mutex_unlock(&_subscribersMutex);
 
     // Libera buffer
     Base::_communicator->free(buf);
@@ -152,36 +159,40 @@ private:
              cur_period = cur_period + period > highest_period
                               ? period
                               : cur_period + period) {
-          std::vector<size_t> to_remove{};
-          for (size_t i = 0; i < subscribers.size(); ++i) {
-            auto &sub = subscribers[i];
-            auto elapsed = std::chrono::steady_clock::now() - last_resub[sub];
-            if (std::chrono::duration_cast<std::chrono::microseconds>(elapsed) >
-                std::chrono::microseconds(_resub_tolerance)) {
-              last_resub.erase(sub);
-              to_remove.push_back(i);
+          if (_needExplicitSub) { // Se tem sub explicito, precisa desinscrever
+            std::vector<size_t> to_remove{};
+            for (size_t i = 0; i < subscribers.size(); ++i) {
+              auto &sub = subscribers[i];
+              auto elapsed = std::chrono::steady_clock::now() - last_resub[sub];
+              if (std::chrono::duration_cast<std::chrono::microseconds>(
+                      elapsed) > std::chrono::microseconds(_resub_tolerance)) {
+                last_resub.erase(sub);
+                to_remove.push_back(i);
 
-              std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec
-                        << sub.period << std::endl;
+                std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec
+                          << sub.period << std::endl;
+              }
             }
-          }
-          period_sem.acquire();
-          if (to_remove.size() != 0) {
-            for (auto &ind : to_remove) {
-              subscribers.erase(subscribers.begin() + ind);
+            period_sem.acquire();
+            if (to_remove.size() != 0) {
+              for (auto &ind : to_remove) {
+                subscribers.erase(subscribers.begin() + ind);
+              }
+              highest_period = 0;
+              std::cout << "Old Period: " << std::dec << period << std::endl;
+              period = 0;
+              for (auto &sub : subscribers) {
+                period = std::gcd(period, sub.period);
+                highest_period = std::max(highest_period, sub.period);
+              }
+              std::cout << "New Period: " << std::dec << period << std::endl;
             }
-            highest_period = 0;
-            std::cout << "Old Period: " << std::dec << period << std::endl;
-            period = 0;
-            for (auto &sub : subscribers) {
-              period = std::gcd(period, sub.period);
-              highest_period = std::max(highest_period, sub.period);
-            }
-            std::cout << "New Period: " << std::dec << period << std::endl;
           }
           auto next_wakeup_t = std::chrono::steady_clock::now() +
                                std::chrono::microseconds(period);
-          period_sem.release();
+          if (_needExplicitSub) {
+            period_sem.release();
+          }
           std::byte data[UNIT_SIZE];
           _transd->get_data(data);
 #ifdef DEBUG_SMD
@@ -260,6 +271,7 @@ private:
 
   Transducer *_transd = nullptr;
   Condition _cond;
+  bool _needExplicitSub;
 };
 
 // Subscriber.
@@ -278,10 +290,13 @@ public:
   using Base = SmartDataCommon<Communicator, Condition>;
 
 public:
-  SmartData(Communicator *communicator, Condition cond)
-      : Base(communicator), _cond(cond) {
+  SmartData(Communicator *communicator, Condition cond,
+            bool needExplicitSub = true)
+      : Base(communicator), _cond(cond), _needExplicitSub(needExplicitSub) {
     Base::_communicator->attach(this, _cond);
-    subscribe(_cond.period);
+    if (needExplicitSub) {
+      subscribe(_cond.period);
+    }
   }
 
   ~SmartData() {
@@ -289,7 +304,9 @@ public:
       stopSubThread();
     }
     Base::_communicator->detach(this, _cond);
-    delete _sub_msg;
+    if (_needExplicitSub) {
+      delete _sub_msg;
+    }
   }
 
   bool receive(Message *msg) {
@@ -357,6 +374,7 @@ private:
   // -----------------------------------------
 
   Condition _cond;
+  bool _needExplicitSub;
 };
 
 #endif
