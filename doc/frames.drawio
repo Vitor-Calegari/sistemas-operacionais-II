@@ -149,7 +149,7 @@
           <mxGeometry x="460.25" y="830" width="191" height="20" as="geometry" />
         </mxCell>
         <mxCell id="KVXpcubTUPsC0JayO_s4-47" value="&lt;div align=&quot;left&quot;&gt;MAC é obtido utilizando Protocol::getNICPAddr(), o qual&amp;nbsp; obtem endereço da SocketNIC&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;&lt;br&gt;&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;SysId é obtido pelo método Protocol::getSysID(), o qual retorna o SysID fornecido pelo usuário durante a instanciaçao de Protocol&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Porta do comunicador destino deve ser fornecida pelo usuário&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;align=left;fillColor=#E6E6E6;" parent="1" vertex="1">
-          <mxGeometry x="-110" y="760" width="340" height="130" as="geometry" />
+          <mxGeometry x="-390" y="870" width="340" height="130" as="geometry" />
         </mxCell>
         <mxCell id="KVXpcubTUPsC0JayO_s4-49" value="&lt;div align=&quot;left&quot;&gt;Durante o envio, Protocol é encarregado de:&lt;br&gt;1) Alocar um Buffer por uma das NICs&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;2) Preencher o cabeçalho Ethernet&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;3) Copiar a mensagem para o Pacote do protocolo, o qual é o conteúdo do payload do quadro Ethernet&lt;/div&gt;4) Preencher timestamp, bit de sincronização e bit needSync" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;align=left;fillColor=#E6E6E6;" parent="1" vertex="1">
           <mxGeometry x="691.25" y="490" width="270" height="120" as="geometry" />
@@ -169,16 +169,14 @@
         <mxCell id="ssQSO5jhh2rVMjGIj6xP-4" value="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
           <mxGeometry x="150" y="260" width="60" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="ssQSO5jhh2rVMjGIj6xP-25" value="&lt;div align=&quot;left&quot;&gt;Control:&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;- &lt;/span&gt;bit 0 é o de sincronização&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- bits 1 a 3 são Msg Type&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;- bit 4 é needSync&lt;/span&gt;&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;Msg Type pode assumir 6 valores:&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- COMMOM&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- PUBLISH&lt;br&gt;- SUBSCRIBE&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- DELAY_RESP&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- LATE_SYNC&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- MAC&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;align=left;fillColor=#E6E6E6;" parent="1" vertex="1">
-          <mxGeometry x="240" y="810" width="180" height="180" as="geometry" />
+        <mxCell id="ssQSO5jhh2rVMjGIj6xP-25" value="&lt;div align=&quot;left&quot;&gt;Control:&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;- &lt;/span&gt;bit 0 é o de sincronização&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- bits 1 a 3 são Msg Type&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;- bit 4 é needSync&lt;/span&gt;&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;Msg Type pode assumir 6 valores:&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- COMMON&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- PUBLISH&lt;br&gt;- SUBSCRIBE&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- DELAY_RESP&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- LATE_SYNC&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;- MAC&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;align=left;fillColor=#00D7FF;" parent="1" vertex="1">
+          <mxGeometry x="150" y="720" width="180" height="180" as="geometry" />
         </mxCell>
         <mxCell id="ssQSO5jhh2rVMjGIj6xP-26" value="" style="endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" edge="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
-            <mxPoint x="250" y="810" as="sourcePoint" />
+            <mxPoint x="180" y="720" as="sourcePoint" />
             <mxPoint x="179.99999999999955" y="690" as="targetPoint" />
-            <Array as="points">
-              <mxPoint x="250" y="760" />
-            </Array>
+            <Array as="points" />
           </mxGeometry>
         </mxCell>
         <mxCell id="ssQSO5jhh2rVMjGIj6xP-27" value="Unit" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
@@ -241,7 +239,7 @@
             <mxPoint x="510" y="430" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="ssQSO5jhh2rVMjGIj6xP-65" value="&lt;div align=&quot;left&quot;&gt;Sub Packet e Pub Packet são da camada SmartData, mensagens do tipo COMMOM não estão limitadas a estrutura de Pub Packet ou Sub Packet.&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;align=left;fillColor=#E6E6E6;" parent="1" vertex="1">
+        <mxCell id="ssQSO5jhh2rVMjGIj6xP-65" value="&lt;div align=&quot;left&quot;&gt;Sub Packet e Pub Packet são da camada SmartData, mensagens do tipo COMMON não estão limitadas a estrutura de Pub Packet ou Sub Packet.&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;align=left;fillColor=#E6E6E6;" parent="1" vertex="1">
           <mxGeometry x="691.25" y="707.5" width="220" height="100" as="geometry" />
         </mxCell>
         <mxCell id="_qdxAJ7Zo68JUZ1Iqq-v-1" value="Timestamp" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
