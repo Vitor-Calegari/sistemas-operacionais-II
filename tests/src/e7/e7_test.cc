@@ -61,7 +61,9 @@ int main() {
     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
   pthread_barrier_init(barrier, &barrier_attr, NUM_CARS);
   
-  int64_t *shared_deltas = (int64_t *)mmap(NULL, NUM_CARS * sizeof(int64_t),
+  int64_t *shared_socket_deltas = (int64_t *)mmap(NULL, NUM_CARS * sizeof(int64_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  int64_t *shared_shared_mem_deltas = (int64_t *)mmap(NULL, NUM_CARS * sizeof(int64_t),
     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
   pthread_mutex_t *shared_mutex = (pthread_mutex_t *)mmap(NULL, sizeof(pthread_mutex_t),
     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
@@ -72,7 +74,8 @@ int main() {
   pthread_mutex_init(shared_mutex, &mutex_attr);
 
   for (int i = 0; i < NUM_CARS; i++) {
-    shared_deltas[i] = 0;
+    shared_socket_deltas[i] = 0;
+    shared_shared_mem_deltas[i] = 0;
   }
 
   auto parent_pid = getpid();
@@ -108,8 +111,10 @@ int main() {
       std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
       stdout_lock.unlock();
 
-      int64_t delta = 0;
-      int j = 0;
+      int64_t socket_delta = 0;
+      int64_t shared_mem_delta = 0;
+      int shared_mem_counter = 0;
+      int socket_counter = 0;
       while (running) {
         memset(message.data(), 0, MESSAGE_SIZE);
         if (!car.receive(&message)) {
@@ -118,7 +123,11 @@ int main() {
         } else {
           int64_t send_at = *message.timestamp();
           int64_t recv_t = car.get_timestamp();
-          delta += recv_t - send_at;
+          if (message.sourceAddr()->getSysID() == car.prot.getSysID()) {
+            shared_mem_delta += recv_t - send_at;
+          } else {
+            socket_delta += recv_t - send_at;
+          }
           stdout_lock.lock();
           std::cout << std::dec << "[Msg sent at "
                     << formatTimestamp(*message.timestamp()) << " from ("
@@ -128,23 +137,33 @@ int main() {
           std::cout << " to ";
           print_addr(*message.destAddr());
           std::cout << "]" << std::endl;
-          std::cout << std::dec << " Proc (" << getpid() << ") Thread (" << 1
-                    << "): Received (" << j << "): ";
-          j++;
+          if (message.sourceAddr()->getSysID() == car.prot.getSysID()) {
+            std::cout << std::dec << " Proc (" << getpid() << ") Thread (" << 1
+            << "): Received (" << shared_mem_counter << "): ";
+            shared_mem_counter++;
+          } else {
+            std::cout << std::dec << " Proc (" << getpid() << ") Thread (" << 1
+                      << "): Received (" << socket_counter << "): ";
+            socket_counter++;
+          }
           for (size_t i = 0; i < message.size(); i++) {
             std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
           }
           std::cout << std::endl << std::endl;
-
           stdout_lock.unlock();
         }
       }
-      int64_t mean_delta = 0;
-      if (delta != 0) {
-        mean_delta = delta / j;
+      int64_t mean_socket_delta = 0;
+      if (socket_delta != 0) {
+        mean_socket_delta = socket_delta / socket_counter;
+      }
+      int64_t mean_shared_mem_delta = 0;
+      if (shared_mem_delta != 0) {
+        mean_shared_mem_delta = shared_mem_delta / shared_mem_counter;
       }
       pthread_mutex_lock(shared_mutex);
-      shared_deltas[std::stoi(car._dataset_id)] = mean_delta;
+      shared_socket_deltas[std::stoi(car._dataset_id)] = mean_socket_delta;
+      shared_shared_mem_deltas[std::stoi(car._dataset_id)] = mean_shared_mem_delta;
       pthread_mutex_unlock(shared_mutex);
     });
 
@@ -159,15 +178,22 @@ int main() {
       wait(nullptr);
     }
     delete map;
-    int64_t mean_delay = 0;
+    int64_t mean_socket_delay = 0;
     for (int i = 0; i < NUM_CARS; i++) {
-      mean_delay += shared_deltas[i];
+      mean_socket_delay += shared_socket_deltas[i];
     }
-    mean_delay /= NUM_CARS;
-    std::cout << "Mean delay: " << mean_delay << " microseconds" << std::endl;
+    mean_socket_delay /= NUM_CARS;
+    std::cout << "Mean Socket delay: " << mean_socket_delay << " microseconds" << std::endl;
+    int64_t mean_shared_mem_delay = 0;
+    for (int i = 0; i < NUM_CARS; i++) {
+      mean_shared_mem_delay += shared_shared_mem_deltas[i];
+    }
+    mean_shared_mem_delay /= NUM_CARS;
+    std::cout << "Mean Shared mem delay: " << mean_shared_mem_delay << " microseconds" << std::endl;
 
     // Cleanup shared memory
-    munmap(shared_deltas, NUM_CARS * sizeof(int64_t));
+    munmap(shared_socket_deltas, NUM_CARS * sizeof(int64_t));
+    munmap(shared_shared_mem_deltas, NUM_CARS * sizeof(int64_t));
     munmap(shared_mutex, sizeof(pthread_mutex_t));
     munmap(barrier, sizeof(pthread_barrier_t));
   }
