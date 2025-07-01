@@ -22,7 +22,7 @@
 
 constexpr int NUM_CARS = 15;
 constexpr int NUM_SEND_MESSAGES_PER_THREAD = 50;
-constexpr int MESSAGE_SIZE = 12;
+constexpr int MESSAGE_SIZE = 80;
 constexpr int64_t SIM_END = 1748772002000000;
 
 std::string formatTimestamp(uint64_t timestamp_us) {
@@ -56,8 +56,9 @@ int main() {
   pthread_barrierattr_t barrier_attr;
   pthread_barrierattr_init(&barrier_attr);
   pthread_barrierattr_setpshared(&barrier_attr, PTHREAD_PROCESS_SHARED);
-  pthread_barrier_t barrier;
-  pthread_barrier_init(&barrier, &barrier_attr, NUM_CARS);
+  pthread_barrier_t *barrier = (pthread_barrier_t *)mmap(NULL, sizeof(pthread_barrier_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  pthread_barrier_init(barrier, &barrier_attr, NUM_CARS);
 
   auto parent_pid = getpid();
 
@@ -69,6 +70,7 @@ int main() {
     dataset_id = std::to_string(i);
     auto cur_pid = fork();
     if (cur_pid == 0) {
+      std::cout << "Veículo criado: PID = " << getpid() << std::endl;
       break;
     }
   }
@@ -78,17 +80,20 @@ int main() {
 
     E7Car car(dataset_id, label);
 
-    pthread_barrier_wait(&barrier);
+    int ret = pthread_barrier_wait(barrier);
+    if (ret != 0 && ret != PTHREAD_BARRIER_SERIAL_THREAD) {
+        std::cerr << "Erro na barreira: " << ret << std::endl;
+        exit(1);
+    }
 
     auto future = std::async(std::launch::async, [&]() {
-      auto comp = car.create_component(1);
       Message message(MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
       std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
       stdout_lock.unlock();
       int j = 0;
       while (true) {
         memset(message.data(), 0, MESSAGE_SIZE);
-        if (!comp.receive(&message)) {
+        if (!car.receive(&message)) {
           std::cerr << "Erro ao receber mensagem na thread " << 1 << std::endl;
           exit(1);
         } else {

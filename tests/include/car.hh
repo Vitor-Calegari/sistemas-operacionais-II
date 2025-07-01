@@ -76,8 +76,8 @@ public:
     return ComponentC(&prot, p);
   }
 
-  void receive(ComponentC::MessageC *msg) {
-    CAM_subs.receive(msg);
+  bool receive(ComponentC::MessageC *msg) {
+    return CAM_subs.receive(msg);
   }
 
 public:

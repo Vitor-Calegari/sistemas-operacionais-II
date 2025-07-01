@@ -40,7 +40,20 @@ public:
 #else
   // Retorna tempo atual com offset aplicado
   std::chrono::time_point<std::chrono::system_clock> now() const {
-    return std::chrono::time_point<std::chrono::system_clock>(std::chrono::microseconds(SIMULATION_TIMESTAMP) - std::chrono::microseconds(offset));
+    static int64_t simulated_time = SIMULATION_TIMESTAMP;
+    static auto last_call = std::chrono::steady_clock::now();
+
+    // Calcula o tempo decorrido desde a última chamada
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - last_call).count();
+
+    // Atualiza o tempo simulado
+    simulated_time += elapsed;
+    last_call = now;
+
+    // Retorna o tempo simulado ajustado pelo offset
+    return std::chrono::time_point<std::chrono::system_clock>(
+        std::chrono::microseconds(simulated_time - offset));
   }
 #endif
   int64_t getTimestamp() const {
