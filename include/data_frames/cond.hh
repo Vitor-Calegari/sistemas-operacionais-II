@@ -5,19 +5,19 @@
 
 class Condition {
 public:
-  Condition(bool isPub, uint32_t u, uint32_t p = 0)
+  Condition(bool isPub, uint32_t u, int64_t p = 0)
       : isPub(isPub), unit(u), period(p) {
   }
 
   struct Data {
     uint32_t unit;
-    uint32_t period;
-  };
+    int64_t period;
+  } __attribute__((packed));
 
 public:
   bool isPub;
   uint32_t unit;
-  uint32_t period;
+  int64_t period;
 
   friend bool operator==(const Condition &lhs, const Condition &rhs) {
     // lhs é a condição do SmartData

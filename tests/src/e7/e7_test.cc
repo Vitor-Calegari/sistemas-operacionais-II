@@ -22,7 +22,7 @@
 
 constexpr int NUM_CARS = 15;
 constexpr int NUM_SEND_MESSAGES_PER_THREAD = 50;
-constexpr int MESSAGE_SIZE = 80;
+constexpr int MESSAGE_SIZE = 92;
 constexpr int64_t SIM_END = 1748772002000000;
 
 std::string formatTimestamp(uint64_t timestamp_us) {

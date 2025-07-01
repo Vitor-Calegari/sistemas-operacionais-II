@@ -39,7 +39,7 @@ public:
     Header() : unit(0), period(0) {
     }
     uint32_t unit;
-    uint32_t period;
+    int64_t period;
   } __attribute__((packed));
 
   // MTU disponível para data
@@ -50,6 +50,23 @@ public:
   public:
     SubPacket() : Header() {
     }
+  } __attribute__((packed));
+
+  class PubPacket : public Header {
+  public:
+    PubPacket() {
+      std::memset(_data, 0, sizeof(_data));
+    }
+    Header *header() {
+      return this;
+    }
+    template <typename T>
+    T *data() {
+      return reinterpret_cast<T *>(&_data);
+    }
+
+  private:
+    Data _data;
   } __attribute__((packed));
 
 public:
@@ -70,9 +87,10 @@ public:
 
   using Base = SmartDataCommon<Communicator, Condition>;
   using PubType = Base::PubType;
+  using PubPacket = Base::PubPacket;
 
 public:
-  static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
+  static constexpr size_t PERIOD_SIZE = sizeof(int64_t);
   static constexpr size_t UNIT_SIZE =
       Transducer::get_unit().get_value_size_bytes();
 
@@ -83,7 +101,8 @@ public:
         _needExplicitSub(needExplicitSub), _current_pub_type(PubType::BOTH) {
     Base::_communicator->attach(this, _cond);
     if (!needExplicitSub) {
-      period = _cond.period;
+      period = cond.period;
+      highest_period = cond.period;
     }
     initPubThread();
   }
@@ -105,7 +124,7 @@ public:
       typename Base::SubPacket *sub_pkt =
           (typename Base::SubPacket *)Base::_communicator->peek_msg_data(buf);
 
-      uint32_t new_period = sub_pkt->period;
+      int64_t new_period = sub_pkt->period;
 
       // Adiciona novo subscriber
       pthread_mutex_lock(&_subscribersMutex);
@@ -185,69 +204,68 @@ private:
 #endif
       }
 
-      while (_pub_thread_running) {
-        for (int cur_period = period; _pub_thread_running;
-             cur_period = cur_period + period > highest_period
-                              ? period
-                              : cur_period + period) {
-          if (_needExplicitSub) { // Se tem sub explicito, precisa desinscrever
-            std::vector<size_t> to_remove{};
-            for (size_t i = 0; i < subscribers.size(); ++i) {
-              auto &sub = subscribers[i];
-              auto elapsed = std::chrono::steady_clock::now() - last_resub[sub];
-              if (std::chrono::duration_cast<std::chrono::microseconds>(
-                      elapsed) > std::chrono::microseconds(_resub_tolerance)) {
-                last_resub.erase(sub);
-                to_remove.push_back(i);
+      auto now = std::chrono::steady_clock::now();
+      int i = 0;
+      for (int64_t cur_period = period; _pub_thread_running;
+            cur_period = cur_period + period > highest_period
+                            ? period
+                            : cur_period + period, i++) {
+        if (_needExplicitSub) { // Se tem sub explicito, precisa desinscrever
+          std::vector<size_t> to_remove{};
+          for (size_t i = 0; i < subscribers.size(); ++i) {
+            auto &sub = subscribers[i];
+            auto elapsed = std::chrono::steady_clock::now() - last_resub[sub];
+            if (std::chrono::duration_cast<std::chrono::microseconds>(
+                    elapsed) > std::chrono::microseconds(_resub_tolerance)) {
+              last_resub.erase(sub);
+              to_remove.push_back(i);
 #ifdef DEBUG_SMD
-                std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec
-                                          << sub.period << std::endl;
+              std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec
+                                        << sub.period << std::endl;
 #endif
-              }
-            }
-            period_sem.acquire();
-            if (to_remove.size() != 0) {
-              for (auto &ind : to_remove) {
-                subscribers.erase(subscribers.begin() + ind);
-              }
-              highest_period = 0;
-#ifdef DEBUG_SMD
-              std::cout << "Old Period: " << std::dec << period << std::endl;
-#endif
-              period = 0;
-              for (auto &sub : subscribers) {
-                period = std::gcd(period, sub.period);
-                highest_period = std::max(highest_period, sub.period);
-              }
-#ifdef DEBUG_SMD
-              std::cout << "New Period: " << std::dec << period << std::endl;
-#endif
-              updatePubType();
             }
           }
-          auto next_wakeup_t = std::chrono::steady_clock::now() +
-                               std::chrono::microseconds(period);
-          if (_needExplicitSub) {
-            period_sem.release();
-          }
-          std::byte data[UNIT_SIZE];
-          _transd->get_data(data);
+          period_sem.acquire();
+          if (to_remove.size() != 0) {
+            for (auto &ind : to_remove) {
+              subscribers.erase(subscribers.begin() + ind);
+            }
+            highest_period = 0;
 #ifdef DEBUG_SMD
-          std::cout << get_timestamp() << " Publisher " << getpid()
-                    << ": Publishing" << std::endl;
-          std::cout << "Produced data: ";
-          for (size_t i = 0; i < sizeof(data); i++) {
-            std::cout << (int)((unsigned char *)&data)[i] << " ";
-          }
-          std::cout << std::endl;
+            std::cout << "Old Period: " << std::dec << period << std::endl;
 #endif
-          auto msg = create_pub_message(data, cur_period);
-
-          // TODO: diferenciar send com base no tipo do subscriber.
-          Base::_communicator->send(&msg);
-
-          std::this_thread::sleep_until(next_wakeup_t);
+            period = 0;
+            for (auto &sub : subscribers) {
+              period = std::gcd(period, sub.period);
+              highest_period = std::max(highest_period, sub.period);
+            }
+#ifdef DEBUG_SMD
+            std::cout << "New Period: " << std::dec << period << std::endl;
+#endif
+            updatePubType();
+          }
         }
+        auto next_wakeup_t = now +
+                              std::chrono::microseconds(period * i);
+        if (_needExplicitSub) {
+          period_sem.release();
+        }
+        std::byte data[UNIT_SIZE];
+        _transd->get_data(data);
+#ifdef DEBUG_SMD
+        std::cout << get_timestamp() << " Publisher " << getpid()
+                  << ": Publishing" << std::endl;
+        std::cout << "Produced data: ";
+        for (size_t i = 0; i < sizeof(data); i++) {
+          std::cout << (int)((unsigned char *)&data)[i] << " ";
+        }
+        std::cout << std::endl;
+#endif
+        Message msg = create_pub_message(data, cur_period);
+
+        Base::_communicator->send(&msg);
+
+        std::this_thread::sleep_until(next_wakeup_t);
       }
     });
   }
@@ -259,7 +277,7 @@ private:
     }
   }
 
-  Message create_pub_message(std::byte *data, uint32_t cur_period) {
+  Message create_pub_message(std::byte *data, int64_t cur_period) {
     auto unit = _transd->get_unit();
 
     size_t msg_size =
@@ -279,22 +297,20 @@ private:
                 broadcast,
                 msg_size, Control::Type::PUBLISH);
 
-    auto int_unit = unit.get_int_unit();
-    std::memcpy(msg.data(), &int_unit, SmartUnit::SIZE_BYTES);
-    std::memcpy(msg.data() + SmartUnit::SIZE_BYTES, &cur_period, PERIOD_SIZE);
-    std::memcpy(msg.data() + SmartUnit::SIZE_BYTES + PERIOD_SIZE, data,
-                UNIT_SIZE);
-
+    PubPacket * pkt = (PubPacket *)msg.data();
+    pkt->unit = unit.get_int_unit();
+    pkt->period = cur_period;
+    std::memcpy(pkt->template data<std::byte>(), data, UNIT_SIZE);
     return msg;
   }
 
 private:
-  const uint32_t _resub_tolerance = 2 * 3e6;
+  const int64_t _resub_tolerance = 2 * 3e6;
 
   // Pub Thread ---------------
   std::atomic<bool> _pub_thread_running = false;
-  uint32_t period = 0;
-  uint32_t highest_period = 0;
+  int64_t period = 0;
+  int64_t highest_period = 0;
   std::thread pub_thread;
   std::binary_semaphore has_first_subscriber_sem{ 0 };
   std::binary_semaphore period_sem{ 1 };
@@ -303,7 +319,7 @@ private:
   // Subscriber List ---------------
   struct Subscriber {
     Address origin;
-    uint32_t period;
+    int64_t period;
     PubType type;
     friend bool operator<(const Subscriber &lhs, const Subscriber &rhs) {
       return (lhs.origin < rhs.origin) ||
@@ -371,11 +387,11 @@ public:
   }
 
 private:
-  void subscribe(uint32_t period) {
+  void subscribe(int64_t period) {
     _sub_msg = new Message(
         Base::_communicator->addr(),
         Address(
-            Base::_communicator->addr().getPAddr(), // Nao precisa disso aqui
+            Base::_communicator->addr().getPAddr(),
             Channel::UNIVERSAL_BROADCAST, Channel::BROADCAST),
         sizeof(typename Base::SubPacket), Control::Type::SUBSCRIBE);
 
@@ -414,7 +430,7 @@ private:
 private:
   // Periodic Subscribe Thread ---------------
   std::atomic<bool> _sub_thread_running = false;
-  const uint32_t _resub_period = 3e6;
+  const int64_t _resub_period = 3e6;
   std::thread _sub_thread;
   Message *_sub_msg = nullptr;
   // -----------------------------------------

@@ -17,7 +17,7 @@ public:
   std::chrono::milliseconds GENERATION_PERIOD{ 100 };
 
   CAMTransducer(const std::string &filename)
-      : _last_timepoint(std::chrono::steady_clock::now()), _reader(filename) {
+      : _reader(filename) {
     generate_new_cam();
   }
 
@@ -34,15 +34,17 @@ public:
 
 private:
   bool is_new_generation_needed() {
+    static auto _last_timepoint = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
-    std::chrono::duration<double> delta = now - _last_timepoint;
-
+    auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - _last_timepoint);
+#ifdef DEBUG_DELTA
+    std::cout << std::dec << "Delta: " << delta.count() << "ms, Generation Period: " << GENERATION_PERIOD.count() << "ms\n";
+#endif
     // Caso assert falhar, uma mensagem CAM foi perdida.
     assert(delta < 2 * GENERATION_PERIOD);
 
     if (delta >= GENERATION_PERIOD) {
       _last_timepoint += GENERATION_PERIOD;
-
       return true;
     }
 
@@ -64,7 +66,6 @@ private:
     }
   }
 
-  std::chrono::steady_clock::time_point _last_timepoint;
   csv::CSVReader _reader;
   std::array<double, 10> _cur_cam;
 };
