@@ -40,7 +40,7 @@ public:
 #else
   // Retorna tempo atual com offset aplicado
   std::chrono::time_point<std::chrono::system_clock> now() const {
-    return std::chrono::microseconds(SIMULATION_TIMESTAMP) - std::chrono::microseconds(offset);
+    return std::chrono::time_point<std::chrono::system_clock>(std::chrono::microseconds(SIMULATION_TIMESTAMP) - std::chrono::microseconds(offset));
   }
 #endif
   int64_t getTimestamp() const {

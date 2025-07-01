@@ -55,7 +55,7 @@ public:
   static constexpr SmartUnit cam_unit = CAMTransducer::get_unit();
 
 public:
-  E7Car(const std::string &label = "",
+  E7Car(const std::string dataset_id, const std::string &label = "",
         const std::vector<Coordinate> &points = { { 0, 0 } },
         Topology topology = Topology({ 1, 1 }, 10), double comm_range = 5,
         double speed = 1)
@@ -65,11 +65,11 @@ public:
         CAM_subs(&baseComp._comm,
                  Condition(false, cam_unit.get_int_unit(), 100000), false),
 
-        // TODO! Inicializar aqui com nome do arquivo CSV.
-        CAM_trand(""),
+        CAM_trand("tests/dataset/dynamics-vehicle_" + dataset_id + ".csv"),
 
         CAM_prod(&baseComp._comm, &CAM_trand,
-                 Condition(true, cam_unit.get_int_unit(), 100000), false) {
+                 Condition(true, cam_unit.get_int_unit(), 100000), false),
+        _dataset_id(dataset_id) {
   }
 
   ComponentC create_component(Port p) {
@@ -87,6 +87,7 @@ public:
   SmartData<ComponentC::CommunicatorC, Condition> CAM_subs;
   CAMTransducer CAM_trand;
   SmartData<ComponentC::CommunicatorC, Condition, CAMTransducer> CAM_prod;
+  std::string _dataset_id;
 };
 
 #endif

@@ -1,5 +1,5 @@
 #ifndef SIMULATION_TIMESTAMP
-#define SIMULATION_TIMESTAMP 1748768400000000;
+#define SIMULATION_TIMESTAMP 1748768400000000
 #endif
 
 #include "car.hh"
@@ -60,14 +60,15 @@ int main() {
   pthread_barrier_init(&barrier, &barrier_attr, NUM_CARS);
 
   auto parent_pid = getpid();
-  bool sender = false;
 
+  std::array<std::string, NUM_CARS> labels = {"1124", "1272", "1947", "680", "1426", "1503", "532", "757", "313", "2101", "1580", "1870", "1349", "2024", "1047"};
+  std::string label = "";
+  std::string dataset_id = "";
   for (auto i = 0; i < NUM_CARS; ++i) {
+    label = labels[i];
+    dataset_id = std::to_string(i);
     auto cur_pid = fork();
     if (cur_pid == 0) {
-      if (i == 0) {
-        sender = true;
-      }
       break;
     }
   }
@@ -75,7 +76,7 @@ int main() {
   if (getpid() != parent_pid) {
     std::mutex stdout_mtx;
 
-    Car car;
+    E7Car car(dataset_id, label);
 
     pthread_barrier_wait(&barrier);
 
@@ -113,12 +114,9 @@ int main() {
       }
     });
 
-    bool timeout = false;
-
     if (future.wait_for(std::chrono::seconds(SIM_END)) ==
         std::future_status::timeout) {
       std::cerr << "Carro(" << getpid() << ") Fim da simulação." << std::endl;
-      timeout = true;
     }
   } else {
     for (int i = 0; i < NUM_CARS; ++i) {
