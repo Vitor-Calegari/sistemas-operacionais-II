@@ -34,8 +34,10 @@ public:
   void operator=(RSUProtocol const &) = delete;
 
   ~RSUProtocol() {
+#ifdef DEBUG_RSU_PROTOCOL
     std::cout << get_timestamp() << " RSU Protocol " << Base::_sysID << " ended"
               << std::endl;
+#endif
   }
 
 protected:

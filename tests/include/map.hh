@@ -136,8 +136,10 @@ public:
     pthread_cond_broadcast(cond);
     pthread_mutex_unlock(mutex);
 
-    std::cout << get_timestamp() << " PID " << getpid() << " Should end MAP"
-              << std::endl;
+#ifdef DEBUG_RSU_PROTOCOL
+  std::cout << get_timestamp() << " PID " << getpid() << " Should end MAP"
+                << std::endl;
+#endif
   }
 
   Topology getTopology() {
@@ -158,8 +160,10 @@ private:
                                   std::make_pair(c, l), x + y * NUM_COLS,
                                   { point }, _topo, RSU_RANGE, 0);
     waitCond();
+#ifdef DEBUG_RSU_PROTOCOL
     std::cout << get_timestamp() << " RSU " << getpid() << " ending"
               << std::endl;
+#endif
     exit(0);
   }
 

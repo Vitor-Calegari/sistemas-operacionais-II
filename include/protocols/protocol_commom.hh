@@ -325,6 +325,10 @@ public:
                       [[maybe_unused]] typename SocketNIC::Protocol_Number prot,
                       [[maybe_unused]] Buffer *buf) {};
 
+  int64_t get_timestamp() {
+    return _sync_engine.getTimestamp();
+  }
+
 private:
   int sendSocket(Address &from, Address &to, Control &ctrl,
                  void *data = nullptr, unsigned int size = 0,

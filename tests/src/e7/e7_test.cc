@@ -2,6 +2,8 @@
 #define SIMULATION_TIMESTAMP 1748768400000000
 #endif
 
+#define TURN_PTP_OFF
+
 #include "car.hh"
 #include "map.hh"
 #include "shared_mem.hh"
@@ -21,9 +23,8 @@
 #endif
 
 constexpr int NUM_CARS = 15;
-constexpr int NUM_SEND_MESSAGES_PER_THREAD = 50;
 constexpr int MESSAGE_SIZE = 92;
-constexpr int64_t SIM_END = 1748772002000000;
+constexpr int64_t SIM_END = 30;//1748772002000000;
 
 std::string formatTimestamp(uint64_t timestamp_us) {
   auto time_point = std::chrono::system_clock::time_point(
@@ -59,6 +60,20 @@ int main() {
   pthread_barrier_t *barrier = (pthread_barrier_t *)mmap(NULL, sizeof(pthread_barrier_t),
     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
   pthread_barrier_init(barrier, &barrier_attr, NUM_CARS);
+  
+  int64_t *shared_deltas = (int64_t *)mmap(NULL, NUM_CARS * sizeof(int64_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  pthread_mutex_t *shared_mutex = (pthread_mutex_t *)mmap(NULL, sizeof(pthread_mutex_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  
+  pthread_mutexattr_t mutex_attr;
+  pthread_mutexattr_init(&mutex_attr);
+  pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+  pthread_mutex_init(shared_mutex, &mutex_attr);
+
+  for (int i = 0; i < NUM_CARS; i++) {
+    shared_deltas[i] = 0;
+  }
 
   auto parent_pid = getpid();
 
@@ -86,17 +101,24 @@ int main() {
         exit(1);
     }
 
+    std::atomic<bool> running = true;
+
     auto future = std::async(std::launch::async, [&]() {
       Message message(MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
       std::unique_lock<std::mutex> stdout_lock(stdout_mtx);
       stdout_lock.unlock();
+
+      int64_t delta = 0;
       int j = 0;
-      while (true) {
+      while (running) {
         memset(message.data(), 0, MESSAGE_SIZE);
         if (!car.receive(&message)) {
           std::cerr << "Erro ao receber mensagem na thread " << 1 << std::endl;
           exit(1);
         } else {
+          int64_t send_at = *message.timestamp();
+          int64_t recv_t = car.get_timestamp();
+          delta += recv_t - send_at;
           stdout_lock.lock();
           std::cout << std::dec << "[Msg sent at "
                     << formatTimestamp(*message.timestamp()) << " from ("
@@ -117,17 +139,37 @@ int main() {
           stdout_lock.unlock();
         }
       }
+      int64_t mean_delta = 0;
+      if (delta != 0) {
+        mean_delta = delta / j;
+      }
+      pthread_mutex_lock(shared_mutex);
+      shared_deltas[std::stoi(car._dataset_id)] = mean_delta;
+      pthread_mutex_unlock(shared_mutex);
     });
 
     if (future.wait_for(std::chrono::seconds(SIM_END)) ==
         std::future_status::timeout) {
       std::cerr << "Carro(" << getpid() << ") Fim da simulação." << std::endl;
+      running = false;
+      future.wait();
     }
   } else {
     for (int i = 0; i < NUM_CARS; ++i) {
       wait(nullptr);
     }
     delete map;
+    int64_t mean_delay = 0;
+    for (int i = 0; i < NUM_CARS; i++) {
+      mean_delay += shared_deltas[i];
+    }
+    mean_delay /= NUM_CARS;
+    std::cout << "Mean delay: " << mean_delay << " microseconds" << std::endl;
+
+    // Cleanup shared memory
+    munmap(shared_deltas, NUM_CARS * sizeof(int64_t));
+    munmap(shared_mutex, sizeof(pthread_mutex_t));
+    munmap(barrier, sizeof(pthread_barrier_t));
   }
 
   return 0;

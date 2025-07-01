@@ -80,6 +80,10 @@ public:
     return CAM_subs.receive(msg);
   }
 
+  int64_t get_timestamp() {
+    return prot.get_timestamp();
+  }
+
 public:
   ProtocolC &prot;
   const std::string label;

@@ -35,7 +35,11 @@ public:
 #ifndef SIMULATION_TIMESTAMP
   // Retorna tempo atual com offset aplicado
   std::chrono::time_point<std::chrono::system_clock> now() const {
+#ifndef TURN_PTP_OFF
     return std::chrono::system_clock::now() - std::chrono::microseconds(offset);
+#else
+    return std::chrono::system_clock::now();
+#endif
   }
 #else
   // Retorna tempo atual com offset aplicado
@@ -51,9 +55,15 @@ public:
     simulated_time += elapsed;
     last_call = now;
 
+#ifndef TURN_PTP_OFF
     // Retorna o tempo simulado ajustado pelo offset
     return std::chrono::time_point<std::chrono::system_clock>(
         std::chrono::microseconds(simulated_time - offset));
+#else
+    // Retorna o tempo simulado ajustado pelo offset
+    return std::chrono::time_point<std::chrono::system_clock>(
+      std::chrono::microseconds(simulated_time));
+#endif
   }
 #endif
   int64_t getTimestamp() const {
