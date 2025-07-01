@@ -3,13 +3,10 @@
 
 #include <cstdint>
 
-enum SubType { Internal, External, Both };
-
 class Condition {
 public:
-  Condition(bool isPub, uint32_t u, uint32_t p = 0,
-            SubType subType = SubType::Both)
-      : isPub(isPub), unit(u), period(p), subType(subType) {
+  Condition(bool isPub, uint32_t u, uint32_t p = 0)
+      : isPub(isPub), unit(u), period(p) {
   }
 
   struct Data {
@@ -21,7 +18,6 @@ public:
   bool isPub;
   uint32_t unit;
   uint32_t period;
-  SubType subType;
 
   friend bool operator==(const Condition &lhs, const Condition &rhs) {
     // lhs é a condição do SmartData

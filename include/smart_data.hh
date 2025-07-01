@@ -27,6 +27,13 @@ class SmartDataCommon
           typename Communicator::CommObserver::Observed_Data,
           typename Communicator::CommObserver::Observing_Condition> {
 public:
+
+  enum PubType : uint8_t {
+    INTERNAL,
+    EXTERNAL,
+    BOTH
+  };
+
   class Header {
   public:
     Header() : unit(0), period(0) {
@@ -41,9 +48,8 @@ public:
 
   class SubPacket : public Header {
   public:
-    SubPacket() : Header(), subType(SubType::Both) {
+    SubPacket() : Header() {
     }
-    SubType subType;
   } __attribute__((packed));
 
 public:
@@ -63,6 +69,7 @@ public:
   typedef typename Communicator::CommChannel Channel;
 
   using Base = SmartDataCommon<Communicator, Condition>;
+  using PubType = Base::PubType;
 
 public:
   static constexpr size_t PERIOD_SIZE = sizeof(uint32_t);
@@ -73,7 +80,7 @@ public:
   SmartData(Communicator *communicator, Transducer *transd, Condition cond,
             bool needExplicitSub = true)
       : Base(communicator), _transd(transd), _cond(cond),
-        _needExplicitSub(needExplicitSub) {
+        _needExplicitSub(needExplicitSub), _current_pub_type(PubType::BOTH) {
     Base::_communicator->attach(this, _cond);
     if (!needExplicitSub) {
       period = _cond.period;
@@ -99,18 +106,20 @@ public:
           (typename Base::SubPacket *)Base::_communicator->peek_msg_data(buf);
 
       uint32_t new_period = sub_pkt->period;
-      SubType sub_type = sub_pkt->subType;
 
       // Adiciona novo subscriber
       pthread_mutex_lock(&_subscribersMutex);
       // Check if subscriber already exists
       bool exists = false;
       for (const auto &sub : subscribers) {
-        if (sub.origin == origin && sub.period == new_period &&
-            sub.subType == sub_type) {
+        if (sub.origin == origin && sub.period == new_period) {
           exists = true;
           break;
         }
+      }
+      PubType sub_type = PubType::EXTERNAL;
+      if (origin.getSysID() == Base::_communicator->addr().getSysID()) {
+        sub_type = PubType::INTERNAL;
       }
 
       if (!exists) {
@@ -127,6 +136,7 @@ public:
           has_first_subscriber_sem.release();
         } else {
           period = std::gcd(period, new_period);
+          updatePubType();
         }
         highest_period = std::max(highest_period, new_period);
 #ifdef DEBUG_SMD
@@ -144,6 +154,26 @@ public:
   }
 
 private:
+
+  void updatePubType() {
+    bool has_int = false;
+    bool has_ext = false;
+    for (size_t i = 0; i < subscribers.size(); ++i) {
+      if (subscribers[i].type == PubType::INTERNAL) {
+        has_int = true;
+      } else if (subscribers[i].type == PubType::EXTERNAL) {
+        has_ext = true;
+      }
+    }
+    if (has_int && has_ext) {
+      _current_pub_type = PubType::BOTH;
+    } else if (has_int) {
+      _current_pub_type = PubType::INTERNAL;
+    } else if (has_ext) {
+      _current_pub_type = PubType::EXTERNAL;
+    }
+  }
+
   void initPubThread() {
     _pub_thread_running = true;
     pub_thread = std::thread([this]() {
@@ -169,9 +199,10 @@ private:
                       elapsed) > std::chrono::microseconds(_resub_tolerance)) {
                 last_resub.erase(sub);
                 to_remove.push_back(i);
-
+#ifdef DEBUG_SMD
                 std::cout << "UNSUBSCRIBED " << sub.origin << ' ' << std::dec
-                          << sub.period << std::endl;
+                                          << sub.period << std::endl;
+#endif
               }
             }
             period_sem.acquire();
@@ -180,13 +211,18 @@ private:
                 subscribers.erase(subscribers.begin() + ind);
               }
               highest_period = 0;
+#ifdef DEBUG_SMD
               std::cout << "Old Period: " << std::dec << period << std::endl;
+#endif
               period = 0;
               for (auto &sub : subscribers) {
                 period = std::gcd(period, sub.period);
                 highest_period = std::max(highest_period, sub.period);
               }
+#ifdef DEBUG_SMD
               std::cout << "New Period: " << std::dec << period << std::endl;
+#endif
+              updatePubType();
             }
           }
           auto next_wakeup_t = std::chrono::steady_clock::now() +
@@ -229,9 +265,18 @@ private:
     size_t msg_size =
         SmartUnit::SIZE_BYTES + PERIOD_SIZE + unit.get_value_size_bytes();
 
-    Message msg(Base::_communicator->addr(), // TODO! Arrumar endereço físico.
-                Address(Ethernet::Address(), Channel::UNIVERSAL_BROADCAST,
-                        Channel::BROADCAST),
+    Address broadcast = Address();
+
+    if (_current_pub_type == PubType::INTERNAL) {
+      broadcast = Address(Base::_communicator->addr().getPAddr(), Base::_communicator->addr().getSysID(), Channel::BROADCAST);
+    } else if (_current_pub_type == PubType::EXTERNAL) {
+      broadcast = Address(Base::_communicator->addr().getPAddr(), Channel::EXT_BROADCAST, Channel::BROADCAST);
+    } else if (_current_pub_type == PubType::BOTH) {
+      broadcast = Address(Base::_communicator->addr().getPAddr(), Channel::UNIVERSAL_BROADCAST, Channel::BROADCAST);
+    }
+
+    Message msg(Base::_communicator->addr(),
+                broadcast,
                 msg_size, Control::Type::PUBLISH);
 
     auto int_unit = unit.get_int_unit();
@@ -259,7 +304,7 @@ private:
   struct Subscriber {
     Address origin;
     uint32_t period;
-    SubType subType;
+    PubType type;
     friend bool operator<(const Subscriber &lhs, const Subscriber &rhs) {
       return (lhs.origin < rhs.origin) ||
              (lhs.origin == rhs.origin && lhs.period < rhs.period);
@@ -273,6 +318,7 @@ private:
   Transducer *_transd = nullptr;
   Condition _cond;
   bool _needExplicitSub;
+  PubType _current_pub_type;
 };
 
 // Subscriber.
@@ -337,7 +383,6 @@ private:
         (typename Base::SubPacket *)_sub_msg->data();
     pkt->unit = _cond.unit;
     pkt->period = period;
-    pkt->subType = _cond.subType;
 
     initSubThread();
     return;
