@@ -169,9 +169,9 @@ class NavigatorDirected : public NavigatorCommon {
     std::chrono::milliseconds GENERATION_PERIOD{ 100 };
 
     NavigatorDirected(const std::vector<Coordinate> &points, Topology topology,
-                      double comm_range, double speed = 1)
-        : NavigatorCommon(topology, comm_range, speed), _points(points),
-          _cur_point({0, 0}) {
+              double comm_range, double speed = 1)
+      : NavigatorCommon(topology, comm_range, speed), _points(points),
+        _last_timepointt(std::chrono::steady_clock::now()), _cur_point({0, 0}) {
     }
 
     Coordinate get_location() override {
@@ -187,7 +187,6 @@ class NavigatorDirected : public NavigatorCommon {
   
   private:
     bool is_new_generation_needed() {
-      static auto _last_timepointt = std::chrono::steady_clock::now();
       auto now = std::chrono::steady_clock::now();
       std::chrono::duration<double> delta = now - _last_timepointt;
 
@@ -213,7 +212,6 @@ class NavigatorDirected : public NavigatorCommon {
     std::vector<Coordinate> _points;
     std::chrono::steady_clock::time_point _last_timepointt;
     Coordinate _cur_point;
-    std::string _filename;
   };
 #endif
 

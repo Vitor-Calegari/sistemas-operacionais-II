@@ -31,7 +31,7 @@
 
 constexpr int NUM_CARS = 15;
 constexpr int MESSAGE_SIZE = 92;
-constexpr int64_t SIM_END = 10; // 1748772002000000;
+constexpr int64_t SIM_END = 10;
 
 constexpr std::array<int, NUM_CARS> LABELS = { 1124, 1272, 1947, 680,  1426,
                                                1503, 532,  757,  313,  2101,
