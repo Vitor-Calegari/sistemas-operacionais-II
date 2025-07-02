@@ -2,6 +2,7 @@
 #define SYNC_ENGINE_HH
 
 #include "control.hh"
+#include "clocks.hh"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -44,25 +45,18 @@ public:
 #else
   // Retorna tempo atual com offset aplicado
   std::chrono::time_point<std::chrono::system_clock> now() const {
-    static int64_t simulated_time = SIMULATION_TIMESTAMP;
-    static auto last_call = std::chrono::steady_clock::now();
-
-    // Calcula o tempo decorrido desde a última chamada
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - last_call).count();
-
-    // Atualiza o tempo simulado
-    simulated_time += elapsed;
-    last_call = now;
+    GlobalTime &g = GlobalTime::getInstance();
+    static int64_t simulation_offset = g.get_program_init() - SIMULATION_TIMESTAMP;
+    auto now = std::chrono::system_clock::now();
 
 #ifndef TURN_PTP_OFF
     // Retorna o tempo simulado ajustado pelo offset
     return std::chrono::time_point<std::chrono::system_clock>(
-        std::chrono::microseconds(simulated_time - offset));
+      now.time_since_epoch() - std::chrono::microseconds(simulation_offset - offset));
 #else
     // Retorna o tempo simulado ajustado pelo offset
     return std::chrono::time_point<std::chrono::system_clock>(
-      std::chrono::microseconds(simulated_time));
+      now.time_since_epoch() - std::chrono::microseconds(simulation_offset));
 #endif
   }
 #endif

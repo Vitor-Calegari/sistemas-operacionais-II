@@ -67,6 +67,7 @@ int main() {
   std::array<std::string, NUM_CARS> labels = {"1124", "1272", "1947", "680", "1426", "1503", "532", "757", "313", "2101", "1580", "1870", "1349", "2024", "1047"};
   std::string label = "";
   std::string dataset_id = "";
+  [[maybe_unused]] GlobalTime &g = GlobalTime::getInstance();
   for (auto i = 0; i < NUM_CARS; ++i) {
     label = labels[i];
     dataset_id = std::to_string(i);

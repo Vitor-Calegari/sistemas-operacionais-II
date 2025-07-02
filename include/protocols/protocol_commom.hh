@@ -272,18 +272,6 @@ public:
     if (buf->type() == Buffer::EthernetFrame) {
       FullPacket *pkt =
           buf->template data<SocketFrame>()->template data<FullPacket>();
-      std::cout << "Full Packet Header:" << std::endl;
-      std::cout << "Origin: " << pkt->header()->origin.getPAddr() << ":" 
-            << pkt->header()->origin.getSysID() << ":" 
-            << pkt->header()->origin.getPort() << std::endl;
-      std::cout << "Destination: " << pkt->header()->dest.getPAddr() << ":" 
-            << pkt->header()->dest.getSysID() << ":"
-            << pkt->header()->dest.getPort() << std::endl;
-      std::cout << "Control: " << pkt->header()->ctrl.value << std::endl;
-      std::cout << "Payload size: " << std::dec << pkt->header()->payloadSize << std::endl;
-      std::cout << "Coordinates: (" << pkt->header()->coord_x << ", " 
-            << pkt->header()->coord_y << ")" << std::endl;
-      std::cout << "Timestamp: " << pkt->header()->timestamp << std::endl;
       received_bytes = fillRecvFullMsg(pkt, from, to, ctrl, coord_x, _coord_y,
                                        timestamp, data, size);
       _rsnic.free(buf);
@@ -437,7 +425,7 @@ protected:
     *ctrl = pkt->header()->ctrl;
     *coord_x = pkt->header()->coord_x;
     *coord_y = pkt->header()->coord_y;
-    std::cout << "Coords: " << pkt->header()->coord_x << ", " << pkt->header()->coord_y << std::endl;
+
     *timestamp = pkt->header()->timestamp;
     unsigned int message_data_size = pkt->header()->payloadSize;
     unsigned int actual_received_bytes =
