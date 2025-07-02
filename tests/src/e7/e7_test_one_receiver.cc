@@ -38,18 +38,6 @@ constexpr std::array<int, NUM_CARS> LABELS = { 1124, 1272, 1947, 680,  1426,
                                                1580, 1870, 1349, 2024, 1047 };
 constexpr auto MAX_LABEL = *std::max_element(LABELS.cbegin(), LABELS.cend());
 
-std::string formatTimestamp(uint64_t timestamp_us) {
-  auto time_point = std::chrono::system_clock::time_point(
-      std::chrono::microseconds(timestamp_us));
-  std::time_t time_t = std::chrono::system_clock::to_time_t(time_point);
-  std::tm *tm = std::localtime(&time_t);
-
-  std::ostringstream oss;
-  oss << std::put_time(tm, "%H:%M:%S") << "." << std::setw(6)
-      << std::setfill('0') << (timestamp_us % 1000000) << " μs";
-  return oss.str();
-}
-
 int main() {
   using SocketNIC = NIC<Engine<Ethernet>>;
   using SharedMemNIC = NIC<SharedEngine<SharedMem>>;
@@ -103,6 +91,7 @@ int main() {
   }
 
   int label = 0;
+  [[maybe_unused]] GlobalTime &g = GlobalTime::getInstance();
   std::string dataset_id = "";
   for (auto i = 0; i < NUM_CARS; ++i) {
     label = LABELS[i];
@@ -158,18 +147,9 @@ int main() {
             bool is_internal =
                 message.sourceAddr()->getSysID() == car.prot.getSysID();
 
-            csv::CSVRow row;
-            readers.at(origin_label).read_row(row);
-            auto expected_timestamp = row["timestamp"].get<int64_t>();
-
-            file << "Received timestamp: " << *message.timestamp() << std::endl;
-            file << "Expected timestamp: " << expected_timestamp << std::endl;
-            file << "Diff timestamp: "
-                 << *message.timestamp() - expected_timestamp << std::endl;
             file << std::dec << "[" << (is_internal ? "Internal" : "External")
-                 << " Msg sent at " << formatTimestamp(*message.timestamp())
-                 << " from " << origin_label << " at (" << *message.getCoordX()
-                 << ", " << *message.getCoordY() << ")]" << std::endl;
+                 << " Msg sent at " << *message.timestamp() << " and received at " << recv_t
+                 << " from " << origin_label << ", Diff: " << recv_t - *message.timestamp() << " ]" << std::endl;
 
             if (is_internal) {
               file << std::dec << "Received (" << shared_mem_counter << "): ";
