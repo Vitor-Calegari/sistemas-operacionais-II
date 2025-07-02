@@ -149,11 +149,9 @@ int main() {
             if (message.sourceAddr()->getSysID() == car.prot.getSysID()) {
               std::cout << std::dec << " Proc (" << getpid() << ") Thread ("
                         << 1 << "): Received (" << shared_mem_counter << "): ";
-              shared_mem_counter++;
             } else {
               std::cout << std::dec << " Proc (" << getpid() << ") Thread ("
                         << 1 << "): Received (" << socket_counter << "): ";
-              socket_counter++;
             }
             for (size_t i = 0; i < message.size(); i++) {
               std::cout << std::hex << static_cast<int>(message.data()[i])
@@ -161,6 +159,12 @@ int main() {
             }
             std::cout << std::endl << std::endl;
             stdout_lock.unlock();
+          }
+
+          if (message.sourceAddr()->getSysID() == car.prot.getSysID()) {
+            shared_mem_counter++;
+          } else {
+            socket_counter++;
           }
         }
       }
