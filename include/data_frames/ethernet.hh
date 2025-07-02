@@ -2,6 +2,7 @@
 #define ETHERNET_HH
 
 #include <cstring>
+#include <iomanip>
 
 // Define a classe Ethernet e seus componentes
 class Ethernet {
@@ -29,6 +30,15 @@ public:
     // Operador de desigualdade.
     bool operator!=(const Address &other) const;
     bool operator<(const Address &other) const;
+    friend std::ostream& operator<<(std::ostream& os, const Address& addr) {
+      for (int i = 0; i < 5; i++) {
+        os << std::hex << std::setw(2) << std::setfill('0') 
+           << static_cast<int>(addr.mac[i]) << ":";
+      }
+      os << std::hex << std::setw(2) << std::setfill('0') 
+         << static_cast<int>(addr.mac[5]);
+      return os;
+    }
     // Operador de conversão para bool: Retorna true se o endereço não for zero.
     explicit operator bool() const;
   } __attribute__((packed));

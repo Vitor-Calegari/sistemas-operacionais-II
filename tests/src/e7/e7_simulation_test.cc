@@ -2,12 +2,13 @@
 #define SIMULATION_TIMESTAMP 1748768400000000
 #endif
 
-// #define USE_NAVIGATORCSV
+#define USE_NAVIGATORCSV
 
 #include "car.hh"
 #include "map.hh"
 #include "shared_mem.hh"
 #include "utils.hh"
+#include "csv_reader_singletone.hh"
 
 #include <array>
 #include <cassert>
@@ -44,12 +45,12 @@ int main() {
   using Protocol = Protocol<SocketNIC, SharedMemNIC, NavigatorDirected>;
   using Message = Message<Protocol::Address, Protocol>;
 
-  constexpr auto print_addr = [](const Protocol::Address &addr) {
-    for (auto k : addr.getPAddr().mac) {
-      std::cout << int(k) << ' ';
-    }
-    std::cout << ": " << addr.getSysID() << " : " << addr.getPort();
-  };
+  // constexpr auto print_addr = [](const Protocol::Address &addr) {
+  //   for (auto k : addr.getPAddr().mac) {
+  //     std::cout << int(k) << ' ';
+  //   }
+  //   std::cout << ": " << addr.getSysID() << " : " << addr.getPort();
+  // };
 
   Map *map = new Map(3, 3);
 
@@ -77,13 +78,9 @@ int main() {
     csv::CSVReader _reader("tests/dataset/dynamics-vehicle_" + dataset_id + ".csv");
     csv::CSVRow row;
     _reader.read_row(row);
-
-    int64_t init_timestamp = 0;
-    for (auto &col_name : row.get_col_names()) {
-      if (col_name == "timestamp") {
-        init_timestamp = row[col_name].get<int64_t>();
-      }
-    }
+    int64_t init_timestamp = row["timestamp"].get<int64_t>();
+    CSVReaderSingleTone::getInstance("tests/dataset/dynamics-vehicle_" + dataset_id + ".csv");
+    
     std::this_thread::sleep_until(std::chrono::steady_clock::now() + std::chrono::microseconds(init_timestamp - SIMULATION_TIMESTAMP));     
 
     E7Car car(dataset_id, label);
@@ -104,27 +101,27 @@ int main() {
           exit(1);
         } else {
           stdout_lock.lock();
-          std::cout << std::dec << "[Msg sent at "
-                    << formatTimestamp(*message.timestamp()) << " from ("
-                    << *message.getCoordX() << ", " << *message.getCoordY()
-                    << ") - ";
-          print_addr(*message.sourceAddr());
-          std::cout << " to ";
-          print_addr(*message.destAddr());
-          std::cout << "]" << std::endl;
+          // std::cout << std::dec << "[Msg sent at "
+          //           << formatTimestamp(*message.timestamp()) << " from ("
+          //           << *message.getCoordX() << ", " << *message.getCoordY()
+          //           << ") - ";
+          // print_addr(*message.sourceAddr());
+          // std::cout << " to ";
+          // print_addr(*message.destAddr());
+          // std::cout << "]" << std::endl;
           if (message.sourceAddr()->getSysID() == car.prot.getSysID()) {
-            std::cout << std::dec << " Proc (" << getpid() << ") Thread (" << 1
-                      << "): Received (" << shared_mem_counter << "): ";
+            // std::cout << std::dec << " Proc (" << getpid() << ") Thread (" << 1
+            //           << "): Received (" << shared_mem_counter << "): ";
             shared_mem_counter++;
           } else {
-            std::cout << std::dec << " Proc (" << getpid() << ") Thread (" << 1
-                      << "): Received (" << socket_counter << "): ";
+            // std::cout << std::dec << " Proc (" << getpid() << ") Thread (" << 1
+            //           << "): Received (" << socket_counter << "): ";
             socket_counter++;
           }
-          for (size_t i = 0; i < message.size(); i++) {
-            std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
-          }
-          std::cout << std::endl << std::endl;
+          // for (size_t i = 0; i < message.size(); i++) {
+          //   std::cout << std::hex << static_cast<int>(message.data()[i]) << " ";
+          // }
+          // std::cout << std::endl << std::endl;
           stdout_lock.unlock();
         }
       }

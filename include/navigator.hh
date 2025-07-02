@@ -95,6 +95,7 @@ private:
   static constexpr double _ang_damping = 0.5;
 };
 
+#ifndef USE_NAVIGATORCSV
 class NavigatorDirected : public NavigatorCommon {
 public:
   NavigatorDirected(const std::vector<Coordinate> &points, Topology topology,
@@ -161,5 +162,59 @@ private:
   size_t _cur_point, _next_point;
   double _seg_len_remaining, _unit_x, _unit_y;
 };
+#else
+#include "csv_reader_singletone.hh"
+class NavigatorDirected : public NavigatorCommon {
+  public:
+    std::chrono::milliseconds GENERATION_PERIOD{ 100 };
+
+    NavigatorDirected(const std::vector<Coordinate> &points, Topology topology,
+                      double comm_range, double speed = 1)
+        : NavigatorCommon(topology, comm_range, speed), _points(points),
+          _cur_point({0, 0}) {
+    }
+
+    Coordinate get_location() override {
+      if (_speed == 0) {
+        return {0, 0};
+      }
+      if (is_new_generation_needed()) {
+        generate_new_location();
+      }
+
+      return _cur_point;
+    }
+  
+  private:
+    bool is_new_generation_needed() {
+      static auto _last_timepointt = std::chrono::steady_clock::now();
+      auto now = std::chrono::steady_clock::now();
+      std::chrono::duration<double> delta = now - _last_timepointt;
+
+      assert(delta < 2 * GENERATION_PERIOD);
+
+      if (delta >= GENERATION_PERIOD) {
+        _last_timepointt += GENERATION_PERIOD;
+
+        return true;
+      }
+
+      return false;
+    }
+
+    void generate_new_location() {
+      csv::CSVRow row;
+      CSVReaderSingleTone &reader = CSVReaderSingleTone::getInstance();
+      reader.read_row(row);
+
+      _cur_point = { row["x"].get<double>(), row["y"].get<double>() };
+    }
+  
+    std::vector<Coordinate> _points;
+    std::chrono::steady_clock::time_point _last_timepointt;
+    Coordinate _cur_point;
+    std::string _filename;
+  };
+#endif
 
 #endif
