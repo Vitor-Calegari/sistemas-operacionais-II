@@ -48,6 +48,19 @@ int main() {
     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
   pthread_mutex_t *shared_mutex = (pthread_mutex_t *)mmap(NULL, sizeof(pthread_mutex_t),
     PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  int64_t *max_shared = (int64_t *)mmap(NULL, sizeof(int64_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  int64_t *min_shared = (int64_t *)mmap(NULL, sizeof(int64_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  int64_t *max_socket = (int64_t *)mmap(NULL, sizeof(int64_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  int64_t *min_socket = (int64_t *)mmap(NULL, sizeof(int64_t),
+    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+  *max_shared = INT64_MIN;
+  *min_shared = INT64_MAX;
+  *max_socket = INT64_MIN;
+  *min_socket = INT64_MAX;
   
   pthread_mutexattr_t mutex_attr;
   pthread_mutexattr_init(&mutex_attr);
@@ -96,6 +109,10 @@ int main() {
       int64_t shared_mem_delta = 0;
       int shared_mem_counter = 0;
       int socket_counter = 0;
+      int64_t max_sock_int = INT64_MIN;
+      int64_t min_sock_int = INT64_MAX;
+      int64_t max_shared_int = INT64_MIN;
+      int64_t min_shared_int = INT64_MAX;
       while (running) {
         memset(message.data(), 0, MESSAGE_SIZE);
         if (!car.receive(&message)) {
@@ -106,9 +123,19 @@ int main() {
           int64_t recv_t = car.get_timestamp();
           if (message.sourceAddr()->getSysID() == car.prot.getSysID()) {
             shared_mem_delta += recv_t - send_at;
+            if (recv_t - send_at > max_shared_int) {
+              max_shared_int = recv_t - send_at;
+            } else if (recv_t - send_at < min_shared_int) {
+              min_shared_int = recv_t - send_at;
+            }
             shared_mem_counter++;
           } else {
             socket_delta += recv_t - send_at;
+            if (recv_t - send_at > max_sock_int) {
+              max_sock_int = recv_t - send_at;
+            } else if (recv_t - send_at < min_sock_int) {
+              min_sock_int = recv_t - send_at;
+            }
             socket_counter++;
           }
         }
@@ -124,6 +151,18 @@ int main() {
       pthread_mutex_lock(shared_mutex);
       shared_socket_deltas[std::stoi(car._dataset_id)] = mean_socket_delta;
       shared_shared_mem_deltas[std::stoi(car._dataset_id)] = mean_shared_mem_delta;
+      if (max_sock_int > *max_socket) {
+        *max_socket = max_sock_int;
+      }
+      if (min_sock_int < *min_socket) {
+        *min_socket = min_sock_int;
+      }
+      if (max_shared_int > *max_shared) {
+        *max_shared = max_shared_int;
+      }
+      if (min_shared_int < *min_shared) {
+        *min_shared = min_shared_int;
+      }
       pthread_mutex_unlock(shared_mutex);
     });
 
@@ -150,7 +189,15 @@ int main() {
     mean_shared_mem_delay /= NUM_CARS;
     std::cout << "Média de delay de envio SharedMem: " << mean_shared_mem_delay << " microseconds" << std::endl;
 
+    std::cout << "Máximo delay de envio Socket: " << *max_socket << " microseconds" << std::endl;
+    std::cout << "Mínimo delay de envio Socket: " << *min_socket << " microseconds" << std::endl;
+    std::cout << "Máximo delay de envio SharedMem: " << *max_shared << " microseconds" << std::endl;
+    std::cout << "Mínimo delay de envio SharedMem: " << *min_shared << " microseconds" << std::endl;
     // Cleanup shared memory
+    munmap(max_shared, sizeof(int64_t));
+    munmap(min_shared, sizeof(int64_t));
+    munmap(max_socket, sizeof(int64_t));
+    munmap(min_socket, sizeof(int64_t));
     munmap(shared_socket_deltas, NUM_CARS * sizeof(int64_t));
     munmap(shared_shared_mem_deltas, NUM_CARS * sizeof(int64_t));
     munmap(shared_mutex, sizeof(pthread_mutex_t));
