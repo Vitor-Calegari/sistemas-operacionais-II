@@ -329,6 +329,18 @@ public:
     return _sync_engine.getTimestamp();
   }
 
+#ifdef DEBUG_DELAY
+  int64_t peek_packet_timestamp(Buffer *buf) {
+    if (buf->type() == Buffer::EthernetFrame) {
+      return buf->template data<SocketFrame>()
+          ->template data<FullPacket>()
+          ->timestamp;
+    } else {
+      return buf->get_receive_time();
+    }
+  }
+#endif
+
 private:
   int sendSocket(Address &from, Address &to, Control &ctrl,
                  void *data = nullptr, unsigned int size = 0,

@@ -21,6 +21,10 @@
 #include <thread>
 #include <vector>
 
+#ifdef DEBUG_DELAY
+#include "clocks.hh"
+#endif
+
 template <typename Communicator, typename Condition>
 class SmartDataCommon
     : public Concurrent_Observer<
@@ -383,9 +387,43 @@ public:
 #ifdef DEBUG_SMD
     std::cout << get_timestamp() << " Subscriber " << getpid() << std::endl;
 #endif
+#ifdef DEBUG_DELAY
+    int64_t send_at = Base::_communicator->peek_msg_timestamp(buf);
+    int64_t recv_t = Base::_communicator->get_timestamp();
+    int64_t delay = recv_t - send_at;
+    GlobalTime &g = GlobalTime::getInstance();
+    if (Base::_communicator->peek_msg_origin_addr(buf).getSysID() == Base::_communicator->addr().getSysID()) {
+      _max_shared_delay = std::max(_max_shared_delay, delay);
+      _min_shared_delay = std::min(_min_shared_delay, delay);
+      double timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch() -
+        std::chrono::microseconds(g.get_program_init())).count() / 1e6;
+      std::pair<double, int64_t> delay_pair{timestamp, delay};
+      _shared_delays.push_back(delay_pair);
+    } else {
+      _max_socket_delay = std::max(_max_socket_delay, delay);
+      _min_socket_delay = std::min(_min_socket_delay, delay);
+      double timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch() -
+        std::chrono::microseconds(g.get_program_init())).count() / 1e6;
+      std::pair<double, int64_t> delay_pair{timestamp, delay};
+      _socket_delays.push_back(delay_pair);
+    }
+#endif
     Observer::update(c, buf);
   }
-
+#ifdef DEBUG_DELAY
+  std::vector<std::pair<double, int64_t>> get_socket_delays() {
+    return _socket_delays;
+  }
+  std::vector<std::pair<double, int64_t>> get_shared_delays() {
+    return _shared_delays;
+  }
+  int64_t get_max_socket_delay() { return _max_socket_delay; }
+  int64_t get_min_socket_delay() { return _min_socket_delay; }
+  int64_t get_max_shared_delay() { return _max_shared_delay; }
+  int64_t get_min_shared_delay() { return _min_shared_delay; }
+#endif
 private:
   void subscribe(int64_t period) {
     _sub_msg = new Message(
@@ -437,6 +475,14 @@ private:
 
   Condition _cond;
   bool _needExplicitSub;
+#ifdef DEBUG_DELAY
+  std::vector<std::pair<double, int64_t>> _socket_delays{};
+  std::vector<std::pair<double, int64_t>> _shared_delays{};
+  int64_t _max_socket_delay = INT64_MIN;
+  int64_t _min_socket_delay = INT64_MAX;
+  int64_t _max_shared_delay = INT64_MIN;
+  int64_t _min_shared_delay = INT64_MAX;
+#endif
 };
 
 #endif

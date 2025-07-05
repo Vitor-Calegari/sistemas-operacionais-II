@@ -83,6 +83,18 @@ public:
   int64_t get_timestamp() {
     return prot.get_timestamp();
   }
+#ifdef DEBUG_DELAY
+  std::vector<std::pair<double, int64_t>> get_socket_delays() {
+    return CAM_subs.get_socket_delays();
+  }
+  std::vector<std::pair<double, int64_t>> get_shared_delays() {
+    return CAM_subs.get_shared_delays();
+  }
+  int64_t get_max_socket_delay() { return CAM_subs.get_max_socket_delay(); }
+  int64_t get_min_socket_delay() { return CAM_subs.get_min_socket_delay(); }
+  int64_t get_max_shared_delay() { return CAM_subs.get_max_shared_delay(); }
+  int64_t get_min_shared_delay() { return CAM_subs.get_min_shared_delay(); }
+#endif
 
 public:
   ProtocolC &prot;

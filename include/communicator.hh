@@ -89,6 +89,15 @@ public:
     _channel->free(buf);
   }
 
+#ifdef DEBUG_DELAY
+  int64_t peek_msg_timestamp(Buffer *buf) {
+    return _channel->peek_packet_timestamp(buf);
+  }
+  int64_t get_timestamp() {
+    return _channel->get_timestamp();
+  }
+#endif
+
 private:
   void update(typename Channel::Observer::Observing_Condition c, Buffer *buf) {
     Control::Type type = _channel->getPType(buf);
