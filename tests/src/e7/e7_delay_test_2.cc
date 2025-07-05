@@ -1,3 +1,4 @@
+#include <chrono>
 #ifndef SIMULATION_TIMESTAMP
 #define SIMULATION_TIMESTAMP 1748768400000000
 #endif
@@ -115,8 +116,10 @@ int main() {
 
     Message message(MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
 
-    std::vector<int64_t> deltas(NUM_ITER, -1);
-    std::vector<int64_t> times(NUM_ITER, -1);
+    std::vector<std::pair<double, int64_t>> socket_points;
+    std::vector<std::pair<double, int64_t>> shared_mem_points;
+
+    auto start_time = std::chrono::system_clock::now();
 
     int64_t socket_delta = 0;
     int64_t shared_mem_delta = 0;
@@ -136,18 +139,25 @@ int main() {
         int64_t recv_t = car.get_timestamp();
 
         auto delta_t = recv_t - send_t;
-        deltas[i] = delta_t;
+        auto cur_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::system_clock::now() - start_time)
+                            .count() /
+                        1e6;
 
         if (message.sourceAddr()->getSysID() == car.prot.getSysID()) {
           shared_mem_delta += delta_t;
           max_shared_int = std::max(max_shared_int, delta_t);
           min_shared_int = std::min(min_shared_int, delta_t);
           shared_mem_counter++;
+
+          shared_mem_points.push_back({ cur_time, delta_t });
         } else {
           socket_delta += delta_t;
           max_sock_int = std::max(max_sock_int, delta_t);
           min_sock_int = std::min(min_sock_int, delta_t);
           socket_counter++;
+
+          socket_points.push_back({ cur_time, delta_t });
         }
       }
     }
@@ -160,11 +170,25 @@ int main() {
       mean_shared_mem_delta = shared_mem_delta / shared_mem_counter;
     }
     pthread_mutex_lock(shared_mutex);
-    std::cout << "Carro " << dataset_id << ": ";
-    for (auto d : deltas) {
-      std::cout << d << ' ';
+    std::cout << "Carro " << dataset_id << " (socket): ";
+    for (auto [t, _] : socket_points) {
+      std::cout << t << ", ";
     }
     std::cout << std::endl;
+    for (auto [_, d] : socket_points) {
+      std::cout << d << ", ";
+    }
+    std::cout << std::endl << std::endl;
+
+    std::cout << "Carro " << dataset_id << " (shared mem): ";
+    for (auto [t, _] : shared_mem_points) {
+      std::cout << t << ", ";
+    }
+    std::cout << std::endl;
+    for (auto [_, d] : shared_mem_points) {
+      std::cout << d << ", ";
+    }
+    std::cout << std::endl << std::endl;
 
     shared_socket_deltas[std::stoi(car._dataset_id)] = mean_socket_delta;
     shared_shared_mem_deltas[std::stoi(car._dataset_id)] =
