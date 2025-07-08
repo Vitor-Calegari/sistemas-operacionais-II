@@ -13,6 +13,13 @@
 #include "utils.hh"
 #include <iostream>
 #endif
+
+template <Buffer::BufferType T, size_t... I>
+static constexpr std::array<Buffer, sizeof...(I)>
+make_pool(std::index_sequence<I...>) {
+  return { (static_cast<void>(I), Buffer{T})... };
+}
+
 // A classe NIC (Network Interface Controller).
 // Ela age como a interface de rede, usando a Engine fornecida para E/S,
 // e notifica observadores (Protocolos) sobre frames recebidos.
@@ -27,37 +34,35 @@ class NIC
                                          typename Engine::FrameClass::Protocol>,
       private Engine {
 public:
-  static const unsigned int SEND_BUFFERS = 1024;
-  static const unsigned int RECEIVE_BUFFERS = 1024;
 
   typedef typename Engine::FrameClass::Statistics Statistics;
-
-  typedef Engine::FrameClass NICFrameClass;
-  typedef Engine::FrameClass::Header Header;
-  typedef Engine::FrameClass::Address Address;
-  typedef Engine::FrameClass::Protocol Protocol_Number;
+  typedef typename Engine::FrameClass NICFrameClass;
+  typedef typename Engine::FrameClass::Header Header;
+  typedef typename Engine::FrameClass::Address Address;
+  typedef typename Engine::FrameClass::Protocol Protocol_Number;
   typedef Conditional_Data_Observer<Buffer, Protocol_Number> Observer;
   typedef Conditionally_Data_Observed<Buffer, Protocol_Number> Observed;
+
+  static constexpr unsigned int SEND_BUFFERS    = 1024;
+  static constexpr unsigned int RECEIVE_BUFFERS = 1024;
+
+  // Determina em tempo de compilação qual BufferType usar
+  static constexpr Buffer::BufferType pool_type =
+    std::is_same_v<typename Engine::FrameClass, Ethernet>
+      ? Buffer::EthernetFrame
+      : Buffer::SharedMemFrame;
+
+  // Pools pré‑inicializados em compile-time, mas mutáveis em runtime
+  inline static std::array<Buffer, SEND_BUFFERS> _send_buffer_pool =
+    make_pool<pool_type>(std::make_index_sequence<SEND_BUFFERS>{});
+  inline static std::array<Buffer, RECEIVE_BUFFERS> _recv_buffer_pool =
+    make_pool<pool_type>(std::make_index_sequence<RECEIVE_BUFFERS>{});
 
   // Args:
   //   interface_name: Nome da interface de rede (ex: "eth0").
   NIC(const char *interface_name, SimulatedClock *clock)
       : Engine(interface_name), last_used_send_buffer(SEND_BUFFERS - 1),
         last_used_recv_buffer(RECEIVE_BUFFERS - 1), _clock(clock) {
-    if (typeid(NICFrameClass) == typeid(Ethernet)) {
-      buf_type = Buffer::BufferType::EthernetFrame;
-    } else {
-      buf_type = Buffer::BufferType::SharedMemFrame;
-    }
-    // Inicializa pool de buffers ----------------------------------------
-    // Cria buffers com a capacidade máxima definida
-    for (unsigned int i = 0; i < SEND_BUFFERS; ++i) {
-      _send_buffer_pool[i] = Buffer(buf_type);
-    }
-    for (unsigned int i = 0; i < RECEIVE_BUFFERS; ++i) {
-      _recv_buffer_pool[i] = Buffer(buf_type);
-    }
-
     // Setup Handler -----------------------------------------------------
     Engine::template bind<NIC<Engine>, &NIC<Engine>::handle_signal>(this);
   }
@@ -73,30 +78,19 @@ public:
   // Aloca um buffer do pool interno para envio ou recepção.
   // Retorna: Ponteiro para um Buffer livre, ou nullptr se o pool estiver
   // esgotado. NOTA: O chamador NÃO deve deletar o buffer, deve usar free()!
-  Buffer *alloc(unsigned int size, int send) {
+  Buffer *alloc(int send) {
     std::lock_guard<std::mutex> lock(alloc_mtx);
-    unsigned int maxSize = Engine::FrameClass::HEADER_SIZE + size;
 
     unsigned int last_used_buffer =
         send ? last_used_send_buffer : last_used_recv_buffer;
     unsigned int buffer_size_l = send ? SEND_BUFFERS : RECEIVE_BUFFERS;
-    Buffer *buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
+    auto& buffer_pool = send ? _send_buffer_pool : _recv_buffer_pool;
 
     for (unsigned int j = 0; j < buffer_size_l; ++j) {
       int i = (last_used_buffer + j) % buffer_size_l;
       if (!buffer_pool[i].is_in_use()) {
         last_used_buffer = i;
         buffer_pool[i].mark_in_use();
-        // Mínimo de 60 bytes e máximo de
-        // Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS Tamanho minimo do quadro
-        // Engine::FrameClass e 64 bytes, porem nao incluimos fcs assim
-        // resultando em apenas 60 bytes
-        buffer_pool[i].setMaxSize(
-            maxSize < Engine::FrameClass::MIN_FRAME_SIZE
-                ? Engine::FrameClass::MIN_FRAME_SIZE
-                : (maxSize > Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS
-                       ? Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS
-                       : maxSize));
         return &buffer_pool[i]; // Retorna ponteiro para o buffer encontrado
       }
     }
@@ -159,9 +153,9 @@ public:
     int bytes_received = 0;
     do {
       Buffer *buf = nullptr;
-      if (buf_type == Buffer::BufferType::EthernetFrame) {
+      if constexpr (std::is_same_v<NICFrameClass, Ethernet>) {
         // 1. Alocar um buffer para recepção.
-        buf = alloc(Engine::FrameClass::MAX_FRAME_SIZE_NO_FCS, 0);
+        buf = alloc(0);
 
         if (buf == nullptr) {
 #ifdef DEBUG
@@ -216,8 +210,6 @@ public:
   Statistics _statistics; // Estatísticas de rede
 
   // Pool de Buffers
-  Buffer _send_buffer_pool[SEND_BUFFERS];
-  Buffer _recv_buffer_pool[RECEIVE_BUFFERS];
   unsigned int last_used_send_buffer;
   unsigned int last_used_recv_buffer;
 

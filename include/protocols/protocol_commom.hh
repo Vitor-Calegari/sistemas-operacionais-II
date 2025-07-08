@@ -345,7 +345,7 @@ private:
   int sendSocket(Address &from, Address &to, Control &ctrl,
                  void *data = nullptr, unsigned int size = 0,
                  int64_t recv_timestamp = 0) {
-    Buffer *buf = _rsnic.alloc(sizeof(FullHeader) + size, 1);
+    Buffer *buf = _rsnic.alloc(1);
     if (buf == nullptr)
       return -1;
     ctrl.setSynchronized(_sync_engine.getSynced());
@@ -366,7 +366,7 @@ private:
 
   int sendSharedMem(Port &from, Port &to, Control &ctrl, void *data = nullptr,
                     unsigned int size = 0) {
-    Buffer *buf = _smnic.alloc(sizeof(LiteHeader) + size, 1);
+    Buffer *buf = _smnic.alloc(1);
     if (buf == nullptr)
       return -1;
     fillLitePacket(buf, from, to, ctrl, data, size);

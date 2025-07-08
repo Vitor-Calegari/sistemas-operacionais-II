@@ -60,7 +60,7 @@ protected:
         std::vector<Port> allComPorts = Base::Observed::getObservsCond();
         Buffer *broadcastBuf;
         for (auto port : allComPorts) {
-          broadcastBuf = nic.alloc(buf->size(), 0);
+          broadcastBuf = nic.alloc(0);
           if (broadcastBuf == nullptr)
             continue;
           if (buf->type() == Buffer::EthernetFrame) {
