@@ -54,7 +54,7 @@ void get_mac_address(int sockfd, const char *iface, uint8_t *mac) {
 
 class MiniNIC {
   public:
-    MiniNIC (const char *iface) : recv_buf(1500), engine(iface), j(0) {
+    MiniNIC (const char *iface) : recv_buf(), engine(iface), j(0) {
       memset(msg_id, 0, sizeof(msg_id));
       memset(delta_wait_post, 0, sizeof(delta_wait_post));
       memset(delta_send_recv, 0, sizeof(delta_send_recv));
@@ -79,10 +79,10 @@ class MiniNIC {
         if (ntohs(eth->ethertype) != CUSTOM_ETHER_TYPE)
           continue;
     
-        delta_wait_post[j] = delta;
         if (msg_id[eth->sender_id] == eth->msg_id) {
-          std::cout << "Same message" << std::endl;
+          break;
         }
+        delta_wait_post[j] = delta;
         msg_id[eth->sender_id] = eth->msg_id;
     
         uint64_t now_us = duration_cast<microseconds>(
@@ -141,7 +141,7 @@ void sender(const char *iface, int sender_id) {
   // // Aguarda receptor se preparar
   // usleep(500000);
 
-  Buffer send_buf(1500);
+  Buffer send_buf{};
 
   auto now = std::chrono::steady_clock::now();
 

@@ -10,7 +10,7 @@ public:
   enum BufferType { EthernetFrame, SharedMemFrame };
 
   constexpr Buffer(BufferType buf_type = EthernetFrame)
-      : _type(buf_type), _size(0), _in_use(false) {
+      : _type(buf_type), _size(0), _in_use(false), _receive_time(0) {
   }
 
   // Retorna um ponteiro para o objeto Data contido no buffer.

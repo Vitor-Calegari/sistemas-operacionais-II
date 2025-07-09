@@ -29,7 +29,7 @@ template <typename DataWrapper>
 class Engine {
 public:
   using FrameClass = DataWrapper;
-  using Frame = FrameClass::Frame;
+  using Frame = typename FrameClass::Frame;
 
 public:
   // Construtor: Cria e configura o socket raw.

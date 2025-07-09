@@ -14,12 +14,19 @@ using timepoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
 int MSG_NUM = 1000;
 int PROC_NUM = 15;
 
+class Packet {
+public:
+    int64_t send_time;
+    int msg_id;
+    int sender_id;
+} __attribute__((packed));
+
 int main() {
     // Cria engine para interface
 
     // Buffers de envio e recebimento
-    Buffer sendBuf(1500);
-    Buffer recvBuf(1500);
+    Buffer sendBuf{};
+    Buffer recvBuf{};
 
     pid_t pid;
 
@@ -46,13 +53,15 @@ int main() {
             // 3) Preenche o EtherType
             frame->prot = htons(0x88B5);
 
+            Packet *pkt = frame->template data<Packet>();
+
             // Timestamp no payload
             auto now = std::chrono::high_resolution_clock::now();
             int64_t micros = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
-            std::memcpy(frame->send_time(), &micros, sizeof(micros));
-            std::memcpy(frame->data<char>(), &k, sizeof(int));
-            std::memcpy(frame->data<char>() + 4, &i, sizeof(int));
-            sendBuf.setSize(sizeof(Ethernet::Header) + sizeof(micros) + sizeof(int) + sizeof(int));
+            pkt->send_time = micros;
+            pkt->msg_id = i;
+            pkt->sender_id = k;
+            sendBuf.setSize(sizeof(Ethernet::Header) + sizeof(Packet));
 
             if (engine.send(&sendBuf) < 0) {
                 std::cout << "Falha no envio" << std::endl;
@@ -74,13 +83,12 @@ int main() {
             j++;
             // Extrai timestamp enviado pelo emissor (primeiros bytes do payload)
             auto frame = recvBuf.data<Ethernet::Frame>();
-            size_t hdr_len = sizeof(Ethernet::Header);
-            int64_t micros_sent;
-            std::memcpy(&micros_sent, frame->send_time(), sizeof(micros_sent));
-            int proc_id = 0;
-            int msg_idd = 0;
-            std::memcpy(&proc_id, frame->data<char>(), sizeof(int));
-            std::memcpy(&msg_idd, frame->data<char>() + 4, sizeof(int));
+            Packet *pkt = frame->template data<Packet>();
+            
+            int64_t micros_sent = pkt->send_time;
+            int proc_id = pkt->sender_id;
+            int msg_idd = pkt->msg_id;
+
             if (msg_id[proc_id] == msg_idd) {
                 std::cout << "Received again" << std::endl;
                 continue;
