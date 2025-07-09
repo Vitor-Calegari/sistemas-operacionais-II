@@ -25,6 +25,11 @@
 #include "buffer.hh"
 #include "ethernet.hh"
 
+#ifdef DEBUG_DELAY
+#include "clocks.hh"
+#include "debug_timestamp.hh"
+#endif
+
 template <typename DataWrapper>
 class Engine {
 public:
@@ -153,7 +158,12 @@ public:
     sadr_ll.sll_halen = ETH_ALEN;
     std::memcpy(sadr_ll.sll_addr, buf->template data<Frame>()->dst.mac,
                 ETH_ALEN);
-
+#ifdef DEBUG_DELAY
+    GlobalTimestamps &glob = GlobalTimestamps::getInstance();
+    auto now = std::chrono::high_resolution_clock::now();
+    int64_t down_delay = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+    glob.addTopDownDelay(buf->_temp_top_delay, down_delay);
+#endif
     int send_len = sendto(_socket_raw, buf->template data<Frame>(), buf->size(),
                           0, (const sockaddr *)&sadr_ll, sizeof(sadr_ll));
     if (send_len < 0) {
@@ -274,6 +284,7 @@ private:
 
   void turnRecvOn() {
     recvThread = std::thread([this]() {
+      std::cout << "Processo " << getpid() << ", thread de recebimento: " << gettid() << std::endl;
       while (true) {
         engine_cond.wait(engine_lock, [this]() {
           // Só desbloqueia se o bind já aconteceu e chegou uma nova mensagem

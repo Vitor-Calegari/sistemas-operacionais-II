@@ -23,6 +23,7 @@
 
 #ifdef DEBUG_DELAY
 #include "clocks.hh"
+#include "debug_timestamp.hh"
 #endif
 
 template <typename Communicator, typename Condition>
@@ -401,6 +402,10 @@ public:
       std::pair<double, int64_t> delay_pair{timestamp, delay};
       _shared_delays.push_back(delay_pair);
     } else {
+      GlobalTimestamps &glob = GlobalTimestamps::getInstance();
+      auto now = std::chrono::high_resolution_clock::now();
+      int64_t top_delay = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+      glob.addBottomUpDelay(buf->_temp_bottom_delay, top_delay);
       _max_socket_delay = std::max(_max_socket_delay, delay);
       _min_socket_delay = std::min(_min_socket_delay, delay);
       double timestamp = std::chrono::duration_cast<std::chrono::microseconds>(

@@ -10,7 +10,11 @@ public:
   enum BufferType { EthernetFrame, SharedMemFrame };
 
   constexpr Buffer(BufferType buf_type = EthernetFrame)
-      : _type(buf_type), _size(0), _in_use(false), _receive_time(0) {
+      : _type(buf_type), _size(0), _in_use(false), _receive_time(0)
+#ifdef DEBUG_DELAY
+      ,_temp_top_delay(0), _temp_bottom_delay(0)
+#endif
+      {
   }
 
   // Retorna um ponteiro para o objeto Data contido no buffer.
@@ -75,6 +79,11 @@ private:
   bool _in_use;  // Flag para gerenciamento em um pool de buffers
   std::byte _data[BUFFER_SIZE] = {};
   int64_t _receive_time;
+#ifdef DEBUG_DELAY
+public:
+  int64_t _temp_top_delay;
+  int64_t _temp_bottom_delay;
+#endif
 };
 
 #endif

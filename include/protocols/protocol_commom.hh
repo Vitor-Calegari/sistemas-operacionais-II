@@ -348,6 +348,10 @@ private:
     Buffer *buf = _rsnic.alloc(1);
     if (buf == nullptr)
       return -1;
+#ifdef DEBUG_DELAY
+    auto now = std::chrono::high_resolution_clock::now();
+    buf->_temp_top_delay = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+#endif
     ctrl.setSynchronized(_sync_engine.getSynced());
     ctrl.setNeedSync(_sync_engine.getNeedSync());
     fillFullPacket(buf, from, to, ctrl, data, size);

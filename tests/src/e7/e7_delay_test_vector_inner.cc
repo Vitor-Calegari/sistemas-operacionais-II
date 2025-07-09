@@ -159,22 +159,23 @@ int main() {
     int shared_mem_counter = 0;
     int socket_counter = 0;
 
-    char cwd[PATH_MAX];  // buffer para armazenar o caminho
+    // char cwd[PATH_MAX];  // buffer para armazenar o caminho
 
-    if (getcwd(cwd, sizeof(cwd)) != nullptr) {
-        // std::cout << "Diretório atual: " << cwd << std::endl;
-    } else {
-        perror("getcwd() erro");
-    }
-    std::string path(cwd);
-    csv::CSVReader _reader(path + "/tests/dataset/dynamics-vehicle_" + dataset_id + ".csv");
-    csv::CSVRow row;
-    _reader.read_row(row);
-    int64_t init_timestamp = row["timestamp"].get<int64_t>();
-    CSVReaderSingleTone::getInstance(path + "/tests/dataset/dynamics-vehicle_" + dataset_id + ".csv");
+    // if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+    //     // std::cout << "Diretório atual: " << cwd << std::endl;
+    // } else {
+    //     perror("getcwd() erro");
+    // }
+    // std::string path(cwd);
+    // csv::CSVReader _reader(path + "/tests/dataset/dynamics-vehicle_" + dataset_id + ".csv");
+    // csv::CSVRow row;
+    // _reader.read_row(row);
+    // int64_t init_timestamp = row["timestamp"].get<int64_t>();
+    // CSVReaderSingleTone::getInstance(path + "/tests/dataset/dynamics-vehicle_" + dataset_id + ".csv");
     
-    std::this_thread::sleep_until(std::chrono::steady_clock::now() + std::chrono::microseconds(init_timestamp - SIMULATION_TIMESTAMP));     
+    // std::this_thread::sleep_until(std::chrono::steady_clock::now() + std::chrono::microseconds(init_timestamp - SIMULATION_TIMESTAMP));     
 
+    GlobalTimestamps &glob = GlobalTimestamps::getInstance();
     E7Car car(dataset_id, label);
     Message message(MESSAGE_SIZE, Control(Control::Type::COMMON), &car.prot);
 
@@ -210,15 +211,17 @@ int main() {
       mean_shared_mem_delta = shared_mem_delta / shared_mem_counter;
     }
     pthread_mutex_lock(shared_mutex);
-    std::cout << "Carro " << dataset_id << " (socket): ";
-    for (auto [t, _] : socket_points) {
-      std::cout << t << ", ";
-    }
-    std::cout << std::endl;
-    for (auto [_, d] : socket_points) {
-      std::cout << d << ", ";
-    }
-    std::cout << std::endl << std::endl;
+    // std::cout << "Carro " << dataset_id << " (PID: " << getpid() << ")"<< " (socket): ";
+    // for (auto [t, _] : socket_points) {
+    //   std::cout << t << ", ";
+    // }
+    // std::cout << std::endl;
+    // for (auto [_, d] : socket_points) {
+    //   std::cout << d << ", ";
+    // }
+    // std::cout << std::endl << std::endl;
+
+    glob.printDelays();
 
     // std::cout << "Carro " << dataset_id << " (shared mem): ";
     // for (auto [t, _] : shared_mem_points) {

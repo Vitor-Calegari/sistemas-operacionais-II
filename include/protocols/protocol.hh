@@ -69,6 +69,9 @@ protected:
           }
           broadcastBuf->set_receive_time(buf->get_receive_time());
           broadcastBuf->setSize(buf->size());
+#ifdef DEBUG_DELAY
+          broadcastBuf->_temp_bottom_delay = buf->_temp_bottom_delay;
+#endif
           if (!this->notify(port, broadcastBuf)) {
             nic.free(broadcastBuf);
           }

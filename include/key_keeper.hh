@@ -19,7 +19,12 @@ public:
   }
 
   MAC::Key getKey(int rsu_id) {
-    return keys[rsu_id];
+    auto it = keys.find(rsu_id);
+    if (it != keys.end()) {
+      return it->second;
+    } else {
+      return MAC::Key{};
+    }
   }
 
 private:

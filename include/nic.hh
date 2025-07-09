@@ -14,6 +14,11 @@
 #include <iostream>
 #endif
 
+#ifdef DEBUG_DELAY
+#include "clocks.hh"
+#include "debug_timestamp.hh"
+#endif
+
 template <Buffer::BufferType T, size_t... I>
 static constexpr std::array<Buffer, sizeof...(I)>
 make_pool(std::index_sequence<I...>) {
@@ -163,6 +168,10 @@ public:
 #endif
           break;
         }
+#ifdef DEBUG_DELAY
+      auto now = std::chrono::high_resolution_clock::now();
+      buf->_temp_bottom_delay = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+#endif
       }
 
       // 2. Tentar receber o pacote usando a Engine.

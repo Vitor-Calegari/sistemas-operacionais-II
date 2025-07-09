@@ -13,6 +13,10 @@
 namespace MAC {
 
 MAC::Tag compute(const MAC::Key &key, const std::vector<std::byte> &message) {
+  if (key == MAC::Key{}) {
+    return MAC::Tag{};
+  }
+  
   if (key.size() != MAC::KEY_SIZE) {
     throw std::invalid_argument("Poly1305 key must be exactly 32 bytes.");
   }
