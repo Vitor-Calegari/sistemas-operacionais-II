@@ -10,19 +10,11 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-#include <cerrno>
-#include <condition_variable>
-#include <csignal>
-#include <cstdio>
-
 #include <linux/filter.h>
-#include <mutex>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
 #include <semaphore.h>
 #include <thread>
-
 #include <fcntl.h>
 
 using namespace std::chrono;
@@ -334,7 +326,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  for (int i = 0; i < SENDER_COUNT; ++i) {
+  for (int i = 0; i < SENDER_COUNT + 1; ++i) {
     wait(nullptr);
   }
 
